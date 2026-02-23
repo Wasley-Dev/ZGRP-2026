@@ -58,6 +58,7 @@
       "artifactName": "ZAYA-Recruitment-Portal-Setup-${version}.${ext}"
     },
     "mac": {
+      "icon": "assets/macos-setup.png",
       "target": [
         "dmg"
       ],
