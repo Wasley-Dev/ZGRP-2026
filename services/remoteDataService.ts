@@ -45,6 +45,7 @@ type UserRow = SystemUser & { updated_at: string };
 type BookingRow = {
   id: string;
   booker: string;
+  date: string | null;
   time: string;
   purpose: string;
   remarks: string;
@@ -164,6 +165,7 @@ export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
   return (data as BookingRow[]).map((row) => ({
     id: row.id,
     booker: row.booker,
+    date: row.date || row.created_at.slice(0, 10),
     time: row.time,
     purpose: row.purpose,
     remarks: row.remarks,
@@ -177,6 +179,7 @@ export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void
   const rows: BookingRow[] = bookings.map((b) => ({
     id: b.id,
     booker: b.booker,
+    date: b.date,
     time: b.time,
     purpose: b.purpose,
     remarks: b.remarks,

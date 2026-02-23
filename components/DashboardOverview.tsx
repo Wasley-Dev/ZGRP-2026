@@ -80,7 +80,10 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     () => [
       {
         title: 'Interviews Today',
-        items: (bookings.length ? bookings : []).slice(0, 2).map((b) => `${b.booker} (${b.time})`),
+        items: (bookings.length ? bookings : [])
+          .filter((b) => b.date === new Date().toISOString().slice(0, 10))
+          .slice(0, 2)
+          .map((b) => `${b.booker} (${b.time})`),
         icon: 'fa-comments',
         color: 'blue',
         action: 'booking',
@@ -119,6 +122,18 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     { name: 'Training', value: trainingCount, barValue: Math.max(1, Math.round(trainingCount * 0.8)) },
     { name: 'Hired/Deployed', value: deployedCount, barValue: Math.max(1, Math.round(deployedCount * 0.8)) },
   ];
+
+  const hiringEfficiency = appliedCount > 0 ? ((deployedCount / appliedCount) * 100).toFixed(1) : '0.0';
+  const screeningDropoff = appliedCount > 0 ? (((appliedCount - interviewCount) / appliedCount) * 100).toFixed(1) : '0.0';
+  const avgDaysToEvent = bookings.length
+    ? (
+        bookings.reduce((acc, booking) => {
+          const target = new Date(`${booking.date}T00:00:00`);
+          const diff = (target.getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+          return acc + Math.max(0, diff);
+        }, 0) / bookings.length
+      ).toFixed(1)
+    : '0.0';
 
   const handleTrace = () => {
     alert("SYSTEM TRACE: Full schedule synchronization complete. All modules aligned.");
@@ -226,15 +241,15 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
             <div className="grid grid-cols-3 gap-6 pt-6 border-t dark:border-slate-700">
               <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Conversion Efficiency</p>
-                <p className="text-lg font-bold text-gold">3.5% Overall</p>
+                <p className="text-lg font-bold text-gold">{hiringEfficiency}% Overall</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Screening Drop-off</p>
-                <p className="text-lg font-bold text-red-500">-29%</p>
+                <p className="text-lg font-bold text-red-500">-{screeningDropoff}%</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Time-to-Hire Avg</p>
-                <p className="text-lg font-bold dark:text-white">12 Days</p>
+                <p className="text-lg font-bold dark:text-white">{avgDaysToEvent} Days</p>
               </div>
             </div>
           </div>
@@ -246,12 +261,13 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { title: 'Technical Interview: Sarah M.', time: '10:00 AM', status: 'In Progress', color: 'blue' },
-                { title: 'Safety Training Workshop', time: '02:00 PM', status: 'Scheduled', color: 'gold' },
-                { title: 'Logistics Deployment - B04', time: '04:30 PM', status: 'Preparation', color: 'indigo' },
-                { title: 'Global Database Sync', time: '11:00 PM', status: 'Automated', color: 'slate' },
-              ].map((event, idx) => (
+              {(bookings.length
+                ? bookings.slice(0, 4).map((booking) => ({
+                    title: `${booking.purpose}: ${booking.booker}`,
+                    time: `${booking.date} ${booking.time}`,
+                    status: 'Scheduled',
+                  }))
+                : [{ title: 'No Bookings Yet', time: '-', status: 'Waiting for data' }]).map((event, idx) => (
                 <div key={idx} className="group p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-transparent hover:border-gold transition-all cursor-pointer" onClick={() => onNavigate('recruitment')}>
                   <div className="flex justify-between items-start">
                     <div>
