@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shield favicon">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F3D46A" />
+      <stop offset="100%" stop-color="#D4AF37" />
+    </linearGradient>
+  </defs>
+  <path d="M32 4l22 8v16c0 16.6-9.2 25.9-22 32C19.2 53.9 10 44.6 10 28V12l22-8z" fill="url(#shieldGrad)"/>
+  <path d="M32 10l17 6.2V28c0 13-6.8 20-17 25.2C21.8 48 15 41 15 28V16.2L32 10z" fill="none" stroke="#7A5A00" stroke-width="2.8"/>
+  <path d="M25.5 30.5l4.2 4.4 9.3-10.2" fill="none" stroke="#7A5A00" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

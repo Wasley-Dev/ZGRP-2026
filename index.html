@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ZAYA Group Recruitment Portal</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              gold: '#D4AF37',
+              enterprise: {
+                blue: '#003366',
+                lightBlue: '#004080',
+                darkBlue: '#001a33',
+              }
+            },
+            backgroundImage: {
+              'enterprise-pattern': "url('https://www.transparenttextures.com/patterns/carbon-fibre.png')",
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        html, body, #root {
+            width: 100%;
+            min-height: 100%;
+            margin: 0;
+        }
+        body {
+            min-height: 100dvh;
+            font-family: 'Inter', sans-serif;
+            @apply bg-slate-50 dark:bg-slate-900 transition-colors duration-200;
+        }
+        #root {
+          min-height: calc(var(--app-vh, 1vh) * 100);
+        }
+        .app-shell {
+          width: 100vw;
+          max-width: none;
+          min-height: calc(var(--app-vh, 1vh) * 100);
+          margin-inline: 0;
+          overflow: hidden;
+        }
+        .enterprise-blue { background-color: #003366; }
+        .text-gold { color: #D4AF37; }
+        .bg-gold { background-color: #D4AF37; }
+        .border-gold { border-color: #D4AF37; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        
+        @keyframes loading {
+          0% { width: 0%; transform: translateX(-100%); }
+          50% { width: 40%; transform: translateX(100%); }
+          100% { width: 0%; transform: translateX(250%); }
+        }
+
+        .login-texture {
+          background-color: #003366;
+          background-image: radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0);
+          background-size: 24px 24px;
+        }
+    </style>
+<script>
+  (function () {
+    const applyViewportMetrics = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--app-vh', `${vh}px`);
+      document.documentElement.setAttribute(
+        'data-orientation',
+        window.innerWidth >= window.innerHeight ? 'landscape' : 'portrait'
+      );
+    };
+    applyViewportMetrics();
+    window.addEventListener('resize', applyViewportMetrics);
+    window.addEventListener('orientationchange', applyViewportMetrics);
+  })();
+</script>
+<script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="light">
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
