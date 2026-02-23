@@ -1,0 +1,82 @@
+{
+  "name": "zaya-group-recruitment-portal-2026",
+  "private": true,
+  "version": "0.0.0",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "desktop:dev": "cross-env ELECTRON_START_URL=http://127.0.0.1:4173 ELECTRON_ACCESS_TOKEN=Kingsley06# electron .",
+    "desktop:prod": "cross-env ELECTRON_START_URL=https://zgrp-portal-2026.vercel.app ELECTRON_ACCESS_TOKEN=Kingsley06# electron .",
+    "desktop:pack": "npm run build && electron-builder --dir",
+    "desktop:dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@google/genai": "^1.41.0",
+    "@supabase/supabase-js": "^2.97.0",
+    "dexie": "^4.0.4",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^37.10.3",
+    "electron-builder": "^25.1.8",
+    "png-to-ico": "^3.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  },
+  "build": {
+    "appId": "com.zayagroup.recruitmentportal",
+    "productName": "ZAYA Recruitment Portal",
+    "asar": true,
+    "icon": "assets/zaya-logo.png",
+    "extraMetadata": {
+      "electronAccessToken": "Kingsley06#"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false,
+      "artifactName": "ZAYA-Recruitment-Portal-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "artifactName": "ZAYA-Recruitment-Portal-${version}-mac.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "artifactName": "ZAYA-Recruitment-Portal-${version}-linux.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "assets/installer-icon.ico",
+      "uninstallerIcon": "assets/installer-icon.ico"
+    }
+  }
+}
