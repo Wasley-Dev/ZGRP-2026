@@ -45,9 +45,80 @@ import BroadcastModule from './components/BroadcastModule';
 import SystemRecovery from './components/SystemRecovery';
 
 const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
+const ZANZIBAR_NAME_MAP_KEY = 'zaya_zanzibar_name_map_v1';
+const ZANZIBAR_NAME_POOL = [
+  'Ali Juma',
+  'Asha Khamis',
+  'Salma Mwinyi',
+  'Omar Bakari',
+  'Nassor Hamad',
+  'Mariam Suleiman',
+  'Hassan Kombo',
+  'Zainab Abdalla',
+  'Yahya Mussa',
+  'Rukia Said',
+  'Abdalla Hemed',
+  'Saada Salim',
+  'Khadija Ali',
+  'Idd Seif',
+  'Amina Rajab',
+  'Jabir Nassor',
+  'Shabaan Othman',
+  'Habiba Omar',
+  'Hemed Khamis',
+  'Fatma Yahya',
+  'Mwanaidi Ali',
+  'Suleiman Juma',
+  'Rashid Kombo',
+  'Safiya Hamad',
+] as const;
 
 const App: React.FC = () => {
   const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
+  const buildZanzibarNameMap = (candidateIds: string[]) => {
+    if (typeof window === 'undefined') return {} as Record<string, string>;
+    let existing: Record<string, string> = {};
+    try {
+      const raw = window.localStorage.getItem(ZANZIBAR_NAME_MAP_KEY);
+      existing = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    } catch {
+      existing = {};
+    }
+
+    const used = new Set(Object.values(existing));
+    let pointer = 0;
+    const nextName = () => {
+      while (pointer < ZANZIBAR_NAME_POOL.length && used.has(ZANZIBAR_NAME_POOL[pointer])) {
+        pointer += 1;
+      }
+      const picked = ZANZIBAR_NAME_POOL[pointer % ZANZIBAR_NAME_POOL.length];
+      pointer += 1;
+      used.add(picked);
+      return picked;
+    };
+
+    candidateIds.forEach((id) => {
+      if (!existing[id]) existing[id] = nextName();
+    });
+
+    window.localStorage.setItem(ZANZIBAR_NAME_MAP_KEY, JSON.stringify(existing));
+    return existing;
+  };
+
+  const normalizeCandidatesZanzibar = (input: Candidate[]): Candidate[] => {
+    if (!input.length) return input;
+    const nameMap = buildZanzibarNameMap(input.map((c) => c.id));
+    return input.map((candidate) => {
+      const name = nameMap[candidate.id] || candidate.fullName;
+      const photoUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(`${name}-${candidate.id}`)}`;
+      return {
+        ...candidate,
+        fullName: name,
+        photoUrl,
+      };
+    });
+  };
+
   const normalizeUsers = (inputUsers: SystemUser[]): SystemUser[] =>
     inputUsers.map((user) => {
       const fallback = MOCK_USERS.find((u) => u.email.toLowerCase() === user.email.toLowerCase());
@@ -122,8 +193,10 @@ const App: React.FC = () => {
   const reportOptions = [
     'Monthly ROI',
     'Weekly Operations',
+    'Weekly Recovery Report',
     'Candidate Performance',
     'Weekly Recruitment Snapshot',
+    'Update Rollout Report',
     'Department Efficiency',
     'Global Logistics Dataset',
   ] as const;
@@ -183,7 +256,57 @@ const App: React.FC = () => {
       write(`Unread notifications: ${notifications.filter((n) => !n.read).length}`);
       y += 2;
 
-      if (reportPopup.includes('Weekly')) {
+      if (reportPopup === 'Monthly ROI') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        const monthlyCandidates = candidates.filter((c) => {
+          const d = new Date(c.createdAt);
+          return d >= monthStart && d <= monthEnd;
+        }).length;
+        const monthlyBookings = bookings.filter((b) => {
+          const d = new Date(`${b.date}T${b.time || '00:00'}`);
+          return d >= monthStart && d <= monthEnd;
+        }).length;
+        const monthlyDeployed = candidates.filter((c) => {
+          const d = new Date(c.createdAt);
+          return d >= monthStart && d <= monthEnd && c.status === 'DEPLOYMENT';
+        }).length;
+        const conversion = monthlyCandidates ? ((monthlyDeployed / monthlyCandidates) * 100).toFixed(1) : '0.0';
+
+        doc.setFontSize(12);
+        write('Monthly ROI Metrics');
+        doc.setFontSize(10);
+        write(`Month: ${monthStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`);
+        write(`Monthly candidates: ${monthlyCandidates}`);
+        write(`Monthly bookings: ${monthlyBookings}`);
+        write(`Monthly deployed: ${monthlyDeployed}`);
+        write(`Deployment conversion: ${conversion}%`);
+      } else if (reportPopup === 'Weekly Recovery Report') {
+        doc.setFontSize(12);
+        write('Weekly Recovery Metrics');
+        doc.setFontSize(10);
+        write(`Week range: ${weekStart.toLocaleDateString('en-GB')} - ${weekEnd.toLocaleDateString('en-GB')}`);
+        write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
+        write(`Backup hour: ${(systemConfig.backupHour ?? 15).toString().padStart(2, '0')}:00`);
+        write(`Maintenance updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
+        write(`Online sessions: ${activeSessions.filter((s) => s.isOnline).length}`);
+        const weeklyRecoveryNotifications = notifications.filter((n) => {
+          if (!n.createdAt || n.origin !== 'recovery') return false;
+          const d = new Date(n.createdAt);
+          return d >= weekStart && d <= weekEnd;
+        });
+        write(`Recovery notifications this week: ${weeklyRecoveryNotifications.length}`);
+      } else if (reportPopup === 'Update Rollout Report') {
+        doc.setFontSize(12);
+        write('Update Rollout Snapshot');
+        doc.setFontSize(10);
+        write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
+        write(`Policy last updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
+        write(`Policy last updated at: ${systemConfig.maintenanceUpdatedAt || 'N/A'}`);
+        const recoveryNotifs = notifications.filter((n) => n.origin === 'recovery');
+        write(`Total recovery-related notifications: ${recoveryNotifs.length}`);
+        recoveryNotifs.slice(0, 8).forEach((n) => write(`- ${n.title}: ${n.message}`));
+      } else if (reportPopup.includes('Weekly')) {
         doc.setFontSize(12);
         write('Weekly Metrics');
         doc.setFontSize(10);
@@ -222,7 +345,12 @@ const App: React.FC = () => {
         doc.setFontSize(12);
         write('Logistics Dataset Extract');
         doc.setFontSize(10);
-        bookings.slice(0, 12).forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
+        const rows = bookings.slice(0, 12);
+        if (!rows.length) {
+          write('No logistics bookings available.');
+        } else {
+          rows.forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
+        }
       } else {
         doc.setFontSize(12);
         write('Operational Summary');
@@ -236,60 +364,6 @@ const App: React.FC = () => {
     });
   };
 
-  const handleDownloadRecoveryReport = (kind: 'WEEKLY_RECOVERY' | 'UPDATE_ROLLOUT') => {
-    const now = new Date();
-    const weekStart = new Date(now);
-    const day = weekStart.getDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    weekStart.setDate(weekStart.getDate() + diffToMonday);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
-    const weeklyNotifications = notifications.filter((n) => {
-      if (!n.createdAt) return false;
-      const d = new Date(n.createdAt);
-      return d >= weekStart && d <= weekEnd;
-    });
-
-    import('jspdf').then((jsPDF) => {
-      const doc = new jsPDF.default();
-      doc.setFontSize(20);
-      doc.text(kind === 'WEEKLY_RECOVERY' ? 'Weekly Recovery Report' : 'Update Rollout Report', 20, 20);
-      doc.setFontSize(11);
-      doc.text(`Generated: ${now.toLocaleString()}`, 20, 30);
-      doc.text(`Generated by: ${currentUser.name}`, 20, 38);
-      doc.line(20, 42, 190, 42);
-
-      let y = 52;
-      const write = (line: string) => {
-        doc.text(line, 20, y);
-        y += 8;
-      };
-
-      if (kind === 'WEEKLY_RECOVERY') {
-        write(`Week: ${weekStart.toLocaleDateString('en-GB')} - ${weekEnd.toLocaleDateString('en-GB')}`);
-        write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
-        write(`Backup hour: ${(systemConfig.backupHour ?? 15).toString().padStart(2, '0')}:00`);
-        write(`Maintenance updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
-        write(`Active online sessions: ${activeSessions.filter((s) => s.isOnline).length}`);
-        write(`Weekly system notifications: ${weeklyNotifications.length}`);
-      } else {
-        write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
-        write(`Policy last updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
-        write(`Policy last updated at: ${systemConfig.maintenanceUpdatedAt || 'N/A'}`);
-        write(`Recovery notifications: ${notifications.filter((n) => n.origin === 'recovery').length}`);
-      }
-
-      const filename =
-        kind === 'WEEKLY_RECOVERY'
-          ? `Weekly_Recovery_Report_${now.toISOString().slice(0, 10)}.pdf`
-          : `Update_Rollout_Report_${now.toISOString().slice(0, 10)}.pdf`;
-      doc.save(filename);
-      pushNotification('Recovery Report Exported', `${filename} generated.`, 'SUCCESS', 'recovery');
-    });
-  };
 
 
   const pushNotification = (
@@ -436,6 +510,22 @@ const App: React.FC = () => {
     configRef.current = systemConfig;
     sessionsRef.current = activeSessions;
   }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
+
+  useEffect(() => {
+    if (!candidates.length) return;
+    const normalized = normalizeCandidatesZanzibar(candidates);
+    if (!isSame(candidates, normalized)) {
+      setCandidates(normalized);
+      pushNotificationDeduped(
+        'zanzibar-candidates-standardized',
+        'Candidate Directory Standardized',
+        'Applied Zanzibar names and profile photos to candidate records.',
+        'INFO',
+        'database',
+        5000
+      );
+    }
+  }, [candidates]);
 
   useEffect(() => {
     if (!hasRemoteData()) return;
@@ -954,7 +1044,6 @@ const App: React.FC = () => {
             onTriggerBackup={() => {
               pushNotification('Backup Triggered', 'Manual backup initiated by admin.', 'SUCCESS', 'recovery');
             }}
-            onDownloadRecoveryReport={handleDownloadRecoveryReport}
           />
         );
       case 'reports':
