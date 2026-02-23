@@ -1,5 +1,7 @@
 {
   "name": "zaya-group-recruitment-portal-2026",
+  "description": "ZAYA Recruitment Portal desktop software",
+  "author": "WIS & Asya",
   "private": true,
   "version": "0.0.0",
   "main": "electron/main.cjs",
@@ -51,6 +53,10 @@
       "package.json"
     ],
     "win": {
+      "publisherName": [
+        "WIS",
+        "Asya"
+      ],
       "target": [
         "nsis"
       ],

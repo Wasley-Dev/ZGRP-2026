@@ -79,7 +79,6 @@ const App: React.FC = () => {
   const applyingRemoteUpdateRef = useRef(false);
   const initializedSyncRef = useRef(false);
   const remoteHydratedRef = useRef(false);
-  const sessionCheckedRef = useRef(false);
   const isRevokedRef = useRef(false);
   const maintenanceNotifiedRef = useRef(false);
   const initialUsers = useMemo(() => normalizeUsers(initialSharedState.users), [initialSharedState.users]);
@@ -281,22 +280,9 @@ const App: React.FC = () => {
   }, [isOnline]);
 
   useEffect(() => {
-    if (sessionCheckedRef.current) return;
-    if (!remoteHydratedRef.current) return;
-
-    sessionCheckedRef.current = true;
-    const session = localStorage.getItem('zaya_session');
-    const sessionUserId = localStorage.getItem('zaya_session_user');
-    if (session && sessionUserId) {
-      const sessionUser = allUsers.find((u) => u.id === sessionUserId);
-      if (sessionUser && sessionUser.status === 'ACTIVE') {
-        setCurrentUser(sessionUser);
-        setIsLoggedIn(true);
-        setActiveModule('dashboard');
-        setShowOrientation(!sessionUser.hasCompletedOrientation);
-      }
-    }
-  }, [allUsers]);
+    // Force login on every app open. We intentionally do not restore previous session.
+    setIsLoggedIn(false);
+  }, []);
 
   useEffect(() => {
     const syncClient = new RealtimeSyncClient({
@@ -450,8 +436,6 @@ const App: React.FC = () => {
     isRevokedRef.current = false;
     setIsLoggedIn(true);
     setActiveModule('dashboard');
-    localStorage.setItem('zaya_session', 'true');
-    localStorage.setItem('zaya_session_user', updatedUser.id);
     setShowOrientation(!updatedUser.hasCompletedOrientation);
     pushNotification(
       'Login Success',
@@ -471,8 +455,6 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     isRevokedRef.current = false;
-    localStorage.removeItem('zaya_session');
-    localStorage.removeItem('zaya_session_user');
     setChatMessages([]); // Clear chat on logout
     if (hasRemoteSessionStore()) {
       markSessionOffline(sessionIdRef.current);
