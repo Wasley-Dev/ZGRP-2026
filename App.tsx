@@ -78,6 +78,12 @@ const App: React.FC = () => {
   );
   const clientIdRef = useRef(`client-${Math.random().toString(36).slice(2, 11)}`);
   const syncClientRef = useRef<RealtimeSyncClient | null>(null);
+  const bookingsRef = useRef<BookingEntry[]>([]);
+  const candidatesRef = useRef<Candidate[]>([]);
+  const usersRef = useRef<SystemUser[]>([]);
+  const configRef = useRef<SystemConfig | null>(null);
+  const sessionsRef = useRef<MachineSession[]>([]);
+  const lastSyncNoticeRef = useRef<Record<string, number>>({});
   const sessionIdRef = useRef<string>(createLocalSessionId());
   const applyingRemoteUpdateRef = useRef(false);
   const initializedSyncRef = useRef(false);
@@ -161,6 +167,21 @@ const App: React.FC = () => {
       },
       ...prev,
     ]);
+  };
+
+  const pushNotificationDeduped = (
+    key: string,
+    title: string,
+    message: string,
+    type: Notification['type'],
+    origin?: string,
+    cooldownMs = 10000
+  ) => {
+    const now = Date.now();
+    const last = lastSyncNoticeRef.current[key] || 0;
+    if (now - last < cooldownMs) return;
+    lastSyncNoticeRef.current[key] = now;
+    pushNotification(title, message, type, origin);
   };
 
   const validModules = useMemo(
@@ -265,6 +286,14 @@ const App: React.FC = () => {
   }, [initialUsers]);
 
   useEffect(() => {
+    bookingsRef.current = bookings;
+    candidatesRef.current = candidates;
+    usersRef.current = allUsers;
+    configRef.current = systemConfig;
+    sessionsRef.current = activeSessions;
+  }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
+
+  useEffect(() => {
     if (!hasRemoteData()) return;
     if (!isOnline) return;
 
@@ -303,18 +332,68 @@ const App: React.FC = () => {
       ]);
       if (stopped) return;
 
+      const hadBookingChange = !isSame(bookingsRef.current, remoteBookings);
+      const hadCandidateChange = !isSame(candidatesRef.current, remoteCandidates);
       setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
       setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
+      if (hadBookingChange) {
+        pushNotificationDeduped(
+          'sync-bookings',
+          'Booking Sync',
+          `Booking calendar updated from shared database (${remoteBookings.length} entries).`,
+          'INFO',
+          'booking'
+        );
+      }
+      if (hadCandidateChange) {
+        pushNotificationDeduped(
+          'sync-candidates',
+          'Candidate Sync',
+          `Candidate data refreshed across devices (${remoteCandidates.length} records).`,
+          'INFO',
+          'database'
+        );
+      }
       if (remoteUsers.length > 0) {
         const normalized = normalizeUsers(remoteUsers);
+        const hadUserChange = !isSame(usersRef.current, normalized);
         setAllUsers((prev) => (isSame(prev, normalized) ? prev : normalized));
         setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
+        if (hadUserChange) {
+          pushNotificationDeduped(
+            'sync-users',
+            'User Directory Sync',
+            'User accounts/permissions were updated from another device.',
+            'INFO',
+            'admin'
+          );
+        }
       }
       if (remoteConfig) {
+        const hadConfigChange = !isSame(configRef.current, remoteConfig);
         setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
+        if (hadConfigChange) {
+          pushNotificationDeduped(
+            'sync-config',
+            'System Policy Sync',
+            'Maintenance or recovery settings changed and were synced.',
+            'WARNING',
+            'recovery'
+          );
+        }
       }
       if (sessions.length) {
+        const hadSessionChange = !isSame(sessionsRef.current, sessions);
         setActiveSessions((prev) => (isSame(prev, sessions) ? prev : sessions));
+        if (hadSessionChange) {
+          pushNotificationDeduped(
+            'sync-sessions',
+            'Machine Presence Updated',
+            'Active machine/session list changed in real time.',
+            'INFO',
+            'machines'
+          );
+        }
       }
     };
 
