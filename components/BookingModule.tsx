@@ -8,8 +8,14 @@ interface BookingModuleProps {
 }
 
 const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, onUpsertBooking }) => {
+  const todayIso = new Date().toISOString().slice(0, 10);
   const [showForm, setShowForm] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingEntry | null>(null);
+  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
   const [form, setForm] = useState({
     booker: '',
     date: '',
@@ -22,6 +28,35 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
     () => [...bookings].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`)),
     [bookings]
   );
+  const selectedDateBookings = useMemo(
+    () => sortedBookings.filter((b) => b.date === selectedDate),
+    [sortedBookings, selectedDate]
+  );
+  const bookingDates = useMemo(() => new Set(sortedBookings.map((b) => b.date)), [sortedBookings]);
+  const monthLabel = useMemo(
+    () => calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+    [calendarMonth]
+  );
+  const monthDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const numberOfDays = new Date(year, month + 1, 0).getDate();
+    const cells: Array<{ iso: string; day: number } | null> = Array.from({ length: firstWeekday }, () => null);
+    for (let day = 1; day <= numberOfDays; day += 1) {
+      const iso = new Date(year, month, day).toISOString().slice(0, 10);
+      cells.push({ iso, day });
+    }
+    return cells;
+  }, [calendarMonth]);
+
+  const formatBookingDate = (isoDate: string) =>
+    new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
 
   const openCreate = () => {
     setSelectedBooking(null);
@@ -86,8 +121,8 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="md:col-span-3 space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+          <div className="xl:col-span-3 space-y-4">
             {sortedBookings.map((b) => (
               <div
                 key={b.id}
@@ -101,7 +136,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
                     <div className="flex items-center gap-3">
                       <h4 className="text-sm font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
                       <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
-                        {b.date} {b.time}
+                        {formatBookingDate(b.date)} {b.time}
                       </span>
                     </div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
@@ -118,9 +153,72 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
             ))}
           </div>
 
-          <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 text-center flex flex-col items-center justify-center">
-            <div className="text-3xl font-black text-gold mb-2">{sortedBookings.length}</div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Active Bookings</p>
+          <div className="xl:col-span-2 space-y-6">
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                  className="w-8 h-8 rounded-lg border dark:border-slate-700 text-slate-500"
+                >
+                  <i className="fas fa-chevron-left"></i>
+                </button>
+                <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">{monthLabel}</h4>
+                <button
+                  onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                  className="w-8 h-8 rounded-lg border dark:border-slate-700 text-slate-500"
+                >
+                  <i className="fas fa-chevron-right"></i>
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-2 text-center text-[10px] font-black text-slate-400 uppercase">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                  <div key={d}>{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-2 mt-3">
+                {monthDays.map((cell, idx) =>
+                  cell ? (
+                    <button
+                      key={cell.iso}
+                      onClick={() => setSelectedDate(cell.iso)}
+                      className={`h-9 rounded-lg text-xs font-black relative border transition-all ${
+                        selectedDate === cell.iso
+                          ? 'bg-enterprise-blue text-white border-enterprise-blue'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      {cell.day}
+                      {bookingDates.has(cell.iso) && (
+                        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gold"></span>
+                      )}
+                    </button>
+                  ) : (
+                    <div key={`empty-${idx}`} />
+                  )
+                )}
+              </div>
+            </div>
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                {formatBookingDate(selectedDate)} Schedule
+              </p>
+              <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                {selectedDateBookings.length === 0 ? (
+                  <p className="text-xs text-slate-400">No bookings for this date.</p>
+                ) : (
+                  selectedDateBookings.map((entry) => (
+                    <div key={entry.id} className="p-3 rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700">
+                      <p className="text-xs font-black dark:text-white">{entry.time} - {entry.booker}</p>
+                      <p className="text-[11px] text-slate-500">{entry.purpose}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 text-center flex flex-col items-center justify-center">
+              <div className="text-3xl font-black text-gold mb-2">{sortedBookings.length}</div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Active Bookings</p>
+            </div>
           </div>
         </div>
       </div>

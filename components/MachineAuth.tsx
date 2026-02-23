@@ -57,6 +57,7 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                 <th className="p-4">Machine</th>
                 <th className="p-4">OS</th>
                 <th className="p-4">IP Address</th>
+                <th className="p-4">Last Seen</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-center">Security Protocol</th>
               </tr>
@@ -73,6 +74,9 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                   </td>
                   <td className="p-4 text-slate-600 dark:text-slate-400 font-bold text-xs uppercase">{machine.os}</td>
                   <td className="p-4 text-slate-600 dark:text-slate-400 font-mono text-xs">{machine.ip}</td>
+                  <td className="p-4 text-slate-600 dark:text-slate-400 text-xs">
+                    {new Date(machine.lastSeenAt).toLocaleString('en-GB')}
+                  </td>
                   <td className="p-4">
                     <span
                       className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
@@ -83,7 +87,7 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                           : 'bg-amber-100 text-amber-700'
                       }`}
                     >
-                      {machine.status}
+                      {machine.status} {machine.isOnline ? '(ONLINE)' : '(OFFLINE)'}
                     </span>
                   </td>
                   <td className="p-4">
@@ -108,7 +112,7 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
               ))}
               {sessions.length === 0 && (
                 <tr>
-                  <td className="p-6 text-slate-400 text-sm" colSpan={6}>
+                  <td className="p-6 text-slate-400 text-sm" colSpan={7}>
                     No remote session data yet. Sign in with internet enabled to register machine presence.
                   </td>
                 </tr>
