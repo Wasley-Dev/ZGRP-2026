@@ -116,46 +116,42 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
             Last policy update: {systemConfig.maintenanceUpdatedAt || 'Not set'}
           </div>
+          <div className="pt-4 border-t dark:border-slate-700 space-y-4">
+            <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Software Update</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                value={nextVersion}
+                onChange={(e) => setNextVersion(e.target.value)}
+                disabled={!isSuperAdmin}
+                placeholder="Version e.g. 0.0.1"
+                className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+              />
+              <select
+                value={updateChannel}
+                onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
+                disabled={!isSuperAdmin}
+                className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+              >
+                <option value="stable">Stable</option>
+                <option value="beta">Beta</option>
+              </select>
+              <button
+                onClick={triggerUpdateRollout}
+                disabled={!isSuperAdmin}
+                className="py-3 bg-enterprise-blue text-white rounded-xl font-black uppercase tracking-widest disabled:opacity-50"
+              >
+                Queue Update
+              </button>
+            </div>
+            <textarea
+              value={rolloutNotes}
+              onChange={(e) => setRolloutNotes(e.target.value)}
+              disabled={!isSuperAdmin}
+              className="w-full h-20 p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+              placeholder="Update notes"
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border dark:border-slate-700 shadow-sm space-y-6">
-        <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">System Updates</h3>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          Controlled rollout configuration for all connected installations
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input
-            value={nextVersion}
-            onChange={(e) => setNextVersion(e.target.value)}
-            disabled={!isSuperAdmin}
-            placeholder="Target version e.g. 0.0.1"
-            className="p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
-          />
-          <select
-            value={updateChannel}
-            onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
-            disabled={!isSuperAdmin}
-            className="p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
-          >
-            <option value="stable">Stable</option>
-            <option value="beta">Beta</option>
-          </select>
-          <button
-            onClick={triggerUpdateRollout}
-            disabled={!isSuperAdmin}
-            className="py-4 bg-enterprise-blue text-white rounded-2xl font-black uppercase tracking-widest disabled:opacity-50"
-          >
-            Queue Update Rollout
-          </button>
-        </div>
-        <textarea
-          value={rolloutNotes}
-          onChange={(e) => setRolloutNotes(e.target.value)}
-          disabled={!isSuperAdmin}
-          className="w-full h-28 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
-          placeholder="Rollout notes"
-        />
       </div>
     </div>
   );

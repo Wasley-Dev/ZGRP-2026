@@ -33,6 +33,12 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
     () => sortedBookings.filter((b) => b.date === selectedDate),
     [sortedBookings, selectedDate]
   );
+  const upcomingBookings = useMemo(() => {
+    const now = new Date();
+    return [...sortedBookings]
+      .filter((b) => new Date(`${b.date}T${b.time}`) >= now)
+      .slice(0, 8);
+  }, [sortedBookings]);
   const bookingDates = useMemo(() => new Set(sortedBookings.map((b) => b.date)), [sortedBookings]);
   const monthLabel = useMemo(
     () => calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
@@ -130,36 +136,51 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
           </button>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-          <div className="xl:col-span-3 space-y-4">
-            {sortedBookings.map((b) => (
-              <div
-                key={b.id}
-                className="group p-6 bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 rounded-2xl flex items-center justify-between hover:border-gold transition-all"
-              >
-                <div className="flex items-center gap-6">
-                  <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-gold shadow-sm border dark:border-slate-700">
-                    <i className="fas fa-clock text-xl"></i>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h4 className="text-sm font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
-                      <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
-                        {formatBookingDate(b.date)} {b.time}
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
-                    <p className="text-xs text-slate-400 mt-2 italic">"{b.remarks}"</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => openEdit(b)}
-                  className="px-4 py-2 border-2 border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-400 hover:border-gold hover:text-gold transition-all"
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+          <div className="xl:col-span-3 p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 min-h-[660px]">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Upcoming Bookings</h4>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Next {upcomingBookings.length} Events
+              </span>
+            </div>
+            <div className="space-y-3 max-h-[580px] overflow-auto pr-1">
+              {(upcomingBookings.length ? upcomingBookings : sortedBookings.slice(0, 8)).map((b) => (
+                <div
+                  key={b.id}
+                  className="group p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl flex items-center justify-between hover:border-gold transition-all"
                 >
-                  Execute Protocol: Reschedule
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-gold shadow-sm border dark:border-slate-700">
+                      <i className="fas fa-clock text-sm"></i>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
+                        <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
+                          {formatBookingDate(b.date)} {b.time}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
+                      <p className="text-[11px] text-slate-400 mt-1 italic">"{b.remarks}"</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openEdit(b)}
+                    className="px-3 py-2 border-2 border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 hover:border-gold hover:text-gold transition-all"
+                  >
+                    Reschedule
+                  </button>
+                </div>
+              ))}
+              {sortedBookings.length === 0 && (
+                <div className="h-[500px] rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
+                  <i className="fas fa-calendar-plus text-3xl text-gold mb-3"></i>
+                  <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Bookings Yet</p>
+                  <p className="text-xs text-slate-400 mt-2">Create your first booking to populate this panel and calendar.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="xl:col-span-2 space-y-6">

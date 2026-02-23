@@ -119,13 +119,44 @@ const App: React.FC = () => {
     return window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
   });
 
-  const [reportPopup, setReportPopup] = useState<string | null>(null);
+  const reportOptions = [
+    'Monthly ROI',
+    'Weekly Operations',
+    'Candidate Performance',
+    'Weekly Recruitment Snapshot',
+    'Department Efficiency',
+    'Global Logistics Dataset',
+  ] as const;
+  type ReportOption = (typeof reportOptions)[number];
+  const [reportPopup, setReportPopup] = useState<ReportOption | null>(null);
 
   const handleDownloadReport = () => {
     if (!reportPopup) return;
-    
-    // In a real app, this would fetch data and generate a specific report.
-    // Here we simulate a generic report download using jsPDF.
+
+    const now = new Date();
+    const weekStart = new Date(now);
+    const day = weekStart.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    weekStart.setDate(weekStart.getDate() + diffToMonday);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weeklyBookings = bookings.filter((b) => {
+      const d = new Date(`${b.date}T${b.time || '00:00'}`);
+      return d >= weekStart && d <= weekEnd;
+    });
+    const weeklyCandidates = candidates.filter((c) => {
+      const d = new Date(c.createdAt);
+      return d >= weekStart && d <= weekEnd;
+    });
+
+    const deployedCount = candidates.filter((c) => c.status === 'DEPLOYMENT').length;
+    const trainingCount = candidates.filter((c) => c.status === 'TRAINING').length;
+    const interviewCount = candidates.filter((c) => c.status === 'INTERVIEW').length;
+    const pendingCount = candidates.filter((c) => c.status === 'PENDING').length;
+
     import('jspdf').then(jsPDF => {
       const doc = new jsPDF.default();
       doc.setFontSize(22);
@@ -136,13 +167,70 @@ const App: React.FC = () => {
       
       doc.setLineWidth(0.5);
       doc.line(20, 45, 190, 45);
-      
-      doc.setFontSize(14);
-      doc.text("Executive Summary", 20, 60);
-      doc.setFontSize(11);
-      doc.text("This document contains confidential enterprise data. Unauthorized distribution is prohibited.", 20, 70);
-      doc.text("The requested analytics dataset has been compiled from the live database.", 20, 80);
-      
+
+      let y = 58;
+      const write = (line: string) => {
+        doc.text(line, 20, y);
+        y += 8;
+      };
+
+      doc.setFontSize(12);
+      write('Live Data Summary');
+      doc.setFontSize(10);
+      write(`Total candidates: ${candidates.length}`);
+      write(`Total bookings: ${bookings.length}`);
+      write(`Users in directory: ${allUsers.length}`);
+      write(`Unread notifications: ${notifications.filter((n) => !n.read).length}`);
+      y += 2;
+
+      if (reportPopup.includes('Weekly')) {
+        doc.setFontSize(12);
+        write('Weekly Metrics');
+        doc.setFontSize(10);
+        write(`Week range: ${weekStart.toLocaleDateString('en-GB')} - ${weekEnd.toLocaleDateString('en-GB')}`);
+        write(`Weekly bookings: ${weeklyBookings.length}`);
+        write(`Weekly new candidates: ${weeklyCandidates.length}`);
+        y += 2;
+
+        doc.setFontSize(11);
+        write('Upcoming Weekly Bookings');
+        doc.setFontSize(9);
+        const weeklyRows = weeklyBookings.slice(0, 10);
+        if (weeklyRows.length === 0) {
+          write('No bookings scheduled this week.');
+        } else {
+          weeklyRows.forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
+        }
+      } else if (reportPopup === 'Candidate Performance') {
+        doc.setFontSize(12);
+        write('Candidate Pipeline');
+        doc.setFontSize(10);
+        write(`Pending: ${pendingCount}`);
+        write(`Interview: ${interviewCount}`);
+        write(`Training: ${trainingCount}`);
+        write(`Deployment: ${deployedCount}`);
+      } else if (reportPopup === 'Department Efficiency') {
+        doc.setFontSize(12);
+        write('Department Snapshot');
+        doc.setFontSize(10);
+        const byDept = allUsers.reduce<Record<string, number>>((acc, u) => {
+          acc[u.department] = (acc[u.department] || 0) + 1;
+          return acc;
+        }, {});
+        Object.entries(byDept).forEach(([dept, count]) => write(`- ${dept}: ${count} users`));
+      } else if (reportPopup === 'Global Logistics Dataset') {
+        doc.setFontSize(12);
+        write('Logistics Dataset Extract');
+        doc.setFontSize(10);
+        bookings.slice(0, 12).forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
+      } else {
+        doc.setFontSize(12);
+        write('Operational Summary');
+        doc.setFontSize(10);
+        write(`Conversion estimate (deployed/candidates): ${candidates.length ? ((deployedCount / candidates.length) * 100).toFixed(1) : '0.0'}%`);
+        write(`Average weekly bookings: ${Math.max(weeklyBookings.length, 0)}`);
+      }
+
       doc.save(`${reportPopup.replace(/\s+/g, '_')}_Report.pdf`);
       setReportPopup(null);
     });
@@ -818,7 +906,7 @@ const App: React.FC = () => {
              <div className="p-8 bg-white dark:bg-slate-800 rounded-3xl border dark:border-slate-700 min-h-[300px]">
                 <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight mb-8">Reports & Dataset Export</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   {['Monthly ROI', 'Candidate Performance', 'Department Efficiency', 'Global Logistics Dataset'].map(r => (
+                   {reportOptions.map(r => (
                      <div key={r} className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 hover:border-gold transition-all">
                         <i className="fas fa-file-pdf text-3xl text-gold mb-4"></i>
                         <h4 className="text-xs font-black dark:text-white uppercase tracking-widest">{r}</h4>
@@ -901,7 +989,7 @@ const App: React.FC = () => {
               </div>
               <h3 className="text-xl font-black dark:text-white uppercase tracking-tight mb-2">Report Generated</h3>
               <p className="text-sm text-slate-500 mb-6">The <span className="font-bold text-slate-800 dark:text-white">{reportPopup}</span> has been successfully compiled and is ready for download.</p>
-              <button onClick={() => setReportPopup(null)} className="w-full py-3 bg-enterprise-blue text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 hover:brightness-110">
+              <button onClick={handleDownloadReport} className="w-full py-3 bg-enterprise-blue text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 hover:brightness-110">
                  Download & Close
               </button>
            </div>
