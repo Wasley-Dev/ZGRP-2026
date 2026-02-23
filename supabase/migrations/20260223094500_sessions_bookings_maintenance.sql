@@ -8,6 +8,7 @@ alter table if exists public.portal_system_config
 create table if not exists public.portal_bookings (
   id text primary key,
   booker text not null,
+  date text not null,
   time text not null,
   purpose text not null,
   remarks text not null,

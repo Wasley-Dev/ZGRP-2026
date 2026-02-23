@@ -12,19 +12,26 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
   const [selectedBooking, setSelectedBooking] = useState<BookingEntry | null>(null);
   const [form, setForm] = useState({
     booker: '',
+    date: '',
     time: '',
     purpose: 'Technical Interview',
     remarks: '',
   });
 
   const sortedBookings = useMemo(
-    () => [...bookings].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    () => [...bookings].sort((a, b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`)),
     [bookings]
   );
 
   const openCreate = () => {
     setSelectedBooking(null);
-    setForm({ booker: currentUser.name, time: '09:00', purpose: 'Technical Interview', remarks: '' });
+    setForm({
+      booker: currentUser.name,
+      date: new Date().toISOString().slice(0, 10),
+      time: '09:00',
+      purpose: 'Technical Interview',
+      remarks: '',
+    });
     setShowForm(true);
   };
 
@@ -32,6 +39,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
     setSelectedBooking(booking);
     setForm({
       booker: booking.booker,
+      date: booking.date,
       time: booking.time,
       purpose: booking.purpose,
       remarks: booking.remarks,
@@ -40,13 +48,14 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
   };
 
   const submit = () => {
-    if (!form.booker.trim() || !form.time.trim() || !form.purpose.trim()) {
-      alert('Booker, time, and purpose are required.');
+    if (!form.booker.trim() || !form.date.trim() || !form.time.trim() || !form.purpose.trim()) {
+      alert('Booker, date, time, and purpose are required.');
       return;
     }
     onUpsertBooking({
       id: selectedBooking?.id || `BK-${Date.now()}`,
       booker: form.booker.trim(),
+      date: form.date.trim(),
       time: form.time.trim(),
       purpose: form.purpose.trim(),
       remarks: form.remarks.trim(),
@@ -92,7 +101,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
                     <div className="flex items-center gap-3">
                       <h4 className="text-sm font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
                       <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
-                        {b.time}
+                        {b.date} {b.time}
                       </span>
                     </div>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
@@ -134,7 +143,13 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
                 onChange={(e) => setForm((prev) => ({ ...prev, booker: e.target.value }))}
                 placeholder="Booker Identity"
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <input
+                  type="date"
+                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+                  value={form.date}
+                  onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+                />
                 <input
                   type="time"
                   className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"

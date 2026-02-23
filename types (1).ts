@@ -89,6 +89,7 @@ export interface SystemConfig {
 export interface BookingEntry {
   id: string;
   booker: string;
+  date: string;
   time: string;
   purpose: string;
   remarks: string;
