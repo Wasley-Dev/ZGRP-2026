@@ -48,16 +48,32 @@ function createMainWindow() {
     }
   });
 
+  const localBuild = path.join(app.getAppPath(), 'dist', 'index.html');
   const token = ACCESS_TOKEN || resolveBundledToken();
   const url = token ? `${LIVE_URL}?access=${encodeURIComponent(token)}` : LIVE_URL;
+  const hasDevUrl = Boolean(process.env.ELECTRON_START_URL);
+
+  // Dev mode uses URL; packaged app prefers bundled UI so installer reflects latest code.
+  if (hasDevUrl) {
+    win.loadURL(url).catch(async () => {
+      if (fs.existsSync(localBuild)) {
+        await win.loadFile(localBuild);
+      } else {
+        await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
+      }
+    });
+    return;
+  }
+
+  if (fs.existsSync(localBuild)) {
+    win.loadFile(localBuild).catch(async () => {
+      await win.loadURL(url);
+    });
+    return;
+  }
 
   win.loadURL(url).catch(async () => {
-    const localBuild = path.join(app.getAppPath(), 'dist', 'index.html');
-    if (fs.existsSync(localBuild)) {
-      await win.loadFile(localBuild);
-    } else {
-      await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
-    }
+    await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
   });
 }
 
