@@ -2,26 +2,49 @@ import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { BookingEntry, Candidate, RecruitmentStatus } from '../types';
 
-const dataTrends = [
-  { month: 'Jan', applicants: 400, hires: 40 },
-  { month: 'Feb', applicants: 300, hires: 25 },
-  { month: 'Mar', applicants: 600, hires: 85 },
-  { month: 'Apr', applicants: 800, hires: 120 },
-  { month: 'May', applicants: 500, hires: 60 },
-];
-
-const dataSource = [
-  { name: 'LinkedIn', value: 450, color: '#0077b5' },
-  { name: 'Website', value: 200, color: '#003366' },
-  { name: 'Referral', value: 300, color: '#D4AF37' },
-  { name: 'Agencies', value: 150, color: '#10b981' },
-];
-
 const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry[] }> = ({ candidates, bookings }) => {
   const trainingCount = candidates.filter((c) => c.status === RecruitmentStatus.TRAINING).length;
   const interviewCount = candidates.filter((c) => c.status === RecruitmentStatus.INTERVIEW).length;
   const deployedCount = candidates.filter((c) => c.status === RecruitmentStatus.DEPLOYMENT).length;
   const pendingCount = candidates.filter((c) => c.status === RecruitmentStatus.PENDING).length;
+  const dataTrends = React.useMemo(() => {
+    const monthMap = new Map<string, { applicants: number; hires: number }>();
+    const fmt = new Intl.DateTimeFormat('en', { month: 'short' });
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      monthMap.set(fmt.format(d), { applicants: 0, hires: 0 });
+    }
+    candidates.forEach((candidate) => {
+      const label = fmt.format(new Date(candidate.createdAt));
+      const slot = monthMap.get(label);
+      if (!slot) return;
+      slot.applicants += 1;
+      if (candidate.status === RecruitmentStatus.DEPLOYMENT) slot.hires += 1;
+    });
+    return Array.from(monthMap.entries()).map(([month, value]) => ({ month, ...value }));
+  }, [candidates]);
+
+  const dataSource = React.useMemo(() => {
+    const counts: Record<string, number> = { LinkedIn: 0, Website: 0, Referral: 0, Agencies: 0 };
+    candidates.forEach((candidate) => {
+      const src = candidate.source || 'Website';
+      if (!(src in counts)) counts[src] = 0;
+      counts[src] += 1;
+    });
+    const colors: Record<string, string> = {
+      LinkedIn: '#0077b5',
+      Website: '#003366',
+      Referral: '#D4AF37',
+      Agencies: '#10b981',
+    };
+    return Object.entries(counts).map(([name, value]) => ({
+      name,
+      value,
+      color: colors[name] || '#94a3b8',
+    }));
+  }, [candidates]);
+
   const topSource = [...dataSource].sort((a, b) => b.value - a.value)[0]?.name || 'N/A';
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">

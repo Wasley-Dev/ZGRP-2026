@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MOCK_USER, INITIAL_BOOKINGS, INITIAL_CANDIDATES, MOCK_USERS } from './constants';
+import { MOCK_USER, MOCK_USERS } from './constants';
 import {
   BookingEntry,
   Candidate,
@@ -60,8 +60,8 @@ const App: React.FC = () => {
   const initialSharedState = useMemo(
     () =>
       loadSharedState({
-        bookings: INITIAL_BOOKINGS,
-        candidates: INITIAL_CANDIDATES,
+        bookings: [],
+        candidates: [],
         users: MOCK_USERS,
         notifications: [],
         systemConfig: {
