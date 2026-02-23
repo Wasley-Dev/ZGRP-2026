@@ -16,6 +16,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
   const [form, setForm] = useState({
     booker: '',
     date: '',
@@ -49,6 +50,14 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
     }
     return cells;
   }, [calendarMonth]);
+  const bookingsByMonth = useMemo(() => {
+    const counts = new Array(12).fill(0) as number[];
+    sortedBookings.forEach((booking) => {
+      const d = new Date(`${booking.date}T00:00:00`);
+      if (d.getFullYear() === calendarYear) counts[d.getMonth()] += 1;
+    });
+    return counts;
+  }, [sortedBookings, calendarYear]);
 
   const formatBookingDate = (isoDate: string) =>
     new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
@@ -155,6 +164,44 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
 
           <div className="xl:col-span-2 space-y-6">
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Year Calendar</h4>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCalendarYear((prev) => prev - 1)}
+                    className="w-8 h-8 rounded-lg border dark:border-slate-700 text-slate-500"
+                  >
+                    <i className="fas fa-chevron-left"></i>
+                  </button>
+                  <span className="text-xs font-black dark:text-white">{calendarYear}</span>
+                  <button
+                    onClick={() => setCalendarYear((prev) => prev + 1)}
+                    className="w-8 h-8 rounded-lg border dark:border-slate-700 text-slate-500"
+                  >
+                    <i className="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                {Array.from({ length: 12 }, (_, m) => {
+                  const monthName = new Date(calendarYear, m, 1).toLocaleDateString('en-GB', { month: 'short' });
+                  const isFocused = calendarMonth.getMonth() === m && calendarMonth.getFullYear() === calendarYear;
+                  return (
+                    <button
+                      key={`${calendarYear}-${m}`}
+                      onClick={() => setCalendarMonth(new Date(calendarYear, m, 1))}
+                      className={`p-2 rounded-lg border text-left ${
+                        isFocused
+                          ? 'bg-enterprise-blue text-white border-enterprise-blue'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <p className="text-[10px] font-black uppercase">{monthName}</p>
+                      <p className="text-[11px] font-bold opacity-80">{bookingsByMonth[m]} bookings</p>
+                    </button>
+                  );
+                })}
+              </div>
               <div className="flex items-center justify-between mb-4">
                 <button
                   onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
