@@ -33,7 +33,9 @@ const Layout: React.FC<LayoutProps> = ({
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [toastQueue, setToastQueue] = useState<Notification[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
+  const shownToastIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -44,6 +46,24 @@ const Layout: React.FC<LayoutProps> = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const incoming = notifications
+      .filter((n) => !n.read)
+      .filter((n) => !shownToastIdsRef.current.has(n.id))
+      .slice(0, 5);
+    if (incoming.length === 0) return;
+    incoming.forEach((n) => shownToastIdsRef.current.add(n.id));
+    setToastQueue((prev) => [...incoming.reverse(), ...prev].slice(0, 4));
+  }, [notifications]);
+
+  useEffect(() => {
+    if (toastQueue.length === 0) return;
+    const timer = window.setTimeout(() => {
+      setToastQueue((prev) => prev.slice(0, -1));
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [toastQueue]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
@@ -225,6 +245,42 @@ const Layout: React.FC<LayoutProps> = ({
           {children}
         </div>
       </main>
+
+      <div className="fixed top-20 right-6 z-[120] space-y-2 pointer-events-none">
+        {toastQueue.map((n) => (
+          <div
+            key={`toast-${n.id}`}
+            className="pointer-events-auto w-80 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-2xl p-3 animate-in slide-in-from-right-6 duration-300"
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                  n.type === 'SUCCESS'
+                    ? 'bg-green-100 text-green-600'
+                    : n.type === 'WARNING'
+                    ? 'bg-amber-100 text-amber-600'
+                    : 'bg-blue-100 text-blue-600'
+                }`}
+              >
+                <i className={`fas ${n.type === 'SUCCESS' ? 'fa-check' : n.type === 'WARNING' ? 'fa-exclamation' : 'fa-info'}`}></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-slate-900 dark:text-white">{n.title}</p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300">{n.message}</p>
+              </div>
+              <button
+                onClick={() => {
+                  onMarkRead(n.id);
+                  setToastQueue((prev) => prev.filter((t) => t.id !== n.id));
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
