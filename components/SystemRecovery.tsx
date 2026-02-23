@@ -19,14 +19,17 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
     systemConfig.maintenanceMessage || 'Scheduled maintenance in progress.'
   );
   const [backupHour, setBackupHour] = useState(systemConfig.backupHour ?? 15);
+  const [updateChannel, setUpdateChannel] = useState<'stable' | 'beta'>('stable');
+  const [nextVersion, setNextVersion] = useState('');
+  const [rolloutNotes, setRolloutNotes] = useState('Core stability improvements and sync optimization.');
 
-  const isAdmin = useMemo(
-    () => currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPER_ADMIN,
+  const isSuperAdmin = useMemo(
+    () => currentUser.role === UserRole.SUPER_ADMIN,
     [currentUser.role]
   );
 
   const saveMaintenance = () => {
-    if (!isAdmin) return;
+    if (!isSuperAdmin) return;
     onSaveConfig({
       ...systemConfig,
       maintenanceMode,
@@ -36,6 +39,15 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
       maintenanceUpdatedAt: new Date().toISOString(),
     });
     alert('Maintenance settings synced to all systems.');
+  };
+
+  const triggerUpdateRollout = () => {
+    if (!isSuperAdmin) return;
+    if (!nextVersion.trim()) {
+      alert('Enter a target version before rollout.');
+      return;
+    }
+    alert(`Update ${nextVersion.trim()} queued on ${updateChannel.toUpperCase()} channel.`);
   };
 
   return (
@@ -50,7 +62,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <div className="flex items-center justify-between p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
             <span className="text-xs font-black uppercase tracking-widest dark:text-white">Maintenance Mode</span>
             <button
-              disabled={!isAdmin}
+              disabled={!isSuperAdmin}
               onClick={() => setMaintenanceMode((prev) => !prev)}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
                 maintenanceMode ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
@@ -63,7 +75,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <textarea
             value={maintenanceMessage}
             onChange={(e) => setMaintenanceMessage(e.target.value)}
-            disabled={!isAdmin}
+            disabled={!isSuperAdmin}
             className="w-full h-32 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
             placeholder="Maintenance message shown across systems"
           />
@@ -74,7 +86,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               type="number"
               min={0}
               max={23}
-              disabled={!isAdmin}
+              disabled={!isSuperAdmin}
               value={backupHour}
               onChange={(e) => setBackupHour(Number(e.target.value))}
               className="w-24 p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
@@ -82,7 +94,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </div>
 
           <button
-            disabled={!isAdmin}
+            disabled={!isSuperAdmin}
             onClick={saveMaintenance}
             className="w-full py-4 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-lg disabled:opacity-50"
           >
@@ -105,6 +117,45 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             Last policy update: {systemConfig.maintenanceUpdatedAt || 'Not set'}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-10 rounded-[3rem] border dark:border-slate-700 shadow-sm space-y-6">
+        <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">System Updates</h3>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          Controlled rollout configuration for all connected installations
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input
+            value={nextVersion}
+            onChange={(e) => setNextVersion(e.target.value)}
+            disabled={!isSuperAdmin}
+            placeholder="Target version e.g. 0.0.1"
+            className="p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+          />
+          <select
+            value={updateChannel}
+            onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
+            disabled={!isSuperAdmin}
+            className="p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+          >
+            <option value="stable">Stable</option>
+            <option value="beta">Beta</option>
+          </select>
+          <button
+            onClick={triggerUpdateRollout}
+            disabled={!isSuperAdmin}
+            className="py-4 bg-enterprise-blue text-white rounded-2xl font-black uppercase tracking-widest disabled:opacity-50"
+          >
+            Queue Update Rollout
+          </button>
+        </div>
+        <textarea
+          value={rolloutNotes}
+          onChange={(e) => setRolloutNotes(e.target.value)}
+          disabled={!isSuperAdmin}
+          className="w-full h-28 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+          placeholder="Rollout notes"
+        />
       </div>
     </div>
   );

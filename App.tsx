@@ -44,7 +44,10 @@ import BookingModule from './components/BookingModule';
 import BroadcastModule from './components/BroadcastModule';
 import SystemRecovery from './components/SystemRecovery';
 
+const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
+
 const App: React.FC = () => {
+  const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
   const normalizeUsers = (inputUsers: SystemUser[]): SystemUser[] =>
     inputUsers.map((user) => {
       const fallback = MOCK_USERS.find((u) => u.email.toLowerCase() === user.email.toLowerCase());
@@ -105,6 +108,10 @@ const App: React.FC = () => {
     return stored === accessToken;
   });
   const [accessInput, setAccessInput] = useState('');
+  const [hasSeenInstallOrientation, setHasSeenInstallOrientation] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
+  });
 
   const [reportPopup, setReportPopup] = useState<string | null>(null);
 
@@ -269,15 +276,55 @@ const App: React.FC = () => {
         fetchRemoteSystemConfig(),
       ]);
       if (cancelled) return;
-      if (remoteBookings.length) setBookings(remoteBookings);
-      if (remoteCandidates.length) setCandidates(remoteCandidates);
-      if (remoteConfig) setSystemConfig(remoteConfig);
+      setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
+      setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
+      if (remoteConfig) {
+        setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
+      }
     };
     hydrateRemoteData();
     return () => {
       cancelled = true;
     };
   }, [isOnline]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isOnline) return;
+    if (!hasRemoteData()) return;
+
+    let stopped = false;
+    const syncFromRemote = async () => {
+      const [remoteUsers, remoteBookings, remoteCandidates, remoteConfig, sessions] = await Promise.all([
+        hasRemoteUserDirectory() ? fetchRemoteUsers() : Promise.resolve([]),
+        fetchRemoteBookings(),
+        fetchRemoteCandidates(),
+        fetchRemoteSystemConfig(),
+        hasRemoteSessionStore() ? fetchActiveSessions() : Promise.resolve([]),
+      ]);
+      if (stopped) return;
+
+      setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
+      setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
+      if (remoteUsers.length > 0) {
+        const normalized = normalizeUsers(remoteUsers);
+        setAllUsers((prev) => (isSame(prev, normalized) ? prev : normalized));
+        setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
+      }
+      if (remoteConfig) {
+        setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
+      }
+      if (sessions.length) {
+        setActiveSessions((prev) => (isSame(prev, sessions) ? prev : sessions));
+      }
+    };
+
+    syncFromRemote();
+    const id = window.setInterval(syncFromRemote, 12000);
+    return () => {
+      stopped = true;
+      window.clearInterval(id);
+    };
+  }, [isLoggedIn, isOnline]);
 
   useEffect(() => {
     // Force login on every app open. We intentionally do not restore previous session.
@@ -363,7 +410,7 @@ const App: React.FC = () => {
       });
     };
     sync();
-  }, [isOnline]);
+  }, [isOnline, bookings, candidates, allUsers, systemConfig]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -436,7 +483,8 @@ const App: React.FC = () => {
     isRevokedRef.current = false;
     setIsLoggedIn(true);
     setActiveModule('dashboard');
-    setShowOrientation(true);
+    const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !hasSeenInstallOrientation;
+    setShowOrientation(shouldShowOrientation);
     pushNotification(
       'Login Success',
       `${updatedUser.name} signed in from this machine.`,
@@ -527,6 +575,10 @@ const App: React.FC = () => {
     );
     setShowOrientation(false);
     setActiveModule(destinationModule);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(INSTALL_ORIENTATION_KEY, '1');
+    }
+    setHasSeenInstallOrientation(true);
   };
 
   useEffect(() => {
@@ -752,7 +804,7 @@ const App: React.FC = () => {
       {showOrientation && (
         <OrientationAI 
           user={currentUser} 
-          isFirstTime={!currentUser.hasCompletedOrientation}
+          isFirstTime={!currentUser.hasCompletedOrientation || !hasSeenInstallOrientation}
           onComplete={handleOrientationComplete}
           messages={chatMessages}
           setMessages={setChatMessages}

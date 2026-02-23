@@ -16,7 +16,7 @@ interface AskAIOptions {
 }
 
 interface PersonalityProfile {
-  tone: 'executive' | 'coach' | 'technical' | 'direct';
+  tone: 'executive' | 'coach' | 'technical' | 'direct' | 'playful';
   verbosity: 'short' | 'balanced' | 'detailed';
   style: string;
 }
@@ -39,7 +39,8 @@ const BASE_SYSTEM_INSTRUCTION = `You are ZAYA AI, enterprise assistant for the Z
 Be accurate, actionable, and concise by default.
 If the user asks to navigate, provide the target module and a one-step action.
 Never invent data. If unsure, say what is unknown and provide the safest next step.
-When giving recommendations, prioritize security, operational clarity, and auditability.`;
+When giving recommendations, prioritize security, operational clarity, and auditability.
+You can be conversational and friendly, and may include occasional clean light humor.`;
 
 const IDENTITY_RULE =
   'If asked who made you/system or whether AI made it, respond exactly: "You will have to ask my dad via email it@zayagroupltd.com".';
@@ -69,6 +70,7 @@ const inferPersonality = (
   const text = `${query} ${history.slice(-4).map((m) => m.text).join(' ')}`.toLowerCase();
   const isTechnical = /(error|bug|api|config|deploy|code|integrat|sync|issue|stack)/.test(text);
   const isHelpSeeking = /(how|help|guide|explain|what should|teach)/.test(text);
+  const isConversational = /(joke|fun|chat|convers|friendly|playful|casual)/.test(text);
   const wantsShort = /(quick|short|brief|tldr|just answer)/.test(text) || query.length < 45;
   const executiveRole = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
 
@@ -93,6 +95,14 @@ const inferPersonality = (
       tone: 'coach',
       verbosity: wantsShort ? 'balanced' : 'detailed',
       style: 'Use supportive guidance and sequence tasks clearly.',
+    };
+  }
+
+  if (isConversational) {
+    return {
+      tone: 'playful',
+      verbosity: wantsShort ? 'short' : 'balanced',
+      style: 'Keep it warm and playful while still being accurate and actionable.',
     };
   }
 
@@ -164,7 +174,7 @@ const localFallback = (query: string, user: SystemUser): string => {
   if (q.includes('admin')) return 'Admin Console handles user add/ban/delete/password reset and branding controls.';
   if (q.includes('recruit')) return 'Recruitment Hub gives hiring trends, source breakdowns, and funnel visibility.';
 
-  return `I can assist with navigation, hiring workflow, and admin controls, ${user.name.split(' ')[0]}. Please rephrase your request while I re-establish AI connectivity.`;
+  return `I can assist with navigation, hiring workflow, and admin controls, ${user.name.split(' ')[0]}. I can also keep it conversational while we work.`;
 };
 
 export async function askAI(options: AskAIOptions): Promise<string> {
@@ -193,7 +203,7 @@ export async function askAI(options: AskAIOptions): Promise<string> {
           contents: composedPrompt,
           config: {
             systemInstruction,
-            temperature: profile.tone === 'technical' ? 0.25 : 0.5,
+            temperature: profile.tone === 'technical' ? 0.25 : profile.tone === 'playful' ? 0.72 : 0.5,
             tools: [{ googleSearch: {} }],
           },
         }),
