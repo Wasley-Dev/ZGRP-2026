@@ -6,6 +6,7 @@ interface SystemRecoveryProps {
   currentUser: SystemUser;
   onSaveConfig: (config: SystemConfig) => void;
   onTriggerBackup: () => void;
+  onDownloadRecoveryReport: (kind: 'WEEKLY_RECOVERY' | 'UPDATE_ROLLOUT') => void;
 }
 
 const SystemRecovery: React.FC<SystemRecoveryProps> = ({
@@ -13,6 +14,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   currentUser,
   onSaveConfig,
   onTriggerBackup,
+  onDownloadRecoveryReport,
 }) => {
   const [maintenanceMode, setMaintenanceMode] = useState(Boolean(systemConfig.maintenanceMode));
   const [maintenanceMessage, setMaintenanceMessage] = useState(
@@ -150,6 +152,20 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               className="w-full h-20 p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
               placeholder="Update notes"
             />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                onClick={() => onDownloadRecoveryReport('WEEKLY_RECOVERY')}
+                className="py-3 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest"
+              >
+                Weekly Recovery Report
+              </button>
+              <button
+                onClick={() => onDownloadRecoveryReport('UPDATE_ROLLOUT')}
+                className="py-3 bg-slate-900 text-white rounded-xl font-black uppercase tracking-widest"
+              >
+                Update Rollout Report
+              </button>
+            </div>
           </div>
         </div>
       </div>
