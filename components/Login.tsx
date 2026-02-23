@@ -11,6 +11,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showInstallOrientation, setShowInstallOrientation] = useState(() => {
+    return localStorage.getItem('zaya_first_install_orientation_seen') !== 'true';
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +54,38 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
       className="app-shell w-full flex flex-col md:flex-row bg-slate-100 dark:bg-slate-950 font-inter"
       style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }}
     >
+      {showInstallOrientation && (
+        <div className="fixed inset-0 z-[80] bg-slate-950/85 backdrop-blur-md p-4 flex items-center justify-center">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border dark:border-slate-700 shadow-2xl overflow-hidden">
+            <div className="p-8 bg-enterprise-blue text-white">
+              <h3 className="text-2xl font-black uppercase tracking-tight">Zaya AI Orientation</h3>
+              <p className="text-sm text-white/80 mt-2">
+                Welcome. This is your first app launch after installation. Zaya AI will guide you, then you can log in.
+              </p>
+            </div>
+            <div className="p-8 space-y-4 text-slate-600 dark:text-slate-200">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700">
+                1. Sign in with admin-provided credentials.
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700">
+                2. First-time user tour appears after login.
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700">
+                3. Live data and notifications sync across all logged-in devices.
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.setItem('zaya_first_install_orientation_seen', 'true');
+                  setShowInstallOrientation(false);
+                }}
+                className="w-full mt-2 py-4 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest"
+              >
+                Continue To Login
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Left Branding Panel */}
       <div className="w-full md:w-1/2 login-texture flex flex-col justify-center p-12 md:p-24 text-white relative overflow-hidden">

@@ -1,7 +1,7 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { BookingEntry, Candidate, Notification, SystemConfig, SystemUser } from '../types';
 
-const STORAGE_KEY = 'zaya_shared_state_v1';
+const STORAGE_KEY = 'zaya_shared_state_v2';
 const CHANNEL_NAME = (import.meta.env.VITE_SYNC_CHANNEL || 'zaya-portal-sync') as string;
 const EVENT_NAME = 'state-update';
 

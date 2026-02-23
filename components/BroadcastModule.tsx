@@ -4,6 +4,7 @@ import {
   EMAIL_SENDER,
   SMS_SENDER,
   fetchSmsDeliveryReceipts,
+  hasMessagingBackend,
   sendEmailCampaign,
   sendSmsCampaign,
 } from '../services/communicationsService';
@@ -154,6 +155,42 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
 
     setSending(true);
     try {
+      if (!hasMessagingBackend()) {
+        if (channel === 'Email') {
+          const mailto = `mailto:?from=${encodeURIComponent(EMAIL_SENDER)}&bcc=${encodeURIComponent(
+            recipients.emails.join(',')
+          )}&subject=${encodeURIComponent('ZAYA GROUP Notification')}&body=${encodeURIComponent(
+            message.trim()
+          )}`;
+          window.open(mailto, '_self');
+          queueHistory({
+            channel: 'Email',
+            target: buildTargetLabel(),
+            status: 'SENT',
+            providerMessageIds: [],
+            body: message.trim(),
+            recipients: recipients.emails,
+          });
+        } else {
+          const smsBody = channel === 'WhatsApp' ? `[WhatsApp] ${message.trim()}` : message.trim();
+          const batch = recipients.phones.slice(0, 100).join(',');
+          if (batch) {
+            const sms = `sms:${batch}?body=${encodeURIComponent(smsBody)}`;
+            window.open(sms, '_self');
+          }
+          queueHistory({
+            channel,
+            target: buildTargetLabel(),
+            status: 'SENT',
+            providerMessageIds: [],
+            body: message.trim(),
+            recipients: recipients.phones,
+          });
+        }
+        setMessage('');
+        return;
+      }
+
       const { channel: usedChannel, result } = await sendCampaignByChannel(
         channel,
         message.trim(),
