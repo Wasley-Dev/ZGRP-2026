@@ -436,7 +436,7 @@ const App: React.FC = () => {
     isRevokedRef.current = false;
     setIsLoggedIn(true);
     setActiveModule('dashboard');
-    setShowOrientation(!updatedUser.hasCompletedOrientation);
+    setShowOrientation(true);
     pushNotification(
       'Login Success',
       `${updatedUser.name} signed in from this machine.`,
