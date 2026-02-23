@@ -26,19 +26,12 @@ interface DashboardProps {
   user: SystemUser;
 }
 
-// Dept Performance Data with Training added
-const dataPerformance = [
-  { name: 'Jan', recruitment: 400, deployment: 200, training: 50 },
-  { name: 'Feb', recruitment: 300, deployment: 210, training: 60 },
-  { name: 'Mar', recruitment: 200, deployment: 290, training: 80 },
-  { name: 'Apr', recruitment: 278, deployment: 400, training: 30 },
-  { name: 'May', recruitment: 189, deployment: 120, training: 70 },
-];
-
 const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCount, candidates, bookings, user }) => {
   const trainingCount = candidates.filter((c) => c.status === RecruitmentStatus.TRAINING).length;
   const interviewCount = candidates.filter((c) => c.status === RecruitmentStatus.INTERVIEW).length;
   const deployedCount = candidates.filter((c) => c.status === RecruitmentStatus.DEPLOYMENT).length;
+  const pendingCount = candidates.filter((c) => c.status === RecruitmentStatus.PENDING).length;
+  const appliedCount = candidates.length;
   // Calculate compliance data from candidates
   const complianceStats = React.useMemo(() => {
     let complete = 0;
@@ -62,35 +55,70 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     ];
   }, [candidates]);
 
-  const funnelSteps = [
-    { label: 'Applied', value: 1200, icon: 'fa-file-signature' },
-    { label: 'Screening', value: 850, icon: 'fa-search' },
-    { label: 'Shortlisted', value: 420, icon: 'fa-star' },
-    { label: 'Interviewed', value: 180, icon: 'fa-comments' },
-    { label: 'Offered', value: 54, icon: 'fa-envelope-open-text' },
-    { label: 'Hired/Deployed', value: 42, icon: 'fa-user-check' },
-  ];
+  const monthlyStatus = React.useMemo(() => {
+    const monthMap = new Map<string, { recruitment: number; deployment: number; training: number }>();
+    const fmt = new Intl.DateTimeFormat('en', { month: 'short' });
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const label = fmt.format(d);
+      monthMap.set(label, { recruitment: 0, deployment: 0, training: 0 });
+    }
+    candidates.forEach((c) => {
+      const d = new Date(c.createdAt);
+      const label = fmt.format(d);
+      const bucket = monthMap.get(label);
+      if (!bucket) return;
+      bucket.recruitment += 1;
+      if (c.status === RecruitmentStatus.DEPLOYMENT) bucket.deployment += 1;
+      if (c.status === RecruitmentStatus.TRAINING) bucket.training += 1;
+    });
+    return Array.from(monthMap.entries()).map(([name, value]) => ({ name, ...value }));
+  }, [candidates]);
 
-  const upcomingOps = [
-    {
-      title: 'Interviews Today',
-      items: bookings.slice(0, 2).map((b) => `${b.booker} (${b.time})`),
-      icon: 'fa-comments',
-      color: 'blue',
-      action: 'booking',
-    },
-    { title: 'Trainings Scheduled', items: ['Safety Workshop (Mon)', 'ERP Training (Wed)'], icon: 'fa-graduation-cap', color: 'amber', action: 'booking' },
-    { title: 'Deployments', items: ['Batch 04 - Logistics', 'Batch 05 - Ops'], icon: 'fa-shipping-fast', color: 'green', action: 'recruitment' },
-    { title: 'Documentation Deadlines', items: ['12 Pending Incomplete TINs', '5 Missing ID scans'], icon: 'fa-file-exclamation', color: 'red', action: 'database' },
-    { title: 'System Maintenance', items: ['Backup sync (11 PM)', 'Server Patch (Sunday)'], icon: 'fa-tools', color: 'slate', action: 'maintenance' },
-  ];
+  const upcomingOps = React.useMemo(
+    () => [
+      {
+        title: 'Interviews Today',
+        items: (bookings.length ? bookings : []).slice(0, 2).map((b) => `${b.booker} (${b.time})`),
+        icon: 'fa-comments',
+        color: 'blue',
+        action: 'booking',
+      },
+      {
+        title: 'Trainings Scheduled',
+        items: [`Candidates in training: ${trainingCount}`, `Pending interviews: ${interviewCount}`],
+        icon: 'fa-graduation-cap',
+        color: 'amber',
+        action: 'recruitment',
+      },
+      {
+        title: 'Deployments',
+        items: [`Ready for deployment: ${deployedCount}`, `Pending review: ${pendingCount}`],
+        icon: 'fa-shipping-fast',
+        color: 'green',
+        action: 'recruitment',
+      },
+      {
+        title: 'Documentation Deadlines',
+        items: [`Total candidates: ${appliedCount}`, `Open records need review`],
+        icon: 'fa-file-exclamation',
+        color: 'red',
+        action: 'database',
+      },
+      { title: 'System Maintenance', items: ['Daily auto-backup at 15:00', 'Realtime sync active'], icon: 'fa-tools', color: 'slate', action: 'maintenance' },
+    ],
+    [bookings, trainingCount, interviewCount, deployedCount, pendingCount, appliedCount]
+  );
 
   // Convert funnelSteps for Chart
-  const dataFunnel = funnelSteps.map((step) => ({
-    name: step.label,
-    value: step.value,
-    barValue: step.value * 0.8 // Simulated bar value for clustered effect
-  }));
+  const dataFunnel = [
+    { name: 'Applied', value: appliedCount, barValue: Math.max(1, Math.round(appliedCount * 0.8)) },
+    { name: 'Screening', value: pendingCount, barValue: Math.max(1, Math.round(pendingCount * 0.8)) },
+    { name: 'Interviewed', value: interviewCount, barValue: Math.max(1, Math.round(interviewCount * 0.8)) },
+    { name: 'Training', value: trainingCount, barValue: Math.max(1, Math.round(trainingCount * 0.8)) },
+    { name: 'Hired/Deployed', value: deployedCount, barValue: Math.max(1, Math.round(deployedCount * 0.8)) },
+  ];
 
   const handleTrace = () => {
     alert("SYSTEM TRACE: Full schedule synchronization complete. All modules aligned.");
@@ -164,7 +192,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
             </div>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dataPerformance}>
+                <BarChart data={monthlyStatus}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f033" />
                   <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />
                   <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} />

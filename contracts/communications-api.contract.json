@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "zaya-communications-api",
+  "version": "1.0.0",
+  "basePathEnv": "VITE_COMM_API_URL",
+  "auth": {
+    "type": "bearer",
+    "tokenEnv": "VITE_COMM_API_TOKEN"
+  },
+  "defaults": {
+    "emailFrom": "customercare@zayagroupltd.com",
+    "smsFrom": "+255779630201"
+  },
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/v1/messages/email",
+      "description": "Dispatch an email campaign from the configured sender.",
+      "request": {
+        "required": ["channel", "from", "to", "subject", "body"],
+        "properties": {
+          "channel": { "const": "EMAIL" },
+          "from": { "type": "string", "format": "email" },
+          "to": { "type": "array", "items": { "type": "string", "format": "email" } },
+          "subject": { "type": "string" },
+          "body": { "type": "string" }
+        }
+      },
+      "response": {
+        "required": ["requestId", "accepted", "failed", "results"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "accepted": { "type": "number" },
+          "failed": { "type": "number" },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "recipient": { "type": "string" },
+                "providerMessageId": { "type": "string" },
+                "status": { "type": "string" },
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages/sms",
+      "description": "Dispatch an SMS campaign from the configured sender number.",
+      "request": {
+        "required": ["channel", "from", "to", "body"],
+        "properties": {
+          "channel": { "const": "SMS" },
+          "from": { "type": "string" },
+          "to": { "type": "array", "items": { "type": "string" } },
+          "body": { "type": "string" }
+        }
+      },
+      "response": {
+        "required": ["requestId", "accepted", "failed", "results"],
+        "properties": {
+          "requestId": { "type": "string" },
+          "accepted": { "type": "number" },
+          "failed": { "type": "number" },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "recipient": { "type": "string" },
+                "providerMessageId": { "type": "string" },
+                "status": { "type": "string" },
+                "error": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages/sms/status",
+      "description": "Fetch current delivery statuses by provider message IDs.",
+      "request": {
+        "required": ["providerMessageIds"],
+        "properties": {
+          "providerMessageIds": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "response": {
+        "required": ["receipts"],
+        "properties": {
+          "receipts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["providerMessageId", "status"],
+              "properties": {
+                "providerMessageId": { "type": "string" },
+                "status": { "type": "string" },
+                "deliveredAt": { "type": "string" },
+                "failedReason": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/messages/sms/receipts",
+      "description": "Optional webhook endpoint your SMS provider can call to persist delivery receipts server-side.",
+      "request": {
+        "required": ["providerMessageId", "status"],
+        "properties": {
+          "providerMessageId": { "type": "string" },
+          "status": { "type": "string" },
+          "deliveredAt": { "type": "string" },
+          "failedReason": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
