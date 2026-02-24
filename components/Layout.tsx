@@ -117,18 +117,6 @@ const Layout: React.FC<LayoutProps> = ({
           )}
         </div>
 
-        <div className="px-3 py-3 border-b border-white/5">
-          <button onClick={() => onModuleChange('settings')} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-2xl w-full transition-colors text-left">
-            <img src={user.avatar} className="w-8 h-8 rounded-full border border-gold/30 bg-white/10 object-cover" alt="Avatar" />
-            {isSidebarOpen && (
-              <div className="overflow-hidden">
-                <p className="text-[10px] font-black truncate text-white uppercase">{user.name}</p>
-                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase">{user.role}</p>
-              </div>
-            )}
-          </button>
-        </div>
-
         <nav className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-24 space-y-1">
           {navItems.map(item => (
             <button
@@ -173,7 +161,7 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* Main Content */}
       <main
-        className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors duration-200"
+        className="flex-1 flex flex-col min-w-0 bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] dark:bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] transition-colors duration-200"
         style={
           backgroundImageUrl
             ? {
@@ -185,7 +173,7 @@ const Layout: React.FC<LayoutProps> = ({
             : undefined
         }
       >
-        <header className="h-16 bg-white dark:bg-slate-800 border-b dark:border-slate-700 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
+        <header className="h-16 bg-slate-100/90 dark:bg-[#0f1b40]/85 border-b border-slate-300/60 dark:border-blue-400/20 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm backdrop-blur">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-500 transition-colors">
               <i className="fas fa-bars"></i>
@@ -201,15 +189,15 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <button onClick={onThemeToggle} className="p-2 text-slate-500 dark:text-slate-400 hover:text-gold transition-colors">
+          <div className="flex items-center gap-3">
+            <button onClick={onThemeToggle} className="p-2 rounded-lg text-slate-500 dark:text-slate-300 hover:text-gold hover:bg-white/70 dark:hover:bg-white/5 transition-colors">
               <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'}`}></i>
             </button>
 
             <div className="relative" ref={notifRef}>
               <button 
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="relative p-2 text-slate-500 dark:text-slate-400 hover:text-gold transition-colors"
+                className="relative p-2 rounded-lg text-slate-500 dark:text-slate-300 hover:text-gold hover:bg-white/70 dark:hover:bg-white/5 transition-colors"
               >
                 <i className="fas fa-bell"></i>
                 {unreadCount > 0 && (
@@ -259,7 +247,17 @@ const Layout: React.FC<LayoutProps> = ({
               )}
             </div>
 
-            <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+            <button
+              onClick={() => onModuleChange('settings')}
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/70 dark:hover:bg-white/5 transition-colors border border-slate-200/70 dark:border-blue-400/20"
+              title={user.name}
+            >
+              <img src={user.avatar} className="w-8 h-8 rounded-full border border-gold/40 bg-white/10 object-cover" alt="Avatar" />
+              <div className="hidden md:block text-left">
+                <p className="text-[10px] font-black truncate text-slate-700 dark:text-white uppercase max-w-[120px]">{user.name}</p>
+                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase max-w-[120px]">{user.role}</p>
+              </div>
+            </button>
           </div>
         </header>
 

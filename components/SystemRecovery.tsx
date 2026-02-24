@@ -68,16 +68,19 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 text-slate-900 dark:text-slate-100">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
-          <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight">System Maintenance</h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">System Maintenance</h2>
+            <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">Operational</span>
+          </div>
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
             Global maintenance controls applied to all online machines
           </p>
 
-          <div className="flex items-center justify-between p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-            <span className="text-xs font-black uppercase tracking-widest dark:text-white">Maintenance Mode</span>
+          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Maintenance Mode</span>
             <button
               disabled={!isSuperAdmin}
               onClick={() => setMaintenanceMode((prev) => !prev)}
@@ -93,12 +96,12 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             value={maintenanceMessage}
             onChange={(e) => setMaintenanceMessage(e.target.value)}
             disabled={!isSuperAdmin}
-            className="w-full h-32 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+            className="w-full h-32 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950/80 font-bold text-slate-800 dark:text-white outline-none disabled:opacity-70"
             placeholder="Maintenance message shown across systems"
           />
 
           <div className="flex items-center gap-4">
-            <label className="text-xs font-black uppercase tracking-widest dark:text-white">Daily Backup Hour (24h)</label>
+            <label className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Daily Backup Hour (24h)</label>
             <input
               type="number"
               min={0}
@@ -106,7 +109,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               disabled={!isSuperAdmin}
               value={backupHour}
               onChange={(e) => setBackupHour(Number(e.target.value))}
-              className="w-24 p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+              className="w-24 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold text-slate-900 dark:text-white outline-none disabled:opacity-70"
             />
           </div>
 
@@ -119,10 +122,10 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </button>
         </div>
 
-        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col justify-between gap-6 text-slate-100">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col justify-between gap-6 backdrop-blur">
           <div>
-            <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">Backup Engine</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-300 mt-2">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Backup Engine</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
               Automatic backup is configured for {backupHour.toString().padStart(2, '0')}:00 daily.
             </p>
           </div>
@@ -150,16 +153,16 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
-          <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">Live System Mode</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
+          <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Live System Mode</h3>
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
             Restricted and standby controls
           </p>
 
-          <div className="flex items-center justify-between p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
             <div>
-              <p className="text-xs font-black dark:text-white uppercase">Restricted Access</p>
-              <p className="text-[10px] text-slate-400">Force logout all users, admins only.</p>
+              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">Restricted Access</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">Force logout all users, admins only.</p>
             </div>
             <button
               disabled={!isSuperAdmin}
@@ -176,10 +179,10 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center justify-between p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
             <div>
-              <p className="text-xs font-black dark:text-white uppercase">Standby Mode</p>
-              <p className="text-[10px] text-slate-400">Super admin full access, others read-only.</p>
+              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">Standby Mode</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400">Super admin full access, others read-only.</p>
             </div>
             <button
               disabled={!isSuperAdmin}
@@ -197,9 +200,9 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
-          <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">System Updates</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
+          <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">System Updates</h3>
+          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
             Controlled rollout configuration for all connected installations
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

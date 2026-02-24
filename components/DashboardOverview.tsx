@@ -27,6 +27,10 @@ interface DashboardProps {
 }
 
 const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCount, candidates, bookings, user }) => {
+  const panelClass =
+    'rounded-3xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#121c46_0%,#0b1431_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur';
+  const tileClass =
+    'group p-4 rounded-2xl bg-white/70 dark:bg-slate-900/50 border border-slate-200 dark:border-blue-400/20 hover:border-gold transition-all cursor-pointer';
   const trainingCount = candidates.filter((c) => c.status === RecruitmentStatus.TRAINING).length;
   const interviewCount = candidates.filter((c) => c.status === RecruitmentStatus.INTERVIEW).length;
   const deployedCount = candidates.filter((c) => c.status === RecruitmentStatus.DEPLOYMENT).length;
@@ -164,7 +168,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-100">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -176,16 +180,16 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           <button 
             key={idx} 
             onClick={() => onNavigate(kpi.target)}
-            className="group bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-6 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex items-center justify-between text-left hover:shadow-[0_12px_36px_rgba(42,88,255,0.25)] hover:border-gold/40 transition-all active:scale-[0.98]"
+            className="group p-6 rounded-2xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#141f4e_0%,#0d1739_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex items-center justify-between text-left hover:shadow-[0_12px_36px_rgba(42,88,255,0.25)] hover:border-gold/40 transition-all active:scale-[0.98]"
           >
             <div>
-              <p className="text-sm text-blue-100/70 font-medium mb-1">{kpi.label}</p>
-              <h3 className="text-3xl font-bold text-white">{kpi.value}</h3>
+              <p className="text-sm text-slate-500 dark:text-blue-100/70 font-medium mb-1">{kpi.label}</p>
+              <h3 className="text-3xl font-bold text-slate-900 dark:text-white">{kpi.value}</h3>
               <p className="text-xs text-gold mt-2 flex items-center gap-1 font-bold uppercase tracking-widest">
                 <i className="fas fa-arrow-up"></i> 12% Growth
               </p>
             </div>
-            <div className={`w-12 h-12 rounded-lg bg-[#0b1536] flex items-center justify-center text-gold shadow-inner border border-blue-300/15`}>
+            <div className="w-12 h-12 rounded-lg bg-slate-100 dark:bg-[#0b1536] flex items-center justify-center text-gold shadow-inner border border-slate-200 dark:border-blue-300/15">
               <i className={`fas ${kpi.icon} text-xl`}></i>
             </div>
           </button>
@@ -195,9 +199,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Department Performance Chart with Training in red */}
-          <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+          <div className={`${panelClass} p-8`}>
             <div className="flex items-center justify-between mb-8">
-              <h3 className="font-black text-white uppercase tracking-tight text-sm">Department Performance</h3>
+              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Department Performance</h3>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase">
                   <div className="w-2 h-2 rounded-full bg-enterprise-blue"></div> Recruitment
@@ -222,9 +226,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           </div>
 
           {/* Enterprise Recruitment Funnel - Clustered Line Bar Chart */}
-          <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+          <div className={`${panelClass} p-8`}>
             <div className="flex justify-between items-center mb-8">
-              <h3 className="font-black text-white uppercase tracking-tight text-sm">Enterprise Recruitment Funnel</h3>
+              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Enterprise Recruitment Funnel</h3>
               <span className="text-[10px] font-black text-gold uppercase tracking-[0.3em]">Hiring Efficiency Score</span>
             </div>
             <div className="h-64 mb-8 px-4">
@@ -256,9 +260,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           </div>
 
           {/* Real-time Operations - Broad Alignment */}
-          <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+          <div className={`${panelClass} p-8`}>
             <div className="flex justify-between items-center mb-8">
-              <h3 className="font-black text-white uppercase tracking-tight text-sm">Real-time Operations</h3>
+              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Real-time Operations</h3>
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,10 +273,10 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
                     status: 'Scheduled',
                   }))
                 : [{ title: 'No Bookings Yet', time: '-', status: 'Waiting for data' }]).map((event, idx) => (
-                <div key={idx} className="group p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-transparent hover:border-gold transition-all cursor-pointer" onClick={() => onNavigate('recruitment')}>
+                <div key={idx} className={tileClass} onClick={() => onNavigate('recruitment')}>
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-xs font-black dark:text-white uppercase leading-tight">{event.title}</p>
+                      <p className="text-xs font-black text-slate-800 dark:text-white uppercase leading-tight">{event.title}</p>
                       <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{event.status}</p>
                     </div>
                     <span className="text-[9px] font-black text-gold bg-gold/5 px-2 py-0.5 rounded border border-gold/20 whitespace-nowrap">{event.time}</span>
@@ -291,8 +295,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
 
         <div className="space-y-6">
           {/* Documentation Sync Pie Chart */}
-          <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col">
-             <h3 className="font-black text-white mb-8 uppercase tracking-tight text-sm">Document Compliance</h3>
+          <div className={`${panelClass} p-8 flex flex-col`}>
+             <h3 className="font-black text-slate-900 dark:text-white mb-8 uppercase tracking-tight text-sm">Document Compliance</h3>
              <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
@@ -314,14 +318,14 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           </div>
 
           {/* Upcoming Operations Widget */}
-          <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-2xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+          <div className={`${panelClass} p-8`}>
              <div className="flex justify-between items-center mb-8">
-                <h3 className="font-black text-white uppercase tracking-tight text-sm">Upcoming Operations</h3>
+                <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Upcoming Operations</h3>
                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
              </div>
              <div className="space-y-4">
                 {upcomingOps.map((op, i) => (
-                  <div key={i} className="group p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-transparent hover:border-gold transition-all cursor-pointer" onClick={() => handleOpClick(op.action)}>
+                  <div key={i} className={tileClass} onClick={() => handleOpClick(op.action)}>
                      <div className="flex items-start gap-4">
                         <div className={`w-8 h-8 rounded-lg bg-white dark:bg-slate-800 flex items-center justify-center ${getColorClass(op.color)} shadow-sm shrink-0`}>
                            {op.title === 'Documentation Deadlines' ? (

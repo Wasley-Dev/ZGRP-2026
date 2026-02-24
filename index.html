@@ -38,7 +38,13 @@
         body {
             min-height: 100dvh;
             font-family: 'Inter', sans-serif;
-            @apply bg-slate-50 dark:bg-slate-900 transition-colors duration-200;
+            background-color: #f8fafc;
+            color: #0f172a;
+            transition: background-color 200ms ease, color 200ms ease;
+        }
+        html.dark body {
+            background-color: #0f172a;
+            color: #e2e8f0;
         }
         #root {
           min-height: calc(var(--app-vh, 1vh) * 100);
@@ -98,7 +104,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="light">
     <div id="root"></div>
