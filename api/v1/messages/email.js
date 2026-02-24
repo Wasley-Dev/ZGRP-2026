@@ -1,12 +1,13 @@
-import { json, readBody, sendTwilioSms } from '../../_lib/transport';
+const { json, readBody, sendResendEmail } = require('../../_lib/transport.js');
 
-export default async function handler(req: any, res: any) {
+module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 200, { ok: true });
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   try {
     const body = await readBody(req);
     const recipients = Array.isArray(body?.to) ? body.to.filter(Boolean) : [];
+    const subject = String(body?.subject || 'ZAYA GROUP Notification').trim();
     const text = String(body?.body || '').trim();
     if (!recipients.length || !text) {
       return json(res, 400, { error: 'to[] and body are required.' });
@@ -15,11 +16,11 @@ export default async function handler(req: any, res: any) {
     const results = await Promise.all(
       recipients.map(async (recipient) => {
         try {
-          const sent = await sendTwilioSms({ to: recipient, body: text });
+          const sent = await sendResendEmail({ to: recipient, subject, body: text });
           return {
             recipient,
-            providerMessageId: sent?.sid,
-            status: 'QUEUED',
+            providerMessageId: sent?.id || '',
+            status: 'SENT',
           };
         } catch (error) {
           return {
@@ -34,7 +35,7 @@ export default async function handler(req: any, res: any) {
     const accepted = results.filter((r) => r.status !== 'FAILED').length;
     const failed = results.length - accepted;
     return json(res, 200, {
-      requestId: `sms-${Date.now()}`,
+      requestId: `email-${Date.now()}`,
       accepted,
       failed,
       results,
@@ -44,4 +45,4 @@ export default async function handler(req: any, res: any) {
       error: error instanceof Error ? error.message : 'Unhandled server error',
     });
   }
-}
+};
