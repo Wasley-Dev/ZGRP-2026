@@ -41,6 +41,13 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
       .slice(0, 8);
   }, [sortedBookings]);
   const bookingDates = useMemo(() => new Set(sortedBookings.map((b) => b.date)), [sortedBookings]);
+  const bookingsPerDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    sortedBookings.forEach((entry) => {
+      map[entry.date] = (map[entry.date] || 0) + 1;
+    });
+    return map;
+  }, [sortedBookings]);
   const monthLabel = useMemo(
     () => calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
     [calendarMonth]
@@ -133,7 +140,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
           </div>
           <button
             onClick={openCreate}
-            className="px-6 py-3 bg-enterprise-blue text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-900/20"
+            className="px-6 py-3 bg-gold text-enterprise-blue rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-gold/30"
           >
             New Booking Protocol
           </button>
@@ -168,6 +175,39 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
                       <p className="text-[10px] text-slate-400 mt-1">Booked by: {getBookedByName(entry.createdByUserId)}</p>
                     </div>
                   ))
+                )}
+              </div>
+            </div>
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Upcoming Bookings</h4>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Next {upcomingBookings.length} Events
+                </span>
+              </div>
+              <div className="space-y-3 max-h-[360px] overflow-auto pr-1">
+                {(upcomingBookings.length ? upcomingBookings : sortedBookings.slice(0, 8)).map((b) => (
+                  <div
+                    key={b.id}
+                    className="group p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl hover:border-gold transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-xs font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
+                      <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
+                        {formatBookingDate(b.date)} {b.time}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Booked by: {getBookedByName(b.createdByUserId)}</p>
+                    <p className="text-[11px] text-slate-400 mt-1 italic">"{b.remarks}"</p>
+                  </div>
+                ))}
+                {sortedBookings.length === 0 && (
+                  <div className="rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
+                    <i className="fas fa-calendar-plus text-3xl text-gold mb-3"></i>
+                    <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Bookings Yet</p>
+                    <p className="text-xs text-slate-400 mt-2">Create your first booking to populate this panel and calendar.</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -207,7 +247,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
                       onClick={() => setCalendarMonth(new Date(calendarYear, m, 1))}
                       className={`p-2 rounded-lg border text-left ${
                         isFocused
-                          ? 'bg-enterprise-blue text-white border-enterprise-blue'
+                          ? 'bg-gold text-enterprise-blue border-gold'
                           : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
                       }`}
                     >
@@ -245,51 +285,22 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
                       onClick={() => setSelectedDate(cell.iso)}
                       className={`h-9 rounded-lg text-xs font-black relative border transition-all ${
                         selectedDate === cell.iso
-                          ? 'bg-enterprise-blue text-white border-enterprise-blue'
+                          ? 'bg-gold text-enterprise-blue border-gold'
+                          : bookingDates.has(cell.iso)
+                          ? 'bg-gold/20 border-gold text-gold'
                           : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
                       }`}
                     >
                       {cell.day}
                       {bookingDates.has(cell.iso) && (
-                        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gold"></span>
+                        <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-gold text-enterprise-blue text-[8px] leading-4 font-black border border-white dark:border-slate-900">
+                          {bookingsPerDay[cell.iso]}
+                        </span>
                       )}
                     </button>
                   ) : (
                     <div key={`empty-${idx}`} />
                   )
-                )}
-              </div>
-            </div>
-            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Upcoming Bookings</h4>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Next {upcomingBookings.length} Events
-                </span>
-              </div>
-              <div className="space-y-3 max-h-[360px] overflow-auto pr-1">
-                {(upcomingBookings.length ? upcomingBookings : sortedBookings.slice(0, 8)).map((b) => (
-                  <div
-                    key={b.id}
-                    className="group p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl hover:border-gold transition-all"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-xs font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
-                      <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
-                        {formatBookingDate(b.date)} {b.time}
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Booked by: {getBookedByName(b.createdByUserId)}</p>
-                    <p className="text-[11px] text-slate-400 mt-1 italic">"{b.remarks}"</p>
-                  </div>
-                ))}
-                {sortedBookings.length === 0 && (
-                  <div className="rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
-                    <i className="fas fa-calendar-plus text-3xl text-gold mb-3"></i>
-                    <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Bookings Yet</p>
-                    <p className="text-xs text-slate-400 mt-2">Create your first booking to populate this panel and calendar.</p>
-                  </div>
                 )}
               </div>
             </div>

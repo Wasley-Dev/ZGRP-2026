@@ -7,7 +7,10 @@ type AIAction =
   | { type: 'DOWNLOAD_REPORT'; report?: string }
   | { type: 'EXPORT_REPORTS' }
   | { type: 'PRINT_PAGE' }
-  | { type: 'EXPORT_DATABASE' };
+  | { type: 'EXPORT_DATABASE' }
+  | { type: 'SHARE' }
+  | { type: 'PREVIEW'; target?: string }
+  | { type: 'DOWNLOAD'; target?: string };
 
 const OrientationAI: React.FC<{
   user: SystemUser;
@@ -117,8 +120,17 @@ const OrientationAI: React.FC<{
 
   const detectActionIntent = (query: string): AIAction | null => {
     const q = query.toLowerCase();
-    const hasActionWord = /(download|export|print|save pdf|generate report)/.test(q);
+    const hasActionWord = /(download|export|print|save pdf|generate report|share|preview)/.test(q);
     if (!hasActionWord) return null;
+    if (/(share|send link)/.test(q)) {
+      return { type: 'SHARE' };
+    }
+    if (/(preview|open preview)/.test(q)) {
+      return { type: 'PREVIEW', target: detectNavigationIntent(q) || undefined };
+    }
+    if (/(download|save)/.test(q) && !/(report|database)/.test(q)) {
+      return { type: 'DOWNLOAD', target: detectNavigationIntent(q) || undefined };
+    }
     if (/(database|candidate list|candidate database)/.test(q)) {
       return { type: 'EXPORT_DATABASE' };
     }
@@ -171,7 +183,7 @@ const OrientationAI: React.FC<{
         ]);
         if (onAction) onAction(action);
         setIsTyping(false);
-      }, 250);
+      }, 60);
       return;
     }
     if (navigateTo) {
@@ -182,7 +194,7 @@ const OrientationAI: React.FC<{
         ]);
         setIsTyping(false);
         if (onNavigate) onNavigate(navigateTo);
-      }, 250);
+      }, 60);
       return;
     }
 

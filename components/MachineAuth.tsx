@@ -91,11 +91,14 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                           : 'bg-amber-100 text-amber-700'
                       }`}
                     >
-                      {machine.status} {machine.isOnline ? '(ONLINE)' : '(OFFLINE)'}
+                      <span className="inline-flex items-center whitespace-nowrap gap-1">
+                        <span>{machine.status}</span>
+                        <span>{machine.isOnline ? '(ONLINE)' : '(OFFLINE)'}</span>
+                      </span>
                     </span>
                   </td>
                   <td className="p-4">
-                    <div className="flex gap-2 justify-center">
+                    <div className="flex flex-wrap gap-2 justify-center">
                       <button
                         disabled={machine.id === currentSessionId}
                         onClick={() => onRevoke(machine.id)}
@@ -113,7 +116,7 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                       <button
                         disabled={machine.id === currentSessionId || machine.status === 'REVOKED'}
                         onClick={() => onBan(machine.id)}
-                        className="px-3 py-1.5 text-[9px] bg-purple-500/10 text-purple-600 border border-purple-500/30 rounded-lg hover:bg-purple-500 hover:text-white font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                        className="px-3 py-1.5 text-[9px] bg-orange-500/15 text-orange-600 border border-orange-500/40 rounded-lg hover:bg-orange-500 hover:text-white font-black uppercase tracking-widest transition-all disabled:opacity-40"
                       >
                         Ban Machine
                       </button>

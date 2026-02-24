@@ -201,10 +201,20 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
       queueHistory({
         channel: usedChannel,
         target: buildTargetLabel(),
-        status: usedChannel === 'Email' ? (result.failed > 0 ? 'FAILED' : 'SENT') : (result.failed > 0 ? 'FAILED' : 'QUEUED'),
+        status:
+          usedChannel === 'Email'
+            ? result.accepted > 0
+              ? 'SENT'
+              : 'FAILED'
+            : result.accepted > 0
+            ? 'QUEUED'
+            : 'FAILED',
         providerMessageIds: result.providerMessageIds,
         requestId: result.requestId,
-        failedReason: result.failed > 0 ? `${result.failed} recipient(s) failed.` : undefined,
+        failedReason:
+          result.failed > 0
+            ? `${result.failed} recipient(s) failed.${result.accepted > 0 ? ` ${result.accepted} queued/sent.` : ''}`
+            : undefined,
         body: message.trim(),
         recipients: usedChannel === 'Email' ? recipients.emails : recipients.phones,
       });
@@ -249,10 +259,20 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
             ? {
                 ...entry,
                 channel: usedChannel,
-                status: usedChannel === 'Email' ? (result.failed > 0 ? 'FAILED' : 'SENT') : (result.failed > 0 ? 'FAILED' : 'QUEUED'),
+                status:
+                  usedChannel === 'Email'
+                    ? result.accepted > 0
+                      ? 'SENT'
+                      : 'FAILED'
+                    : result.accepted > 0
+                    ? 'QUEUED'
+                    : 'FAILED',
                 providerMessageIds: result.providerMessageIds,
                 requestId: result.requestId,
-                failedReason: result.failed > 0 ? `${result.failed} recipient(s) failed.` : undefined,
+                failedReason:
+                  result.failed > 0
+                    ? `${result.failed} recipient(s) failed.${result.accepted > 0 ? ` ${result.accepted} queued/sent.` : ''}`
+                    : undefined,
                 time: new Date().toLocaleString(),
               }
             : entry

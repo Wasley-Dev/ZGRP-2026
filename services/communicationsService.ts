@@ -43,6 +43,30 @@ export const SMS_SENDER_LABEL =
   (import.meta.env.VITE_SMS_SENDER_LABEL as string | undefined)?.trim() || 'ZAYA GROUP';
 export const hasMessagingBackend = () => Boolean(API_URL);
 
+const normalizePhone = (raw: string): string | null => {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('+')) {
+    const clean = `+${trimmed.slice(1).replace(/\D/g, '')}`;
+    return clean.length >= 8 ? clean : null;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('255')) return `+${digits}`;
+  if (digits.startsWith('0') && digits.length >= 9) return `+255${digits.slice(1)}`;
+  if (digits.length >= 9 && digits.length <= 12) return `+${digits}`;
+  return null;
+};
+
+const normalizePhoneList = (input: string[]) =>
+  Array.from(
+    new Set(
+      input
+        .map(normalizePhone)
+        .filter((v): v is string => Boolean(v))
+    )
+  );
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const parseStatus = (status?: string): DeliveryReceipt['status'] => {
@@ -131,10 +155,14 @@ export const sendSmsCampaign = async (
   body: string
 ): Promise<DispatchCampaignResponse> => {
   ensureConfigured();
+  const normalizedRecipients = normalizePhoneList(recipients);
+  if (!normalizedRecipients.length) {
+    throw new Error('No valid recipient phone numbers after normalization.');
+  }
   const payload = {
     channel: 'SMS' as Channel,
     from: SMS_SENDER,
-    to: recipients,
+    to: normalizedRecipients,
     body,
   };
 
