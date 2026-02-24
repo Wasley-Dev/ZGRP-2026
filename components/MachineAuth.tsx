@@ -6,6 +6,8 @@ interface MachineAuthProps {
   currentSessionId: string;
   onForceOut: (sessionId: string) => Promise<void>;
   onRevoke: (sessionId: string) => Promise<void>;
+  onBan: (sessionId: string) => Promise<void>;
+  onDelete: (sessionId: string) => Promise<void>;
 }
 
 const MachineAuth: React.FC<MachineAuthProps> = ({
@@ -13,6 +15,8 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
   currentSessionId,
   onForceOut,
   onRevoke,
+  onBan,
+  onDelete,
 }) => {
   const activeCount = sessions.filter((m) => m.status === 'ACTIVE' && m.isOnline).length;
   const revokedCount = sessions.filter((m) => m.status === 'REVOKED').length;
@@ -105,6 +109,20 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
                         className="px-3 py-1.5 text-[9px] bg-amber-500/10 text-amber-600 border border-amber-500/30 rounded-lg hover:bg-amber-500 hover:text-white font-black uppercase tracking-widest transition-all disabled:opacity-40"
                       >
                         Force Logout
+                      </button>
+                      <button
+                        disabled={machine.id === currentSessionId || machine.status === 'REVOKED'}
+                        onClick={() => onBan(machine.id)}
+                        className="px-3 py-1.5 text-[9px] bg-purple-500/10 text-purple-600 border border-purple-500/30 rounded-lg hover:bg-purple-500 hover:text-white font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                      >
+                        Ban Machine
+                      </button>
+                      <button
+                        disabled={machine.id === currentSessionId}
+                        onClick={() => onDelete(machine.id)}
+                        className="px-3 py-1.5 text-[9px] bg-slate-500/10 text-slate-600 border border-slate-500/30 rounded-lg hover:bg-slate-600 hover:text-white font-black uppercase tracking-widest transition-all disabled:opacity-40"
+                      >
+                        Delete
                       </button>
                     </div>
                   </td>

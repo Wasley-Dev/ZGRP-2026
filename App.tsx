@@ -26,6 +26,7 @@ import {
 } from './services/remoteDataService';
 import {
   createLocalSessionId,
+  deleteSession,
   enforceSingleSessionPerUser,
   fetchActiveSessions,
   hasRemoteSessionStore,
@@ -199,6 +200,7 @@ const App: React.FC = () => {
   const remoteHydratedRef = useRef(false);
   const isRevokedRef = useRef(false);
   const maintenanceNotifiedRef = useRef(false);
+  const sessionDigestRef = useRef<Record<string, { status: string; isOnline: boolean; userName: string }>>({});
   const initialUsers = useMemo(() => normalizeUsers(initialSharedState.users), [initialSharedState.users]);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -858,6 +860,52 @@ const App: React.FC = () => {
       await upsertSessionHeartbeat(sessionIdRef.current, currentUser);
       const sessions = await fetchActiveSessions();
       if (stopped) return;
+      const prevDigest = sessionDigestRef.current;
+      const nextDigest: Record<string, { status: string; isOnline: boolean; userName: string }> = {};
+      sessions.forEach((session) => {
+        nextDigest[session.id] = {
+          status: session.status,
+          isOnline: session.isOnline,
+          userName: session.userName,
+        };
+        const prev = prevDigest[session.id];
+        if (!prev) {
+          if (session.id !== sessionIdRef.current) {
+            pushNotificationDeduped(
+              `session:new:${session.id}`,
+              'New Session',
+              `${session.userName} connected from ${session.machineName}.`,
+              'INFO',
+              'machines',
+              15000
+            );
+          }
+          return;
+        }
+        if (prev.status !== session.status || prev.isOnline !== session.isOnline) {
+          pushNotificationDeduped(
+            `session:update:${session.id}:${session.status}:${session.isOnline ? 'online' : 'offline'}`,
+            'Session Updated',
+            `${session.userName} is now ${session.status} ${session.isOnline ? '(ONLINE)' : '(OFFLINE)'}.`,
+            session.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING',
+            'machines',
+            10000
+          );
+        }
+      });
+      Object.keys(prevDigest).forEach((sessionId) => {
+        if (!nextDigest[sessionId]) {
+          pushNotificationDeduped(
+            `session:removed:${sessionId}`,
+            'Session Removed',
+            `Machine session ${sessionId} was removed from active records.`,
+            'INFO',
+            'machines',
+            15000
+          );
+        }
+      });
+      sessionDigestRef.current = nextDigest;
       setActiveSessions(sessions);
       const mine = sessions.find((s) => s.id === sessionIdRef.current);
       if (!mine) return;
@@ -927,7 +975,10 @@ const App: React.FC = () => {
     isRevokedRef.current = false;
     setIsLoggedIn(true);
     setActiveModule('dashboard');
-    const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !hasSeenInstallOrientation;
+    const installSeenNow =
+      typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
+    setHasSeenInstallOrientation(installSeenNow);
+    const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
     setShowOrientation(shouldShowOrientation);
     pushNotification(
       'Login Success',
@@ -1170,6 +1221,16 @@ const App: React.FC = () => {
             onRevoke={async (sessionId) => {
               await updateSessionStatus(sessionId, 'REVOKED');
               pushNotification('Machine Access Revoked', `Session ${sessionId} was revoked.`, 'WARNING', 'machines');
+              setActiveSessions(await fetchActiveSessions());
+            }}
+            onBan={async (sessionId) => {
+              await updateSessionStatus(sessionId, 'REVOKED');
+              pushNotification('Machine Banned', `Machine session ${sessionId} was banned.`, 'WARNING', 'machines');
+              setActiveSessions(await fetchActiveSessions());
+            }}
+            onDelete={async (sessionId) => {
+              await deleteSession(sessionId);
+              pushNotification('Machine Deleted', `Machine session ${sessionId} was deleted from auth records.`, 'INFO', 'machines');
               setActiveSessions(await fetchActiveSessions());
             }}
           />
