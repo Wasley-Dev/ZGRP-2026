@@ -1,6 +1,6 @@
-const { json, readBody, sendResendEmail } = require('../../_lib/transport.js');
+import { json, readBody, sendResendEmail } from '../../_lib/transport.js';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return json(res, 200, { ok: true });
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
@@ -45,4 +45,4 @@ module.exports = async (req, res) => {
       error: error instanceof Error ? error.message : 'Unhandled server error',
     });
   }
-};
+}

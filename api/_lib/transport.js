@@ -1,4 +1,4 @@
-const json = (res, status, body) => {
+export const json = (res, status, body) => {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,7 +7,7 @@ const json = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
-const readBody = async (req) => {
+export const readBody = async (req) => {
   if (req.body && typeof req.body === 'object') return req.body;
   const chunks = [];
   for await (const chunk of req) chunks.push(Buffer.from(chunk));
@@ -31,7 +31,7 @@ const normalizeSmsStatus = (status) => {
   return 'UNKNOWN';
 };
 
-const sendTwilioSms = async ({ to, body }) => {
+export const sendTwilioSms = async ({ to, body }) => {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
   const from = (process.env.TWILIO_MESSAGING_FROM || process.env.VITE_SMS_SENDER || '').trim();
   const auth = toTwilioAuthHeader();
@@ -54,7 +54,7 @@ const sendTwilioSms = async ({ to, body }) => {
   return payload;
 };
 
-const lookupTwilioStatus = async (providerMessageId) => {
+export const lookupTwilioStatus = async (providerMessageId) => {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
   const auth = toTwilioAuthHeader();
   if (!sid || !auth) {
@@ -79,7 +79,7 @@ const lookupTwilioStatus = async (providerMessageId) => {
   };
 };
 
-const sendResendEmail = async ({ to, subject, body }) => {
+export const sendResendEmail = async ({ to, subject, body }) => {
   const apiKey = (process.env.RESEND_API_KEY || '').trim();
   const from = (process.env.COMM_EMAIL_FROM || process.env.VITE_EMAIL_SENDER || 'customercare@zayagroupltd.com').trim();
   if (!apiKey) {
@@ -103,12 +103,4 @@ const sendResendEmail = async ({ to, subject, body }) => {
     throw new Error(payload?.message || `Email send failed (${response.status})`);
   }
   return payload;
-};
-
-module.exports = {
-  json,
-  readBody,
-  sendTwilioSms,
-  lookupTwilioStatus,
-  sendResendEmail,
 };
