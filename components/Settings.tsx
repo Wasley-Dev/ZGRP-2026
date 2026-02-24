@@ -7,9 +7,18 @@ interface SettingsProps {
   onThemeToggle: () => void;
   user: SystemUser;
   setUser: (u: SystemUser) => void;
+  backgroundImageUrl?: string;
+  onBackgroundImageChange: (value?: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ theme, onThemeToggle, user, setUser }) => {
+const Settings: React.FC<SettingsProps> = ({
+  theme,
+  onThemeToggle,
+  user,
+  setUser,
+  backgroundImageUrl,
+  onBackgroundImageChange,
+}) => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -22,6 +31,7 @@ const Settings: React.FC<SettingsProps> = ({ theme, onThemeToggle, user, setUser
   };
 
   const [newPassword, setNewPassword] = useState('');
+  const bgInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     if (newPassword) {
@@ -90,6 +100,33 @@ const Settings: React.FC<SettingsProps> = ({ theme, onThemeToggle, user, setUser
                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">Deploy {theme === 'dark' ? 'Light' : 'Dark'} Mode</span>
                    <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} text-gold text-lg group-hover:rotate-45 transition-transform`}></i>
                 </button>
+                <button
+                  onClick={() => bgInputRef.current?.click()}
+                  className="w-full p-5 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white flex items-center justify-between border border-slate-200 dark:border-slate-700"
+                >
+                  <span className="font-black uppercase text-[10px] tracking-[0.2em]">Set Background Image</span>
+                  <i className="fas fa-image text-gold text-lg"></i>
+                </button>
+                <input
+                  ref={bgInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (!e.target.files?.[0]) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => onBackgroundImageChange(ev.target?.result as string);
+                    reader.readAsDataURL(e.target.files[0]);
+                  }}
+                />
+                {backgroundImageUrl && (
+                  <button
+                    onClick={() => onBackgroundImageChange(undefined)}
+                    className="w-full p-4 rounded-2xl border border-red-200 text-red-600 text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Clear Background Image
+                  </button>
+                )}
              </div>
              <div className="mt-auto pt-10 w-full text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-40">ZAYA GROUP PORTAL v4.2</div>
           </div>

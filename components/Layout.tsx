@@ -15,6 +15,7 @@ interface LayoutProps {
   onClearNotifications: () => void;
   systemConfig: SystemConfig;
   isOnline: boolean;
+  backgroundImageUrl?: string;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
@@ -29,7 +30,8 @@ const Layout: React.FC<LayoutProps> = ({
   onMarkRead,
   onClearNotifications,
   systemConfig,
-  isOnline
+  isOnline,
+  backgroundImageUrl
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -115,6 +117,18 @@ const Layout: React.FC<LayoutProps> = ({
           )}
         </div>
 
+        <div className="px-3 py-3 border-b border-white/5">
+          <button onClick={() => onModuleChange('settings')} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-2xl w-full transition-colors text-left">
+            <img src={user.avatar} className="w-8 h-8 rounded-full border border-gold/30 bg-white/10 object-cover" alt="Avatar" />
+            {isSidebarOpen && (
+              <div className="overflow-hidden">
+                <p className="text-[10px] font-black truncate text-white uppercase">{user.name}</p>
+                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase">{user.role}</p>
+              </div>
+            )}
+          </button>
+        </div>
+
         <nav className="flex-1 overflow-y-auto custom-scrollbar p-2 pb-24 space-y-1">
           {navItems.map(item => (
             <button
@@ -147,20 +161,30 @@ const Layout: React.FC<LayoutProps> = ({
         </nav>
 
         <div className="sticky bottom-0 p-3 border-t border-white/5 bg-[#003366]/95 backdrop-blur-sm shrink-0">
-          <button onClick={() => onModuleChange('settings')} className="flex items-center gap-3 hover:bg-white/5 p-2 rounded-2xl w-full transition-colors text-left">
-            <img src={user.avatar} className="w-8 h-8 rounded-full border border-gold/30 bg-white/10 object-cover" alt="Avatar" />
-            {isSidebarOpen && (
-              <div className="overflow-hidden">
-                <p className="text-[10px] font-black truncate text-white uppercase">{user.name}</p>
-                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase">{user.role}</p>
-              </div>
-            )}
+          <button
+            onClick={onLogout}
+            className="w-full py-3 text-[10px] font-black text-red-300 hover:bg-red-500/20 rounded-xl transition-colors tracking-[0.2em] border border-red-300/20"
+          >
+            LOGOUT
           </button>
         </div>
+
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors duration-200">
+      <main
+        className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors duration-200"
+        style={
+          backgroundImageUrl
+            ? {
+                backgroundImage: `linear-gradient(rgba(8,14,35,0.78), rgba(8,14,35,0.86)), url(${backgroundImageUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundAttachment: 'fixed',
+              }
+            : undefined
+        }
+      >
         <header className="h-16 bg-white dark:bg-slate-800 border-b dark:border-slate-700 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-500 transition-colors">
@@ -236,13 +260,6 @@ const Layout: React.FC<LayoutProps> = ({
             </div>
 
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
-            
-            <button 
-              onClick={onLogout}
-              className="px-4 py-2 text-[10px] font-black text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors tracking-[0.2em] border border-red-100/50"
-            >
-              LOGOUT
-            </button>
           </div>
         </header>
 

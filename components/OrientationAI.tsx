@@ -3,6 +3,11 @@ import { askAI } from '../services/geminiService';
 import { SystemUser, UserRole } from '../types';
 
 type ChatMessage = { role: string; text: string };
+type AIAction =
+  | { type: 'DOWNLOAD_REPORT'; report?: string }
+  | { type: 'EXPORT_REPORTS' }
+  | { type: 'PRINT_PAGE' }
+  | { type: 'EXPORT_DATABASE' };
 
 const OrientationAI: React.FC<{
   user: SystemUser;
@@ -11,7 +16,8 @@ const OrientationAI: React.FC<{
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   onNavigate?: (module: string) => void;
-}> = ({ user, isFirstTime = false, onComplete, messages, setMessages, onNavigate }) => {
+  onAction?: (action: AIAction) => void;
+}> = ({ user, isFirstTime = false, onComplete, messages, setMessages, onNavigate, onAction }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [tourStep, setTourStep] = useState(0);
@@ -109,6 +115,40 @@ const OrientationAI: React.FC<{
     return match ? match[0] : null;
   };
 
+  const detectActionIntent = (query: string): AIAction | null => {
+    const q = query.toLowerCase();
+    const hasActionWord = /(download|export|print|save pdf|generate report)/.test(q);
+    if (!hasActionWord) return null;
+    if (/(database|candidate list|candidate database)/.test(q)) {
+      return { type: 'EXPORT_DATABASE' };
+    }
+    if (/(print|printer)/.test(q)) {
+      return { type: 'PRINT_PAGE' };
+    }
+    if (/(report|roi|operations|recovery|department|rollout|logistics|recruitment)/.test(q)) {
+      const reportMatch =
+        q.includes('monthly roi')
+          ? 'Monthly ROI'
+          : q.includes('weekly operations')
+          ? 'Weekly Operations'
+          : q.includes('weekly recovery')
+          ? 'Weekly Recovery Report'
+          : q.includes('candidate performance')
+          ? 'Candidate Performance'
+          : q.includes('weekly recruitment')
+          ? 'Weekly Recruitment Snapshot'
+          : q.includes('update rollout')
+          ? 'Update Rollout Report'
+          : q.includes('department')
+          ? 'Department Efficiency'
+          : q.includes('logistics')
+          ? 'Global Logistics Dataset'
+          : undefined;
+      return { type: 'DOWNLOAD_REPORT', report: reportMatch };
+    }
+    return { type: 'EXPORT_REPORTS' };
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isTyping) return;
     resetIdleTimer();
@@ -122,6 +162,18 @@ const OrientationAI: React.FC<{
     setIsTyping(true);
 
     const navigateTo = detectNavigationIntent(userMsg);
+    const action = detectActionIntent(userMsg);
+    if (action) {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'ai', text: 'Action accepted. Executing now.' },
+        ]);
+        if (onAction) onAction(action);
+        setIsTyping(false);
+      }, 250);
+      return;
+    }
     if (navigateTo) {
       setTimeout(() => {
         setMessages((prev) => [
@@ -173,7 +225,10 @@ const OrientationAI: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 animate-in fade-in duration-300"
+      onClick={() => onComplete('dashboard')}
+    >
       {showIdleHelp && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[280px] z-[70] animate-bounce">
           <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-2xl border-2 border-gold relative max-w-xs text-center">
@@ -185,7 +240,10 @@ const OrientationAI: React.FC<{
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 w-full max-w-5xl h-[min(82vh,760px)] rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden border dark:border-slate-700 border-white/20 relative">
+      <div
+        className="bg-white dark:bg-slate-800 w-full max-w-5xl h-[min(82vh,760px)] rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden border dark:border-slate-700 border-white/20 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={() => onComplete('dashboard')}
           className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg hover:bg-red-600 transition-colors"

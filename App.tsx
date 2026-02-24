@@ -223,6 +223,10 @@ const App: React.FC = () => {
     return stored === accessToken;
   });
   const [accessInput, setAccessInput] = useState('');
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    return window.localStorage.getItem('zaya_background_image') || undefined;
+  });
   const [hasSeenInstallOrientation, setHasSeenInstallOrientation] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
@@ -402,6 +406,21 @@ const App: React.FC = () => {
     });
   };
 
+  const openReportByName = (raw?: string) => {
+    if (!raw) {
+      setActiveModule('reports');
+      return;
+    }
+    const normalized = raw.trim().toLowerCase();
+    const found = reportOptions.find((option) => option.toLowerCase() === normalized);
+    if (found) {
+      setActiveModule('reports');
+      setReportPopup(found);
+      return;
+    }
+    setActiveModule('reports');
+  };
+
 
 
   const pushNotification = (
@@ -410,19 +429,28 @@ const App: React.FC = () => {
     type: Notification['type'],
     origin?: string
   ) => {
-    setNotifications((prev) => [
-      {
-        id: `NTF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        title,
-        message,
-        time: 'Just now',
-        read: false,
-        type,
-        origin,
-        createdAt: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
+    setNotifications((prev) => {
+      const now = Date.now();
+      const recentDuplicate = prev.find((n) => {
+        if (n.title !== title || n.message !== message || n.origin !== origin) return false;
+        if (!n.createdAt) return false;
+        return now - new Date(n.createdAt).getTime() < 90000;
+      });
+      if (recentDuplicate) return prev;
+      return [
+        {
+          id: `NTF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title,
+          message,
+          time: 'Just now',
+          read: false,
+          type,
+          origin,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ];
+    });
   };
 
   const pushNotificationDeduped = (
@@ -487,6 +515,15 @@ const App: React.FC = () => {
       clearTimeout(timer);
     };
   }, [accessToken]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!backgroundImageUrl) {
+      window.localStorage.removeItem('zaya_background_image');
+      return;
+    }
+    window.localStorage.setItem('zaya_background_image', backgroundImageUrl);
+  }, [backgroundImageUrl]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -1108,7 +1145,16 @@ const App: React.FC = () => {
       case 'broadcast':
         return <BroadcastModule candidates={candidates} />;
       case 'settings':
-        return <Settings theme={theme} onThemeToggle={toggleTheme} user={currentUser} setUser={setCurrentUser} />;
+        return (
+          <Settings
+            theme={theme}
+            onThemeToggle={toggleTheme}
+            user={currentUser}
+            setUser={setCurrentUser}
+            backgroundImageUrl={backgroundImageUrl}
+            onBackgroundImageChange={setBackgroundImageUrl}
+          />
+        );
       case 'admin':
         return <AdminConsole users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} systemConfig={systemConfig} setSystemConfig={setSystemConfig} />;
       case 'machines':
@@ -1273,6 +1319,7 @@ const App: React.FC = () => {
         onClearNotifications={clearNotifications}
         systemConfig={systemConfig}
         isOnline={isOnline}
+        backgroundImageUrl={backgroundImageUrl}
       >
         {renderModule()}
       </Layout>
@@ -1286,6 +1333,24 @@ const App: React.FC = () => {
           setMessages={setChatMessages}
           onNavigate={(module) => {
             handleOrientationComplete(module || 'dashboard');
+          }}
+          onAction={(action) => {
+            if (action.type === 'DOWNLOAD_REPORT') {
+              openReportByName(action.report);
+              return;
+            }
+            if (action.type === 'EXPORT_REPORTS') {
+              setActiveModule('reports');
+              return;
+            }
+            if (action.type === 'EXPORT_DATABASE') {
+              setActiveModule('database');
+              pushNotification('AI Action', 'Opened database module for export.', 'INFO', 'database');
+              return;
+            }
+            if (action.type === 'PRINT_PAGE') {
+              window.print();
+            }
           }}
         />
       )}
