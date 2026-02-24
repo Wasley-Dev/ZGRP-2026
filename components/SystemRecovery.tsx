@@ -122,7 +122,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </button>
         </div>
 
-        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col justify-between gap-6 backdrop-blur">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col gap-6 backdrop-blur">
           <div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Backup Engine</h3>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
@@ -130,21 +130,23 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={onTriggerBackup}
-            disabled={!isAdmin}
-            className="w-full py-5 bg-enterprise-blue text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl disabled:opacity-50"
-          >
-            Initiate Global Sync
-          </button>
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              onClick={onTriggerBackup}
+              disabled={!isAdmin}
+              className="w-full py-4 bg-enterprise-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl disabled:opacity-50"
+            >
+              Initiate Global Sync
+            </button>
 
-          <button
-            onClick={onRestoreBackup}
-            disabled={!isSuperAdmin}
-            className="w-full py-4 border border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest dark:text-white disabled:opacity-50"
-          >
-            Restore From Previous Backup
-          </button>
+            <button
+              onClick={onRestoreBackup}
+              disabled={!isSuperAdmin}
+              className="w-full py-4 border border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest dark:text-white disabled:opacity-50"
+            >
+              Restore From Previous Backup
+            </button>
+          </div>
 
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
             Last policy update: {systemConfig.maintenanceUpdatedAt || 'Not set'}
@@ -205,7 +207,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
             Controlled rollout configuration for all connected installations
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-stretch">
             <input
               value={nextVersion}
               onChange={(e) => setNextVersion(e.target.value)}
@@ -217,7 +219,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               value={updateChannel}
               onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
               disabled={!isSuperAdmin}
-              className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+              className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70 md:col-span-1"
             >
               <option value="stable">Stable</option>
               <option value="beta">Beta</option>
@@ -225,7 +227,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             <button
               onClick={queueUpdate}
               disabled={!isSuperAdmin}
-              className="py-3 bg-enterprise-blue text-white rounded-xl font-black uppercase tracking-widest disabled:opacity-50"
+              className="py-3 bg-enterprise-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 md:col-span-2"
             >
               Queue Update Rollout
             </button>

@@ -132,6 +132,11 @@ export const updateSessionStatus = async (
     .eq('id', sessionId);
 };
 
+export const deleteSession = async (sessionId: string): Promise<void> => {
+  if (!supabase) return;
+  await supabase.from(TABLE_NAME).delete().eq('id', sessionId);
+};
+
 export const enforceSingleSessionPerUser = async (
   userId: string,
   keepSessionId: string
