@@ -70,7 +70,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm space-y-6">
+        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
           <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight">System Maintenance</h2>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Global maintenance controls applied to all online machines
@@ -119,7 +119,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </button>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm flex flex-col justify-between gap-6">
+        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col justify-between gap-6 text-slate-100">
           <div>
             <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">Backup Engine</h3>
             <p className="text-sm text-slate-500 dark:text-slate-300 mt-2">
@@ -150,7 +150,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm space-y-6">
+        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
           <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">Live System Mode</h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Restricted and standby controls
@@ -197,7 +197,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm space-y-6">
+        <div className="bg-gradient-to-br from-[#0e1a3e] to-[#101c46] p-8 rounded-3xl border border-blue-500/20 shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 text-slate-100">
           <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">System Updates</h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             Controlled rollout configuration for all connected installations

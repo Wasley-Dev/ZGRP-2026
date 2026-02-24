@@ -53,7 +53,7 @@ function createMainWindow() {
   const url = token ? `${LIVE_URL}?access=${encodeURIComponent(token)}` : LIVE_URL;
   const hasDevUrl = Boolean(process.env.ELECTRON_START_URL);
 
-  // Dev mode uses URL; packaged app prefers bundled UI so installer reflects latest code.
+  // Dev mode uses URL; packaged app also prefers live URL so older installers receive latest UI/features.
   if (hasDevUrl) {
     win.loadURL(url).catch(async () => {
       if (fs.existsSync(localBuild)) {
@@ -65,14 +65,11 @@ function createMainWindow() {
     return;
   }
 
-  if (fs.existsSync(localBuild)) {
-    win.loadFile(localBuild).catch(async () => {
-      await win.loadURL(url);
-    });
-    return;
-  }
-
   win.loadURL(url).catch(async () => {
+    if (fs.existsSync(localBuild)) {
+      await win.loadFile(localBuild);
+      return;
+    }
     await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
   });
 }

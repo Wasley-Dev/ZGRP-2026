@@ -1,6 +1,6 @@
-const { json, readBody, sendTwilioSms } = require('../../_lib/transport');
+import { json, readBody, sendTwilioSms } from '../../_lib/transport';
 
-module.exports = async (req, res) => {
+export default async function handler(req: any, res: any) {
   if (req.method === 'OPTIONS') return json(res, 200, { ok: true });
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
@@ -44,4 +44,4 @@ module.exports = async (req, res) => {
       error: error instanceof Error ? error.message : 'Unhandled server error',
     });
   }
-};
+}

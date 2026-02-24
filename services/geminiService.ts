@@ -173,8 +173,14 @@ const localFallback = (query: string, user: SystemUser): string => {
   if (q.includes('candidate')) return 'Use Candidate Registry to add, edit, and track document compliance records.';
   if (q.includes('admin')) return 'Admin Console handles user add/ban/delete/password reset and branding controls.';
   if (q.includes('recruit')) return 'Recruitment Hub gives hiring trends, source breakdowns, and funnel visibility.';
+  if (/(how are you|who are you|what do you like|tell me about yourself|your personality)/.test(q)) {
+    return `I am Zaya AI. I adapt to your style, keep responses practical, and I can switch from formal mode to playful mode when you want.`;
+  }
+  if (/(joke|funny|laugh)/.test(q)) {
+    return 'Here is one: I run on clean data and strong coffee, but only one of us gets jittery.';
+  }
 
-  return `I can assist with navigation, hiring workflow, and admin controls, ${user.name.split(' ')[0]}. I can also keep it conversational while we work.`;
+  return `I can help with reports, bookings, admin controls, and real-time sync, ${user.name.split(' ')[0]}. Tell me the exact task and I will execute the right path.`;
 };
 
 export async function askAI(options: AskAIOptions): Promise<string> {

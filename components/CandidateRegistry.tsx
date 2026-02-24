@@ -126,10 +126,14 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   const handlePDFDownload = async () => {
     if (!profileRef.current) return;
     
-    // Temporarily force light mode styles for capture
+    // Temporarily force light mode + enterprise dark-blue text for capture
     const originalClass = profileRef.current.className;
+    const originalColor = profileRef.current.style.color;
+    const originalBg = profileRef.current.style.backgroundColor;
     profileRef.current.classList.add('bg-white', 'text-slate-900');
     profileRef.current.classList.remove('dark:bg-slate-900', 'dark:text-white');
+    profileRef.current.style.color = '#003366';
+    profileRef.current.style.backgroundColor = '#ffffff';
     
     const canvas = await html2canvas(profileRef.current, {
       backgroundColor: '#ffffff',
@@ -138,6 +142,8 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     
     // Restore styles
     profileRef.current.className = originalClass;
+    profileRef.current.style.color = originalColor;
+    profileRef.current.style.backgroundColor = originalBg;
 
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF();
@@ -207,7 +213,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   );
 
   return (
-    <div className="space-y-4 text-slate-900 dark:text-white print:text-black">
+    <div className="space-y-4 text-slate-900 dark:text-white print:text-[#003366]">
 
       {/* HEADER */}
       <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border dark:border-slate-800 shadow-sm print:hidden">
@@ -719,7 +725,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
             className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar border dark:border-slate-800 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <div ref={profileRef} className="p-8 space-y-8">
+            <div ref={profileRef} className="p-8 space-y-8 print:text-[#003366]">
               {/* Header with Image and Basic Info */}
               <div className="flex flex-col md:flex-row gap-8 items-start border-b dark:border-slate-800 pb-8">
                 <img
