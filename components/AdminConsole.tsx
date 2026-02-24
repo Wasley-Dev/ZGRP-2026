@@ -28,6 +28,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   const [inviteDepartment, setInviteDepartment] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>(UserRole.USER);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
 
   const isSuperAdmin = (user: SystemUser) =>
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -152,6 +153,7 @@ const AdminConsole: React.FC<AdminProps> = ({
     setInvitePassword('');
     setInviteDepartment('');
     setInviteRole(UserRole.USER);
+    setShowAddUserModal(false);
     alert('User added. Share credentials with the user to sign in.');
   };
 
@@ -273,56 +275,13 @@ const AdminConsole: React.FC<AdminProps> = ({
             })}
 
             <div className="pt-8 mt-8 border-t dark:border-slate-700">
-              <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">
-                Add User Account
-              </h4>
-
-              <div className="space-y-4 mt-6">
-                <input
-                  placeholder="Full Name"
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                />
-                <input
-                  placeholder="Email Address"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                />
-                <input
-                  placeholder="Phone Number (SMS)"
-                  value={invitePhone}
-                  onChange={(e) => setInvitePhone(e.target.value)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                />
-                <input
-                  type="password"
-                  placeholder="Initial Password"
-                  value={invitePassword}
-                  onChange={(e) => setInvitePassword(e.target.value)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                />
-                <input
-                  placeholder="Department"
-                  value={inviteDepartment}
-                  onChange={(e) => setInviteDepartment(e.target.value)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                />
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-                >
-                  <option value={UserRole.USER}>USER</option>
-                  <option value={UserRole.ADMIN}>ADMIN</option>
-                </select>
-
+              <div className="flex items-center justify-between gap-4">
+                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">Add User Account</h4>
                 <button
-                  onClick={handleInviteUser}
-                  className="w-full py-4 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-gold/20 active:scale-95 transition-all"
+                  onClick={() => setShowAddUserModal(true)}
+                  className="px-4 py-3 bg-gold text-enterprise-blue rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg"
                 >
-                  <i className="fas fa-user-plus mr-2"></i> Add User
+                  Open Add User Form
                 </button>
               </div>
             </div>
@@ -403,6 +362,74 @@ const AdminConsole: React.FC<AdminProps> = ({
           </div>
         </div>
       </div>
+
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowAddUserModal(false)}>
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border dark:border-slate-700 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="text-lg font-black dark:text-white uppercase tracking-tight">New User Enrollment</h3>
+              <button onClick={() => setShowAddUserModal(false)} className="text-slate-400 hover:text-red-500">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                placeholder="Full Name"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <input
+                placeholder="Email Address"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <input
+                placeholder="Phone Number (SMS)"
+                value={invitePhone}
+                onChange={(e) => setInvitePhone(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <input
+                type="password"
+                placeholder="Initial Password"
+                value={invitePassword}
+                onChange={(e) => setInvitePassword(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <input
+                placeholder="Department"
+                value={inviteDepartment}
+                onChange={(e) => setInviteDepartment(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              >
+                <option value={UserRole.USER}>USER</option>
+                <option value={UserRole.ADMIN}>ADMIN</option>
+              </select>
+            </div>
+            <div className="p-6 border-t dark:border-slate-700 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/40">
+              <button
+                onClick={() => setShowAddUserModal(false)}
+                className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleInviteUser}
+                className="px-5 py-3 bg-gold text-enterprise-blue rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg"
+              >
+                Add User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

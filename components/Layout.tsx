@@ -60,10 +60,15 @@ const Layout: React.FC<LayoutProps> = ({
   useEffect(() => {
     if (toastQueue.length === 0) return;
     const timer = window.setTimeout(() => {
-      setToastQueue((prev) => prev.slice(0, -1));
+      setToastQueue((prev) => {
+        const next = prev.slice(0, -1);
+        const removed = prev[prev.length - 1];
+        if (removed) onMarkRead(removed.id);
+        return next;
+      });
     }, 4000);
     return () => window.clearTimeout(timer);
-  }, [toastQueue]);
+  }, [toastQueue, onMarkRead]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },

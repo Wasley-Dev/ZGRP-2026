@@ -33,6 +33,8 @@ export const EMAIL_SENDER =
   'customercare@zayagroupltd.com';
 export const SMS_SENDER =
   (import.meta.env.VITE_SMS_SENDER as string | undefined)?.trim() || '+255779630201';
+export const SMS_SENDER_LABEL =
+  (import.meta.env.VITE_SMS_SENDER_LABEL as string | undefined)?.trim() || 'ZAYA GROUP';
 export const hasMessagingBackend = () => Boolean(API_URL);
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

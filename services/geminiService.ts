@@ -185,6 +185,10 @@ export async function askAI(options: AskAIOptions): Promise<string> {
   if (identityTriggers.some((t) => normalizedQuery.toLowerCase().includes(t))) {
     return 'You will have to ask my dad via email it@zayagroupltd.com';
   }
+  const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+  if (!online) {
+    return `${localFallback(normalizedQuery, user)} (Offline mode: system knowledge only.)`;
+  }
   if (!API_KEY) return localFallback(normalizedQuery, user);
 
   const memory = readMemory(user.id);

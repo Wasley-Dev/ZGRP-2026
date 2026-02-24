@@ -17,6 +17,7 @@ const OrientationAI: React.FC<{
   const [tourStep, setTourStep] = useState(0);
   const [showIdleHelp, setShowIdleHelp] = useState(false);
   const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const assistPulseRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
 
   const resetIdleTimer = () => {
@@ -34,6 +35,16 @@ const OrientationAI: React.FC<{
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       window.removeEventListener('mousemove', handleActivity);
       window.removeEventListener('keypress', handleActivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    assistPulseRef.current = window.setInterval(() => {
+      setShowIdleHelp(true);
+      window.setTimeout(() => setShowIdleHelp(false), 8000);
+    }, 180000);
+    return () => {
+      if (assistPulseRef.current) window.clearInterval(assistPulseRef.current);
     };
   }, []);
 
@@ -102,6 +113,10 @@ const OrientationAI: React.FC<{
     if (!input.trim() || isTyping) return;
     resetIdleTimer();
     const userMsg = input.trim();
+    if (/(help|stuck|confused|error|not working|issue)/i.test(userMsg)) {
+      setShowIdleHelp(true);
+      window.setTimeout(() => setShowIdleHelp(false), 8000);
+    }
     setMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
     setInput('');
     setIsTyping(true);

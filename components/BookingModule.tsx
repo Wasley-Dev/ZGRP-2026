@@ -3,11 +3,12 @@ import { BookingEntry, SystemUser } from '../types';
 
 interface BookingModuleProps {
   bookings: BookingEntry[];
+  users: SystemUser[];
   currentUser: SystemUser;
   onUpsertBooking: (booking: BookingEntry) => void;
 }
 
-const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, onUpsertBooking }) => {
+const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentUser, onUpsertBooking }) => {
   const todayIso = new Date().toISOString().slice(0, 10);
   const [showForm, setShowForm] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingEntry | null>(null);
@@ -67,11 +68,13 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
 
   const formatBookingDate = (isoDate: string) =>
     new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
-      weekday: 'short',
+      weekday: 'long',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
+  const getBookedByName = (createdByUserId: string) =>
+    users.find((u) => u.id === createdByUserId)?.name || 'Unknown User';
 
   const openCreate = () => {
     setSelectedBooking(null);
@@ -137,49 +140,40 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-          <div className="xl:col-span-3 p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 min-h-[660px]">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Upcoming Bookings</h4>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Next {upcomingBookings.length} Events
-              </span>
-            </div>
-            <div className="space-y-3 max-h-[580px] overflow-auto pr-1">
-              {(upcomingBookings.length ? upcomingBookings : sortedBookings.slice(0, 8)).map((b) => (
-                <div
-                  key={b.id}
-                  className="group p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl flex items-center justify-between hover:border-gold transition-all"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-slate-50 dark:bg-slate-900 rounded-xl flex items-center justify-center text-gold shadow-sm border dark:border-slate-700">
-                      <i className="fas fa-clock text-sm"></i>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
-                        <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
-                          {formatBookingDate(b.date)} {b.time}
-                        </span>
-                      </div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
-                      <p className="text-[11px] text-slate-400 mt-1 italic">"{b.remarks}"</p>
-                    </div>
+          <div className="xl:col-span-3 space-y-6">
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 min-h-[460px]">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                {formatBookingDate(selectedDate)} Schedule
+              </p>
+              <div className="space-y-3 max-h-[390px] overflow-auto pr-1">
+                {selectedDateBookings.length === 0 ? (
+                  <div className="h-[340px] rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
+                    <i className="fas fa-calendar-day text-3xl text-gold mb-3"></i>
+                    <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Schedule On This Date</p>
+                    <p className="text-xs text-slate-400 mt-2">Select another date on the calendar or create a new booking.</p>
                   </div>
-                  <button
-                    onClick={() => openEdit(b)}
-                    className="px-3 py-2 border-2 border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-400 hover:border-gold hover:text-gold transition-all"
-                  >
-                    Reschedule
-                  </button>
-                </div>
-              ))}
-              {sortedBookings.length === 0 && (
-                <div className="h-[500px] rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
-                  <i className="fas fa-calendar-plus text-3xl text-gold mb-3"></i>
-                  <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Bookings Yet</p>
-                  <p className="text-xs text-slate-400 mt-2">Create your first booking to populate this panel and calendar.</p>
-                </div>
-              )}
+                ) : (
+                  selectedDateBookings.map((entry) => (
+                    <div key={entry.id} className="p-4 rounded-2xl bg-white dark:bg-slate-800 border dark:border-slate-700">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-black dark:text-white uppercase">{entry.time} - {entry.booker}</p>
+                        <button
+                          onClick={() => openEdit(entry)}
+                          className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500 hover:border-gold hover:text-gold transition-all"
+                        >
+                          Reschedule
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">{entry.purpose}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">Booked by: {getBookedByName(entry.createdByUserId)}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
+              <div className="text-3xl font-black text-gold mb-2">{sortedBookings.length}</div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Active Bookings</p>
             </div>
           </div>
 
@@ -267,25 +261,37 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, currentUser, on
               </div>
             </div>
             <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                {formatBookingDate(selectedDate)} Schedule
-              </p>
-              <div className="space-y-2 max-h-48 overflow-auto pr-1">
-                {selectedDateBookings.length === 0 ? (
-                  <p className="text-xs text-slate-400">No bookings for this date.</p>
-                ) : (
-                  selectedDateBookings.map((entry) => (
-                    <div key={entry.id} className="p-3 rounded-xl bg-white dark:bg-slate-800 border dark:border-slate-700">
-                      <p className="text-xs font-black dark:text-white">{entry.time} - {entry.booker}</p>
-                      <p className="text-[11px] text-slate-500">{entry.purpose}</p>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-black dark:text-white uppercase tracking-wider">Upcoming Bookings</h4>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Next {upcomingBookings.length} Events
+                </span>
+              </div>
+              <div className="space-y-3 max-h-[360px] overflow-auto pr-1">
+                {(upcomingBookings.length ? upcomingBookings : sortedBookings.slice(0, 8)).map((b) => (
+                  <div
+                    key={b.id}
+                    className="group p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl hover:border-gold transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-xs font-black dark:text-white uppercase tracking-tight">{b.booker}</h4>
+                      <span className="text-[9px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded">
+                        {formatBookingDate(b.date)} {b.time}
+                      </span>
                     </div>
-                  ))
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{b.purpose}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Booked by: {getBookedByName(b.createdByUserId)}</p>
+                    <p className="text-[11px] text-slate-400 mt-1 italic">"{b.remarks}"</p>
+                  </div>
+                ))}
+                {sortedBookings.length === 0 && (
+                  <div className="rounded-2xl border border-dashed dark:border-slate-700 flex flex-col items-center justify-center text-center p-6">
+                    <i className="fas fa-calendar-plus text-3xl text-gold mb-3"></i>
+                    <p className="text-sm font-black dark:text-white uppercase tracking-wider">No Bookings Yet</p>
+                    <p className="text-xs text-slate-400 mt-2">Create your first booking to populate this panel and calendar.</p>
+                  </div>
                 )}
               </div>
-            </div>
-            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 text-center flex flex-col items-center justify-center">
-              <div className="text-3xl font-black text-gold mb-2">{sortedBookings.length}</div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Active Bookings</p>
             </div>
           </div>
         </div>

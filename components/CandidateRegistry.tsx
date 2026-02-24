@@ -19,6 +19,8 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   onDelete,
   mode = "registry",
 }) => {
+  const fallbackImage = (name: string) =>
+    `https://ui-avatars.com/api/?background=003366&color=ffffff&name=${encodeURIComponent(name)}`;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<
     RecruitmentStatus | "ALL"
@@ -290,8 +292,11 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                 </td>
                 <td className="p-4">
                   <img
-                    src={c.photoUrl}
+                    src={c.photoUrl || fallbackImage(c.fullName)}
                     className="w-10 h-10 rounded-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = fallbackImage(c.fullName);
+                    }}
                   />
                 </td>
                 <td className="p-4 font-black dark:text-white">
@@ -718,9 +723,12 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
               {/* Header with Image and Basic Info */}
               <div className="flex flex-col md:flex-row gap-8 items-start border-b dark:border-slate-800 pb-8">
                 <img
-                  src={selectedCandidate.photoUrl}
+                  src={selectedCandidate.photoUrl || fallbackImage(selectedCandidate.fullName)}
                   alt={selectedCandidate.fullName}
                   className="w-32 h-32 rounded-2xl object-cover border-4 border-gold shadow-lg"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = fallbackImage(selectedCandidate.fullName);
+                  }}
                 />
                 <div className="flex-1 space-y-2">
                   <div className="flex justify-between items-start">
