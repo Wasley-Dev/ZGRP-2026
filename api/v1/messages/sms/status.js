@@ -1,6 +1,6 @@
-import { json, readBody, lookupTwilioStatus } from '../../../_lib/transport';
+const { json, readBody, lookupTwilioStatus } = require('../../../_lib/transport.js');
 
-export default async function handler(req: any, res: any) {
+module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return json(res, 200, { ok: true });
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
@@ -18,4 +18,4 @@ export default async function handler(req: any, res: any) {
       error: error instanceof Error ? error.message : 'Unhandled server error',
     });
   }
-}
+};

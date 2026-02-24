@@ -1,4 +1,4 @@
-export const json = (res: any, status: number, body: unknown) => {
+const json = (res, status, body) => {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,9 +7,9 @@ export const json = (res: any, status: number, body: unknown) => {
   res.end(JSON.stringify(body));
 };
 
-export const readBody = async (req: any) => {
+const readBody = async (req) => {
   if (req.body && typeof req.body === 'object') return req.body;
-  const chunks: Buffer[] = [];
+  const chunks = [];
   for await (const chunk of req) chunks.push(Buffer.from(chunk));
   const raw = Buffer.concat(chunks).toString('utf8');
   return raw ? JSON.parse(raw) : {};
@@ -22,7 +22,7 @@ const toTwilioAuthHeader = () => {
   return `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`;
 };
 
-const normalizeSmsStatus = (status: string) => {
+const normalizeSmsStatus = (status) => {
   const s = String(status || '').toLowerCase();
   if (['queued', 'accepted', 'scheduled'].includes(s)) return 'QUEUED';
   if (['sending', 'sent'].includes(s)) return 'SENT';
@@ -31,9 +31,9 @@ const normalizeSmsStatus = (status: string) => {
   return 'UNKNOWN';
 };
 
-export const sendTwilioSms = async ({ to, body }: { to: string; body: string }) => {
+const sendTwilioSms = async ({ to, body }) => {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
-  const from = ((process.env.TWILIO_MESSAGING_FROM || process.env.VITE_SMS_SENDER || '') as string).trim();
+  const from = (process.env.TWILIO_MESSAGING_FROM || process.env.VITE_SMS_SENDER || '').trim();
   const auth = toTwilioAuthHeader();
   if (!sid || !from || !auth) {
     throw new Error('Twilio SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_FROM.');
@@ -54,7 +54,7 @@ export const sendTwilioSms = async ({ to, body }: { to: string; body: string }) 
   return payload;
 };
 
-export const lookupTwilioStatus = async (providerMessageId: string) => {
+const lookupTwilioStatus = async (providerMessageId) => {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
   const auth = toTwilioAuthHeader();
   if (!sid || !auth) {
@@ -79,9 +79,9 @@ export const lookupTwilioStatus = async (providerMessageId: string) => {
   };
 };
 
-export const sendResendEmail = async ({ to, subject, body }: { to: string; subject: string; body: string }) => {
+const sendResendEmail = async ({ to, subject, body }) => {
   const apiKey = (process.env.RESEND_API_KEY || '').trim();
-  const from = ((process.env.COMM_EMAIL_FROM || process.env.VITE_EMAIL_SENDER || 'customercare@zayagroupltd.com') as string).trim();
+  const from = (process.env.COMM_EMAIL_FROM || process.env.VITE_EMAIL_SENDER || 'customercare@zayagroupltd.com').trim();
   if (!apiKey) {
     throw new Error('Email backend is not configured. Set RESEND_API_KEY.');
   }
@@ -103,4 +103,12 @@ export const sendResendEmail = async ({ to, subject, body }: { to: string; subje
     throw new Error(payload?.message || `Email send failed (${response.status})`);
   }
   return payload;
+};
+
+module.exports = {
+  json,
+  readBody,
+  sendTwilioSms,
+  lookupTwilioStatus,
+  sendResendEmail,
 };
