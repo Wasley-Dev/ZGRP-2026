@@ -58,9 +58,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const monthlyStatus = React.useMemo(() => {
     const monthMap = new Map<string, { recruitment: number; deployment: number; training: number }>();
     const fmt = new Intl.DateTimeFormat('en', { month: 'short' });
-    for (let i = 5; i >= 0; i -= 1) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
+    for (let month = 0; month < 12; month += 1) {
+      const d = new Date(2026, month, 1);
       const label = fmt.format(d);
       monthMap.set(label, { recruitment: 0, deployment: 0, training: 0 });
     }

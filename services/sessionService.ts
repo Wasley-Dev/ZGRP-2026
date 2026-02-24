@@ -131,3 +131,16 @@ export const updateSessionStatus = async (
     .update({ status, last_seen_at: nowIso(), is_online: status === 'ACTIVE' })
     .eq('id', sessionId);
 };
+
+export const enforceSingleSessionPerUser = async (
+  userId: string,
+  keepSessionId: string
+): Promise<void> => {
+  if (!supabase) return;
+  await supabase
+    .from(TABLE_NAME)
+    .update({ status: 'FORCED_OUT', is_online: false, last_seen_at: nowIso() })
+    .eq('user_id', userId)
+    .neq('id', keepSessionId)
+    .eq('status', 'ACTIVE');
+};

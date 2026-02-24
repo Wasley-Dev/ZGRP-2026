@@ -3,6 +3,7 @@ import { Candidate } from '../types';
 import {
   EMAIL_SENDER,
   SMS_SENDER,
+  SMS_SENDER_LABEL,
   fetchSmsDeliveryReceipts,
   hasMessagingBackend,
   sendEmailCampaign,
@@ -295,7 +296,7 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
                 Communication payload
               </label>
               <span className="text-[10px] font-bold text-slate-400">
-                From: {channel === 'Email' ? EMAIL_SENDER : SMS_SENDER}
+                From: {channel === 'Email' ? EMAIL_SENDER : `${SMS_SENDER_LABEL} (${SMS_SENDER})`}
               </span>
             </div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
