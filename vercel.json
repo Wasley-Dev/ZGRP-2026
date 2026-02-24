@@ -5,6 +5,18 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/v1/messages/sms/status",
+      "destination": "/api/v1/messages/sms/status"
+    },
+    {
+      "source": "/v1/messages/sms",
+      "destination": "/api/v1/messages/sms"
+    },
+    {
+      "source": "/v1/messages/email",
+      "destination": "/api/v1/messages/email"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
