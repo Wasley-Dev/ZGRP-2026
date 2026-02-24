@@ -26,7 +26,9 @@ interface BackendDispatchResponse {
   failed?: number;
 }
 
-const API_URL = (import.meta.env.VITE_COMM_API_URL as string | undefined)?.trim();
+const API_URL =
+  (import.meta.env.VITE_COMM_API_URL as string | undefined)?.trim() ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 const API_TOKEN = (import.meta.env.VITE_COMM_API_TOKEN as string | undefined)?.trim();
 export const EMAIL_SENDER =
   (import.meta.env.VITE_EMAIL_SENDER as string | undefined)?.trim() ||
