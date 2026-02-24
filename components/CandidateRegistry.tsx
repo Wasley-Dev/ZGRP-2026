@@ -1,7 +1,6 @@
 import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
 import { Candidate, RecruitmentStatus, DocumentStatus } from "../types";
 
 interface RegistryProps {
@@ -34,6 +33,31 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const supplementalRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  const safeImageData = async (url?: string) => {
+    if (!url) return null;
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.referrerPolicy = "no-referrer";
+      const data = await new Promise<string>((resolve, reject) => {
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth || 300;
+          canvas.height = img.naturalHeight || 300;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("No canvas context"));
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/jpeg", 0.92));
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+      return data;
+    } catch {
+      return null;
+    }
+  };
 
   const [newCandidate, setNewCandidate] = useState<Partial<Candidate>>({
     fullName: "",
@@ -124,35 +148,75 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   };
 
   const handlePDFDownload = async () => {
-    if (!profileRef.current) return;
-    
-    // Temporarily force light mode + enterprise dark-blue text for capture
-    const originalClass = profileRef.current.className;
-    const originalColor = profileRef.current.style.color;
-    const originalBg = profileRef.current.style.backgroundColor;
-    profileRef.current.classList.add('bg-white', 'text-slate-900');
-    profileRef.current.classList.remove('dark:bg-slate-900', 'dark:text-white');
-    profileRef.current.style.color = '#003366';
-    profileRef.current.style.backgroundColor = '#ffffff';
-    
-    const canvas = await html2canvas(profileRef.current, {
-      backgroundColor: '#ffffff',
-      scale: 2
-    });
-    
-    // Restore styles
-    profileRef.current.className = originalClass;
-    profileRef.current.style.color = originalColor;
-    profileRef.current.style.backgroundColor = originalBg;
+    if (!selectedCandidate) return;
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF();
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`${selectedCandidate?.fullName}_Dossier.pdf`);
+    const pdf = new jsPDF("p", "mm", "a4");
+    const colorBlue: [number, number, number] = [0, 51, 102];
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pdf.internal.pageSize.getHeight(), "F");
+
+    pdf.setTextColor(...colorBlue);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("ZAYA GROUP CANDIDATE DOSSIER", 14, 16);
+    pdf.setDrawColor(212, 175, 55);
+    pdf.setLineWidth(0.6);
+    pdf.line(14, 19, 196, 19);
+
+    const photoData = await safeImageData(selectedCandidate.photoUrl || fallbackImage(selectedCandidate.fullName));
+    if (photoData) {
+      try {
+        pdf.addImage(photoData, "JPEG", 14, 24, 34, 34);
+      } catch {
+        // keep PDF generation successful even if image decode fails
+      }
+    }
+
+    pdf.setFontSize(15);
+    pdf.text(selectedCandidate.fullName, 52, 30);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(`Reference: ${selectedCandidate.id}`, 52, 37);
+    pdf.text(`Occupation: ${selectedCandidate.occupation}`, 52, 43);
+    pdf.text(`Status: ${selectedCandidate.status}`, 52, 49);
+    pdf.text(`Position Applied: ${selectedCandidate.positionApplied}`, 52, 55);
+
+    autoTable(pdf, {
+      startY: 64,
+      theme: "grid",
+      head: [["Field", "Value"]],
+      body: [
+        ["Email", selectedCandidate.email || "-"],
+        ["Phone", selectedCandidate.phone || "-"],
+        ["DOB", selectedCandidate.dob || "-"],
+        ["Age", String(selectedCandidate.age ?? "-")],
+        ["Address", selectedCandidate.address || "-"],
+        ["Experience (Years)", String(selectedCandidate.experienceYears ?? "-")],
+        ["Skills", (selectedCandidate.skills || []).join(", ") || "None"],
+      ],
+      styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    autoTable(pdf, {
+      startY: (pdf as any).lastAutoTable.finalY + 6,
+      theme: "grid",
+      head: [["Document", "Status"]],
+      body: Object.entries(selectedCandidate.documents).map(([doc, status]) => [
+        doc.toUpperCase(),
+        status,
+      ]),
+      styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    pdf.save(`${selectedCandidate.fullName.replace(/\s+/g, "_")}_Dossier.pdf`);
   };
 
   const handleBulkDownload = () => {
