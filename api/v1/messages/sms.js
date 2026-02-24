@@ -6,7 +6,23 @@ export default async function handler(req, res) {
 
   try {
     const body = await readBody(req);
-    const recipients = Array.isArray(body?.to) ? body.to.filter(Boolean) : [];
+    const normalizePhone = (raw) => {
+      const trimmed = String(raw || '').trim();
+      if (!trimmed) return null;
+      if (trimmed.startsWith('+')) {
+        const clean = `+${trimmed.slice(1).replace(/\D/g, '')}`;
+        return clean.length >= 8 ? clean : null;
+      }
+      const digits = trimmed.replace(/\D/g, '');
+      if (!digits) return null;
+      if (digits.startsWith('255')) return `+${digits}`;
+      if (digits.startsWith('0') && digits.length >= 9) return `+255${digits.slice(1)}`;
+      if (digits.length >= 9 && digits.length <= 12) return `+${digits}`;
+      return null;
+    };
+    const recipients = Array.isArray(body?.to)
+      ? Array.from(new Set(body.to.map(normalizePhone).filter(Boolean)))
+      : [];
     const text = String(body?.body || '').trim();
     if (!recipients.length || !text) {
       return json(res, 400, { error: 'to[] and body are required.' });

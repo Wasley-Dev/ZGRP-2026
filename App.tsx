@@ -489,7 +489,33 @@ const App: React.FC = () => {
   );
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      flushOutbox(async (item) => {
+        if (item.type === 'bookings') await syncRemoteBookings(JSON.parse(item.payload));
+        if (item.type === 'candidates') await syncRemoteCandidates(JSON.parse(item.payload));
+        if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
+        if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
+      }).then(() => {
+        pushNotificationDeduped(
+          'sync:reconnect',
+          'Sync Complete',
+          'Offline updates were synchronized after reconnect.',
+          'SUCCESS',
+          'dashboard',
+          15000
+        );
+      }).catch(() => {
+        pushNotificationDeduped(
+          'sync:reconnect:error',
+          'Sync Pending',
+          'Reconnected, but some offline updates are still queued.',
+          'WARNING',
+          'dashboard',
+          15000
+        );
+      });
+    };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -1411,6 +1437,36 @@ const App: React.FC = () => {
             }
             if (action.type === 'PRINT_PAGE') {
               window.print();
+              return;
+            }
+            if (action.type === 'SHARE') {
+              const url = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
+              const shareText = `ZAYA Recruitment Portal: ${url}`;
+              if (navigator.share) {
+                navigator
+                  .share({ title: 'ZAYA Recruitment Portal', text: shareText, url })
+                  .catch(() => {
+                    navigator.clipboard?.writeText(shareText);
+                  });
+              } else {
+                navigator.clipboard?.writeText(shareText);
+              }
+              pushNotification('AI Share Action', 'Portal link prepared for sharing.', 'SUCCESS', 'dashboard');
+              return;
+            }
+            if (action.type === 'PREVIEW') {
+              if (action.target) setActiveModule(action.target);
+              pushNotification('AI Preview Action', 'Preview opened for requested module.', 'INFO', action.target || 'dashboard');
+              return;
+            }
+            if (action.type === 'DOWNLOAD') {
+              if (action.target === 'database' || action.target === 'candidates') {
+                setActiveModule('database');
+                pushNotification('AI Download Action', 'Opened database for export/download.', 'INFO', 'database');
+                return;
+              }
+              setActiveModule('reports');
+              pushNotification('AI Download Action', 'Opened reports to download requested data.', 'INFO', 'reports');
             }
           }}
         />

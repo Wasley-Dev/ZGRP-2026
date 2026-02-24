@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({
         if (removed) onMarkRead(removed.id);
         return next;
       });
-    }, 4000);
+    }, 2200);
     return () => window.clearTimeout(timer);
   }, [toastQueue, onMarkRead]);
 
@@ -151,7 +151,7 @@ const Layout: React.FC<LayoutProps> = ({
         <div className="sticky bottom-0 p-3 border-t border-white/5 bg-[#003366]/95 backdrop-blur-sm shrink-0">
           <button
             onClick={onLogout}
-            className="w-full py-3 text-[10px] font-black text-red-300 hover:bg-red-500/20 rounded-xl transition-colors tracking-[0.2em] border border-red-300/20"
+            className="w-full py-3 text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors tracking-[0.2em] border border-red-400/40"
           >
             LOGOUT
           </button>

@@ -38,6 +38,7 @@ const MEMORY_KEY_PREFIX = 'zaya_personality_';
 const BASE_SYSTEM_INSTRUCTION = `You are ZAYA AI, enterprise assistant for the ZAYA Group Recruitment Portal.
 Be accurate, actionable, and concise by default.
 If the user asks to navigate, provide the target module and a one-step action.
+If the user asks to print, export, share, preview, or download, respond with explicit immediate execution wording.
 Never invent data. If unsure, say what is unknown and provide the safest next step.
 When giving recommendations, prioritize security, operational clarity, and auditability.
 You can be conversational and friendly, and may include occasional clean light humor.`;
@@ -133,15 +134,17 @@ const readMemory = (userId: string): PersonalityMemory | undefined => {
 
 const writeMemory = (userId: string, profile: PersonalityProfile, query: string) => {
   if (typeof window === 'undefined') return;
+  const previous = readMemory(userId);
   const keywords = query
     .toLowerCase()
     .split(/\W+/)
     .filter((token) => token.length >= 5)
     .slice(0, 3);
+  const mergedInterests = Array.from(new Set([...(previous?.interests || []), ...keywords])).slice(0, 10);
   const memory: PersonalityMemory = {
-    preferredTone: profile.tone,
-    preferredVerbosity: profile.verbosity,
-    interests: Array.from(new Set(keywords)),
+    preferredTone: previous?.preferredTone || profile.tone,
+    preferredVerbosity: previous?.preferredVerbosity || profile.verbosity,
+    interests: mergedInterests,
     lastUpdatedAt: new Date().toISOString(),
   };
   window.localStorage.setItem(`${MEMORY_KEY_PREFIX}${userId}`, JSON.stringify(memory));
