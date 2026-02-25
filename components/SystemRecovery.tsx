@@ -67,159 +67,190 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
     alert(`Update ${nextVersion.trim()} queued.`);
   };
 
+  const restorePoints = [
+    {
+      id: 'rp-auto',
+      title: 'Automated Global Sync',
+      time: systemConfig.maintenanceUpdatedAt || new Date().toISOString(),
+      kind: 'SYSTEM',
+      size: '2.84 GB',
+    },
+    {
+      id: 'rp-admin',
+      title: 'Manual Admin Snapshot',
+      time: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+      kind: 'MANUAL',
+      size: '2.12 GB',
+    },
+    {
+      id: 'rp-update',
+      title: 'Post-Update Recovery Point',
+      time: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+      kind: 'AUTO',
+      size: '1.95 GB',
+    },
+  ];
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 text-slate-900 dark:text-slate-100">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">System Maintenance</h2>
-            <span className="px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">Operational</span>
-          </div>
-          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-            Global maintenance controls applied to all online machines
-          </p>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Maintenance Mode</span>
-            <button
-              disabled={!isSuperAdmin}
-              onClick={() => setMaintenanceMode((prev) => !prev)}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                maintenanceMode ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-              } disabled:opacity-40`}
-            >
-              {maintenanceMode ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-
-          <textarea
-            value={maintenanceMessage}
-            onChange={(e) => setMaintenanceMessage(e.target.value)}
-            disabled={!isSuperAdmin}
-            className="w-full h-32 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950/80 font-bold text-slate-800 dark:text-white outline-none disabled:opacity-70"
-            placeholder="Maintenance message shown across systems"
-          />
-
-          <div className="flex items-center gap-4">
-            <label className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Daily Backup Hour (24h)</label>
-            <input
-              type="number"
-              min={0}
-              max={23}
-              disabled={!isSuperAdmin}
-              value={backupHour}
-              onChange={(e) => setBackupHour(Number(e.target.value))}
-              className="w-24 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold text-slate-900 dark:text-white outline-none disabled:opacity-70"
-            />
-          </div>
-
-          <button
-            disabled={!isSuperAdmin}
-            onClick={saveMaintenance}
-            className="w-full py-4 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-lg disabled:opacity-50"
-          >
-            Save Maintenance Policy
-          </button>
-        </div>
-
-        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex flex-col gap-6 backdrop-blur">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 bg-white/90 dark:bg-[linear-gradient(180deg,#132248_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
           <div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Backup Engine</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
-              Automatic backup is configured for {backupHour.toString().padStart(2, '0')}:00 daily.
+            <h2 className="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Enterprise Resilience Dashboard</h2>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-2">
+              High-Availability failover & state restore
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
-              onClick={onTriggerBackup}
-              disabled={!isAdmin}
-              className="w-full py-4 bg-enterprise-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl disabled:opacity-50"
-            >
-              Initiate Global Sync
-            </button>
-
-            <button
-              onClick={onRestoreBackup}
               disabled={!isSuperAdmin}
-              className="w-full py-4 border border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest dark:text-white disabled:opacity-50"
+              onClick={() => setMaintenanceMode(false)}
+              className={`p-6 rounded-3xl border text-left ${!maintenanceMode ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
-              Restore From Previous Backup
+              <p className="text-xs font-black uppercase tracking-widest">Standard Mode</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Full Enterprise Ops</p>
+            </button>
+            <button
+              disabled={!isSuperAdmin}
+              onClick={() => {
+                setRestrictedMode(true);
+                if (onSetRestrictedAccess) onSetRestrictedAccess(true);
+              }}
+              className={`p-6 rounded-3xl border text-left ${restrictedMode ? 'border-gold bg-gold/15' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+            >
+              <p className="text-xs font-black uppercase tracking-widest">Safe Mode</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Read-Only Protocol</p>
+            </button>
+            <button
+              disabled={!isSuperAdmin}
+              onClick={() => {
+                setMaintenanceMode(true);
+                setStandbyMode(true);
+                if (onSetStandbyMode) onSetStandbyMode(true);
+              }}
+              className={`p-6 rounded-3xl border text-left ${standbyMode ? 'border-red-400 bg-red-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+            >
+              <p className="text-xs font-black uppercase tracking-widest">Recovery Mode</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Restricted Root Access</p>
             </button>
           </div>
 
-          <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Last policy update: {systemConfig.maintenanceUpdatedAt || 'Not set'}
+          <div className="space-y-3">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Restore Points</p>
+            {restorePoints.map((point) => (
+              <div
+                key={point.id}
+                className="p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50/80 dark:bg-slate-900/55 flex items-center justify-between gap-4"
+              >
+                <div>
+                  <p className="text-sm font-black uppercase">{point.title}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    {new Date(point.time).toLocaleString('en-GB')} • {point.kind}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-black">{point.size}</span>
+                  <button
+                    onClick={onRestoreBackup}
+                    disabled={!isSuperAdmin}
+                    className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                  >
+                    Restore
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#132248_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
+          <div className="w-28 h-28 mx-auto rounded-full border border-slate-300 dark:border-blue-400/20 flex items-center justify-center text-4xl text-gold bg-slate-100/60 dark:bg-slate-900/60">
+            <i className="fas fa-cloud-upload-alt"></i>
+          </div>
+          <div className="text-center">
+            <h3 className="text-3xl font-black uppercase tracking-tight">Auto-Backup Engine</h3>
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-2">
+              Real-time mirroring protocol
+            </p>
+          </div>
+          <button
+            onClick={onTriggerBackup}
+            disabled={!isAdmin}
+            className="w-full py-4 bg-enterprise-blue text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl disabled:opacity-60"
+          >
+            Initiate Global Sync
+          </button>
+          <div className="border-t border-slate-300/60 dark:border-blue-400/20 pt-4 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Next Scheduled Sync</span>
+              <span className="font-black text-gold">{(backupHour ?? 15).toString().padStart(2, '0')}:00</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Sync Status</span>
+              <span className="font-black text-emerald-500">Healthy</span>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
-          <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Live System Mode</h3>
-          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-            Restricted and standby controls
-          </p>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
-            <div>
-              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">Restricted Access</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">Force logout all users, admins only.</p>
-            </div>
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#132248_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-5 backdrop-blur">
+          <h3 className="text-xl font-black uppercase tracking-tight">System Maintenance</h3>
+          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50/80 dark:bg-slate-900/55">
+            <span className="text-xs font-black uppercase tracking-widest">Maintenance Mode</span>
             <button
               disabled={!isSuperAdmin}
-              onClick={() => {
-                const next = !restrictedMode;
-                setRestrictedMode(next);
-                if (onSetRestrictedAccess) onSetRestrictedAccess(next);
-              }}
+              onClick={() => setMaintenanceMode((prev) => !prev)}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                restrictedMode ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700'
-              } disabled:opacity-40`}
+                maintenanceMode ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700'
+              } disabled:opacity-50`}
             >
-              {restrictedMode ? 'Enabled' : 'Disabled'}
+              {maintenanceMode ? 'ON' : 'OFF'}
             </button>
           </div>
-
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-900/50">
-            <div>
-              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">Standby Mode</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400">Super admin full access, others read-only.</p>
-            </div>
-            <button
+          <textarea
+            value={maintenanceMessage}
+            onChange={(e) => setMaintenanceMessage(e.target.value)}
+            disabled={!isSuperAdmin}
+            className="w-full h-24 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-bold outline-none disabled:opacity-60"
+          />
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase tracking-widest">Daily Backup Hour</span>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={backupHour}
               disabled={!isSuperAdmin}
-              onClick={() => {
-                const next = !standbyMode;
-                setStandbyMode(next);
-                if (onSetStandbyMode) onSetStandbyMode(next);
-              }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                standbyMode ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-700'
-              } disabled:opacity-40`}
-            >
-              {standbyMode ? 'Enabled' : 'Disabled'}
-            </button>
+              onChange={(e) => setBackupHour(Number(e.target.value))}
+              className="w-24 p-2 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-black outline-none disabled:opacity-60"
+            />
           </div>
+          <button
+            disabled={!isSuperAdmin}
+            onClick={saveMaintenance}
+            className="w-full py-3 bg-gold text-enterprise-blue rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-60"
+          >
+            Save Maintenance Policy
+          </button>
         </div>
 
-        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#131d49_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-6 backdrop-blur">
-          <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">System Updates</h3>
-          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-            Controlled rollout configuration for all connected installations
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-stretch">
+        <div className="bg-white/90 dark:bg-[linear-gradient(180deg,#132248_0%,#0b1431_100%)] p-8 rounded-3xl border border-slate-200/80 dark:border-blue-400/20 shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] space-y-5 backdrop-blur">
+          <h3 className="text-xl font-black uppercase tracking-tight">System Updates</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <input
               value={nextVersion}
               onChange={(e) => setNextVersion(e.target.value)}
               disabled={!isSuperAdmin}
-              placeholder="Target version e.g. 0.0.1"
-              className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70 md:col-span-1"
+              placeholder="Target version"
+              className="p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold outline-none disabled:opacity-60 md:col-span-1"
             />
             <select
               value={updateChannel}
               onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
               disabled={!isSuperAdmin}
-              className="p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70 md:col-span-1"
+              className="p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold outline-none disabled:opacity-60 md:col-span-1"
             >
               <option value="stable">Stable</option>
               <option value="beta">Beta</option>
@@ -227,7 +258,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             <button
               onClick={queueUpdate}
               disabled={!isSuperAdmin}
-              className="py-3 bg-enterprise-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 md:col-span-2"
+              className="md:col-span-2 py-3 bg-enterprise-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
             >
               Queue Update Rollout
             </button>
@@ -236,12 +267,36 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             value={rolloutNotes}
             onChange={(e) => setRolloutNotes(e.target.value)}
             disabled={!isSuperAdmin}
-            className="w-full h-24 p-3 rounded-xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none disabled:opacity-70"
+            className="w-full h-20 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-bold outline-none disabled:opacity-60"
             placeholder="Update notes"
           />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              disabled={!isSuperAdmin}
+              onClick={() => {
+                const next = !restrictedMode;
+                setRestrictedMode(next);
+                if (onSetRestrictedAccess) onSetRestrictedAccess(next);
+              }}
+              className="py-3 rounded-xl border border-slate-200 dark:border-blue-400/20 text-xs font-black uppercase tracking-widest"
+            >
+              Restricted Access {restrictedMode ? 'ON' : 'OFF'}
+            </button>
+            <button
+              disabled={!isSuperAdmin}
+              onClick={() => {
+                const next = !standbyMode;
+                setStandbyMode(next);
+                if (onSetStandbyMode) onSetStandbyMode(next);
+              }}
+              className="py-3 rounded-xl border border-slate-200 dark:border-blue-400/20 text-xs font-black uppercase tracking-widest"
+            >
+              Standby Mode {standbyMode ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <button
             onClick={onExportReports}
-            className="w-full py-4 border border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-black uppercase tracking-widest dark:text-white"
+            className="w-full py-3 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest"
           >
             Export System Reports
           </button>

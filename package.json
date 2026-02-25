@@ -40,7 +40,7 @@
     "appId": "com.zayagroup.recruitmentportal",
     "productName": "ZAYA Recruitment Portal",
     "asar": true,
-    "icon": "assets/zaya-logo.png",
+    "icon": "assets/app-icon.png",
     "extraMetadata": {
       "electronAccessToken": "Kingsley06#"
     },
