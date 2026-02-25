@@ -53,6 +53,7 @@
       "package.json"
     ],
     "win": {
+      "icon": "assets/app-icon.ico",
       "publisherName": [
         "WIS",
         "Asya"
