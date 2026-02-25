@@ -28,6 +28,12 @@ const OrientationAI: React.FC<{
   const idleTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const assistPulseRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
+  const actionRepliesRef = React.useRef<string[]>([
+    'Done. I am on it now.',
+    'Great, executing that now.',
+    'Working on it right away.',
+    'Confirmed. Triggering it now.',
+  ]);
 
   const resetIdleTimer = () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -177,9 +183,11 @@ const OrientationAI: React.FC<{
     const action = detectActionIntent(userMsg);
     if (action) {
       setTimeout(() => {
+        const line = actionRepliesRef.current.shift() || 'Executing now.';
+        actionRepliesRef.current.push(line);
         setMessages((prev) => [
           ...prev,
-          { role: 'ai', text: 'Action accepted. Executing now.' },
+          { role: 'ai', text: line },
         ]);
         if (onAction) onAction(action);
         setIsTyping(false);

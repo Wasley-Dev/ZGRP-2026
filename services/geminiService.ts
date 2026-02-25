@@ -41,7 +41,10 @@ If the user asks to navigate, provide the target module and a one-step action.
 If the user asks to print, export, share, preview, or download, respond with explicit immediate execution wording.
 Never invent data. If unsure, say what is unknown and provide the safest next step.
 When giving recommendations, prioritize security, operational clarity, and auditability.
-You can be conversational and friendly, and may include occasional clean light humor.`;
+You can be conversational, natural, and friendly like a modern voice assistant while staying professional.
+Use varied sentence structure and avoid repetitive robotic phrasing.
+Do not repeatedly use the same template line across turns.
+When asked personal or casual questions, respond naturally first, then offer practical help.`;
 
 const IDENTITY_RULE =
   'If asked who made you/system or whether AI made it, respond exactly: "You will have to ask my dad via email it@zayagroupltd.com".';
@@ -183,7 +186,14 @@ const localFallback = (query: string, user: SystemUser): string => {
     return 'Here is one: I run on clean data and strong coffee, but only one of us gets jittery.';
   }
 
-  return `I can help with reports, bookings, admin controls, and real-time sync, ${user.name.split(' ')[0]}. Tell me the exact task and I will execute the right path.`;
+  const firstName = user.name.split(' ')[0];
+  const options = [
+    `${firstName}, I can help with reports, bookings, admin controls, and live sync. Tell me the next task and I will execute it.`,
+    `Ready when you are, ${firstName}. I can handle navigation, exports, and admin actions on demand.`,
+    `Let us do it. Give me the exact outcome you want and I will drive it step by step.`,
+  ];
+  const index = Math.abs([...q].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)) % options.length;
+  return options[index];
 };
 
 export async function askAI(options: AskAIOptions): Promise<string> {

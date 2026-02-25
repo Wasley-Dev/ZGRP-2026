@@ -470,6 +470,13 @@ const App: React.FC = () => {
     pushNotification(title, message, type, origin);
   };
 
+  const getSystemMode = (config: SystemConfig): 'STANDARD' | 'SAFE' | 'RECOVERY' => {
+    const message = config.maintenanceMessage || '';
+    if (message.includes('[MODE:RECOVERY]')) return 'RECOVERY';
+    if (message.includes('[MODE:SAFE]')) return 'SAFE';
+    return 'STANDARD';
+  };
+
   const validModules = useMemo(
     () =>
       new Set([
@@ -865,13 +872,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isOnline || !hasRemoteData()) return;
+    let running = false;
     const sync = async () => {
+      if (running) return;
+      running = true;
       await flushOutbox(async (item) => {
         if (item.type === 'bookings') await syncRemoteBookings(JSON.parse(item.payload));
         if (item.type === 'candidates') await syncRemoteCandidates(JSON.parse(item.payload));
         if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
         if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
       });
+      running = false;
     };
     sync();
   }, [isOnline, bookings, candidates, allUsers, systemConfig]);
@@ -986,13 +997,12 @@ const App: React.FC = () => {
     if (!matched) return 'Account not found. Contact admin.';
     if (matched.status === 'BANNED') return 'This account is banned. Contact administrator.';
     if (matched.password !== password) return 'Invalid enterprise credentials. Access denied.';
-    const restrictedAccess = (systemConfig.maintenanceMessage || '').includes('[RESTRICTED_ACCESS]');
-    const standbyMode = (systemConfig.maintenanceMessage || '').includes('[STANDBY_MODE]');
-    if (restrictedAccess && matched.role === UserRole.USER) {
-      return 'Restricted access mode is active. Contact admin.';
+    const systemMode = getSystemMode(systemConfig);
+    if (systemMode === 'SAFE' && matched.role === UserRole.USER) {
+      return 'Safe mode is active. User accounts are currently restricted.';
     }
-    if (standbyMode && matched.role !== UserRole.SUPER_ADMIN) {
-      return 'Standby mode is active. Only super admin has full access currently.';
+    if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) {
+      return 'Recovery mode is active. Only super admin has full access currently.';
     }
 
     const updatedUser = { ...matched, lastLogin: new Date().toISOString() };
@@ -1267,6 +1277,10 @@ const App: React.FC = () => {
             systemConfig={systemConfig}
             currentUser={currentUser}
             onSaveConfig={(nextConfig) => {
+              if (currentUser.role !== UserRole.SUPER_ADMIN) {
+                pushNotification('Permission Denied', 'Only super admin can change system mode and maintenance policy.', 'WARNING', 'recovery');
+                return;
+              }
               setSystemConfig(nextConfig);
               pushNotification('System Recovery Updated', 'Maintenance settings were synchronized.', 'INFO', 'recovery');
             }}
@@ -1277,13 +1291,15 @@ const App: React.FC = () => {
               pushNotification('Backup Restore Started', 'Restore sequence initiated from previous backup point.', 'WARNING', 'recovery');
             }}
             onSetRestrictedAccess={async (enabled) => {
-              const taggedMessage = enabled
-                ? `[RESTRICTED_ACCESS] ${systemConfig.maintenanceMessage || 'Restricted mode active.'}`
-                : (systemConfig.maintenanceMessage || '').replace('[RESTRICTED_ACCESS]', '').trim();
+              if (currentUser.role !== UserRole.SUPER_ADMIN) return;
+              const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
+              const taggedMessage = enabled ? `[MODE:SAFE] ${base}` : `[MODE:STANDARD] ${base}`;
               setSystemConfig((prev) => ({
                 ...prev,
-                maintenanceMode: enabled ? true : prev.maintenanceMode,
-                maintenanceMessage: taggedMessage || prev.maintenanceMessage,
+                maintenanceMode: enabled,
+                maintenanceMessage: taggedMessage,
+                maintenanceUpdatedBy: currentUser.name,
+                maintenanceUpdatedAt: new Date().toISOString(),
               }));
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
@@ -1303,13 +1319,15 @@ const App: React.FC = () => {
               );
             }}
             onSetStandbyMode={async (enabled) => {
-              const taggedMessage = enabled
-                ? `[STANDBY_MODE] ${systemConfig.maintenanceMessage || 'Standby mode active.'}`
-                : (systemConfig.maintenanceMessage || '').replace('[STANDBY_MODE]', '').trim();
+              if (currentUser.role !== UserRole.SUPER_ADMIN) return;
+              const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
+              const taggedMessage = enabled ? `[MODE:RECOVERY] ${base}` : `[MODE:STANDARD] ${base}`;
               setSystemConfig((prev) => ({
                 ...prev,
-                maintenanceMode: enabled ? true : prev.maintenanceMode,
-                maintenanceMessage: taggedMessage || prev.maintenanceMessage,
+                maintenanceMode: enabled,
+                maintenanceMessage: taggedMessage,
+                maintenanceUpdatedBy: currentUser.name,
+                maintenanceUpdatedAt: new Date().toISOString(),
               }));
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();

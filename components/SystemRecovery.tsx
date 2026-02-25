@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SystemConfig, SystemUser, UserRole } from '../types';
 
 interface SystemRecoveryProps {
@@ -43,13 +43,12 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
     parseMode(systemConfig.maintenanceMessage)
   );
 
-  useMemo(() => {
+  useEffect(() => {
     const parsed = parseMode(systemConfig.maintenanceMessage);
     setSystemMode(parsed);
     setRestrictedMode(parsed === 'SAFE');
     setStandbyMode(parsed === 'RECOVERY');
     setMaintenanceMode(parsed !== 'STANDARD' || Boolean(systemConfig.maintenanceMode));
-    return parsed;
   }, [systemConfig.maintenanceMessage, systemConfig.maintenanceMode]);
 
   const isSuperAdmin = useMemo(
@@ -63,10 +62,12 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
 
   const saveMaintenance = () => {
     if (!isSuperAdmin) return;
+    const strippedMessage = maintenanceMessage.replace(/\[MODE:[A-Z]+\]/g, '').trim();
+    const modeTag = systemMode === 'SAFE' ? '[MODE:SAFE]' : systemMode === 'RECOVERY' ? '[MODE:RECOVERY]' : '[MODE:STANDARD]';
     onSaveConfig({
       ...systemConfig,
-      maintenanceMode,
-      maintenanceMessage,
+      maintenanceMode: systemMode !== 'STANDARD' || maintenanceMode,
+      maintenanceMessage: `${modeTag} ${strippedMessage}`.trim(),
       backupHour,
       maintenanceUpdatedBy: currentUser.name,
       maintenanceUpdatedAt: new Date().toISOString(),
@@ -132,7 +133,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               }}
               className={`p-6 rounded-3xl border text-left ${systemMode === 'STANDARD' ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
-              <p className="text-xs font-black uppercase tracking-widest">Standard Mode</p>
+              <p className="text-xs font-black uppercase tracking-widest">Live Mode</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Full Enterprise Ops</p>
             </button>
             <button
@@ -144,7 +145,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
                 setMaintenanceMode(true);
                 if (onSetRestrictedAccess) onSetRestrictedAccess(true);
               }}
-              className={`p-6 rounded-3xl border text-left ${systemMode === 'SAFE' ? 'border-gold bg-gold/15' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+              className={`p-6 rounded-3xl border text-left ${systemMode === 'SAFE' ? 'border-yellow-400 bg-yellow-400/15' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
               <p className="text-xs font-black uppercase tracking-widest">Safe Mode</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Read-Only Protocol</p>
