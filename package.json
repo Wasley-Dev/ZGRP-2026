@@ -49,6 +49,7 @@
     },
     "files": [
       "electron/**/*",
+      "assets/app-icon.png",
       "dist/**/*",
       "package.json"
     ],

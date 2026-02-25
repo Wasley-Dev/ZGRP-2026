@@ -4,6 +4,8 @@ const fs = require('fs');
 
 const LIVE_URL = process.env.ELECTRON_START_URL || 'https://zgrp-portal-2026.vercel.app';
 const ACCESS_TOKEN = process.env.ELECTRON_ACCESS_TOKEN;
+const APP_USER_MODEL_ID = 'com.zayagroup.recruitmentportal';
+const WINDOW_ICON_PATH = path.join(__dirname, '..', 'assets', 'app-icon.png');
 
 const resolveBundledToken = () => {
   try {
@@ -26,6 +28,7 @@ function createMainWindow() {
     minHeight: 700,
     autoHideMenuBar: true,
     backgroundColor: '#0f172a',
+    icon: WINDOW_ICON_PATH,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -75,6 +78,10 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  app.setName('ZAYA Recruitment Portal');
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(APP_USER_MODEL_ID);
+  }
   createMainWindow();
 
   app.on('activate', () => {
