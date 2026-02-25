@@ -61,7 +61,7 @@
         "nsis"
       ],
       "signAndEditExecutable": false,
-      "artifactName": "ZAYA-Recruitment-Portal-Setup-${version}.${ext}"
+      "artifactName": "ZAYA Recruitment Portal Setup.${ext}"
     },
     "mac": {
       "icon": "assets/macos-setup.png",
