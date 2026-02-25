@@ -24,6 +24,11 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   onQueueUpdate,
   onExportReports,
 }) => {
+  const parseMode = (message?: string) => {
+    if ((message || '').includes('[MODE:RECOVERY]')) return 'RECOVERY';
+    if ((message || '').includes('[MODE:SAFE]')) return 'SAFE';
+    return 'STANDARD';
+  };
   const [maintenanceMode, setMaintenanceMode] = useState(Boolean(systemConfig.maintenanceMode));
   const [maintenanceMessage, setMaintenanceMessage] = useState(
     systemConfig.maintenanceMessage || 'Scheduled maintenance in progress.'
@@ -34,6 +39,18 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   const [rolloutNotes, setRolloutNotes] = useState('Core stability improvements and sync optimization.');
   const [restrictedMode, setRestrictedMode] = useState(false);
   const [standbyMode, setStandbyMode] = useState(false);
+  const [systemMode, setSystemMode] = useState<'STANDARD' | 'SAFE' | 'RECOVERY'>(
+    parseMode(systemConfig.maintenanceMessage)
+  );
+
+  useMemo(() => {
+    const parsed = parseMode(systemConfig.maintenanceMessage);
+    setSystemMode(parsed);
+    setRestrictedMode(parsed === 'SAFE');
+    setStandbyMode(parsed === 'RECOVERY');
+    setMaintenanceMode(parsed !== 'STANDARD' || Boolean(systemConfig.maintenanceMode));
+    return parsed;
+  }, [systemConfig.maintenanceMessage, systemConfig.maintenanceMode]);
 
   const isSuperAdmin = useMemo(
     () => currentUser.role === UserRole.SUPER_ADMIN,
@@ -105,8 +122,15 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
               disabled={!isSuperAdmin}
-              onClick={() => setMaintenanceMode(false)}
-              className={`p-6 rounded-3xl border text-left ${!maintenanceMode ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+              onClick={() => {
+                setSystemMode('STANDARD');
+                setMaintenanceMode(false);
+                setRestrictedMode(false);
+                setStandbyMode(false);
+                if (onSetRestrictedAccess) onSetRestrictedAccess(false);
+                if (onSetStandbyMode) onSetStandbyMode(false);
+              }}
+              className={`p-6 rounded-3xl border text-left ${systemMode === 'STANDARD' ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
               <p className="text-xs font-black uppercase tracking-widest">Standard Mode</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Full Enterprise Ops</p>
@@ -114,10 +138,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             <button
               disabled={!isSuperAdmin}
               onClick={() => {
+                setSystemMode('SAFE');
                 setRestrictedMode(true);
+                setStandbyMode(false);
+                setMaintenanceMode(true);
                 if (onSetRestrictedAccess) onSetRestrictedAccess(true);
               }}
-              className={`p-6 rounded-3xl border text-left ${restrictedMode ? 'border-gold bg-gold/15' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+              className={`p-6 rounded-3xl border text-left ${systemMode === 'SAFE' ? 'border-gold bg-gold/15' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
               <p className="text-xs font-black uppercase tracking-widest">Safe Mode</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Read-Only Protocol</p>
@@ -125,11 +152,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             <button
               disabled={!isSuperAdmin}
               onClick={() => {
+                setSystemMode('RECOVERY');
                 setMaintenanceMode(true);
                 setStandbyMode(true);
+                setRestrictedMode(false);
                 if (onSetStandbyMode) onSetStandbyMode(true);
               }}
-              className={`p-6 rounded-3xl border text-left ${standbyMode ? 'border-red-400 bg-red-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
+              className={`p-6 rounded-3xl border text-left ${systemMode === 'RECOVERY' ? 'border-red-400 bg-red-500/10' : 'border-slate-300/40 dark:border-blue-400/20'} disabled:opacity-60`}
             >
               <p className="text-xs font-black uppercase tracking-widest">Recovery Mode</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Restricted Root Access</p>
@@ -276,6 +305,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               onClick={() => {
                 const next = !restrictedMode;
                 setRestrictedMode(next);
+                setSystemMode(next ? 'SAFE' : 'STANDARD');
+                if (next) {
+                  setStandbyMode(false);
+                  setMaintenanceMode(true);
+                } else {
+                  setMaintenanceMode(false);
+                }
                 if (onSetRestrictedAccess) onSetRestrictedAccess(next);
               }}
               className="py-3 rounded-xl border border-slate-200 dark:border-blue-400/20 text-xs font-black uppercase tracking-widest"
@@ -287,6 +323,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               onClick={() => {
                 const next = !standbyMode;
                 setStandbyMode(next);
+                setSystemMode(next ? 'RECOVERY' : 'STANDARD');
+                if (next) {
+                  setRestrictedMode(false);
+                  setMaintenanceMode(true);
+                } else {
+                  setMaintenanceMode(false);
+                }
                 if (onSetStandbyMode) onSetStandbyMode(next);
               }}
               className="py-3 rounded-xl border border-slate-200 dark:border-blue-400/20 text-xs font-black uppercase tracking-widest"
