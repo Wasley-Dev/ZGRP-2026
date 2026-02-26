@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MOCK_USER, MOCK_USERS } from './constants';
 import {
@@ -50,64 +49,49 @@ import SystemRecovery from './components/SystemRecovery';
 const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
 const ZANZIBAR_NAME_MAP_KEY = 'zaya_zanzibar_name_map_v1';
 const ZANZIBAR_NAME_POOL = [
-  'Ali Juma',
-  'Asha Khamis',
-  'Salma Mwinyi',
-  'Omar Bakari',
-  'Nassor Hamad',
-  'Mariam Suleiman',
-  'Hassan Kombo',
-  'Zainab Abdalla',
-  'Yahya Mussa',
-  'Rukia Said',
-  'Abdalla Hemed',
-  'Saada Salim',
-  'Khadija Ali',
-  'Idd Seif',
-  'Amina Rajab',
-  'Jabir Nassor',
-  'Shabaan Othman',
-  'Habiba Omar',
-  'Hemed Khamis',
-  'Fatma Yahya',
-  'Mwanaidi Ali',
-  'Suleiman Juma',
-  'Rashid Kombo',
-  'Safiya Hamad',
+  'Ali Juma', 'Asha Khamis', 'Salma Mwinyi', 'Omar Bakari', 'Nassor Hamad',
+  'Mariam Suleiman', 'Hassan Kombo', 'Zainab Abdalla', 'Yahya Mussa', 'Rukia Said',
+  'Abdalla Hemed', 'Saada Salim', 'Khadija Ali', 'Idd Seif', 'Amina Rajab',
+  'Jabir Nassor', 'Shabaan Othman', 'Habiba Omar', 'Hemed Khamis', 'Fatma Yahya',
+  'Mwanaidi Ali', 'Suleiman Juma', 'Rashid Kombo', 'Safiya Hamad',
 ] as const;
 const MIN_CANDIDATE_COUNT = 20;
 const POSITION_POOL = ['Driver', 'Logistics Officer', 'HR Assistant', 'Sales Agent', 'Account Officer', 'Storekeeper'] as const;
 const SOURCE_POOL = ['LinkedIn', 'Website', 'Referral', 'Agencies'] as const;
 const STATUS_POOL = ['PENDING', 'INTERVIEW', 'TRAINING', 'DEPLOYMENT'] as const;
 
+// ─── Notification auto-dismiss durations ────────────────────────────────────
+// Login/machine-active notifications clear after 3s, everything else after 8s
+const QUICK_DISMISS_MS = 3000;
+const DEFAULT_DISMISS_MS = 8000;
+const QUICK_DISMISS_ORIGINS = new Set(['machines-login', 'machines-active']);
+const QUICK_DISMISS_TITLE_PATTERNS = [/login/i, /signed in/i, /machine.*active/i, /session.*active/i, /active.*session/i];
+
+const shouldQuickDismiss = (n: Notification): boolean => {
+  if (n.origin && QUICK_DISMISS_ORIGINS.has(n.origin)) return true;
+  return QUICK_DISMISS_TITLE_PATTERNS.some((p) => p.test(n.title) || p.test(n.message));
+};
+
 const App: React.FC = () => {
   const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
+
   const buildZanzibarNameMap = (candidateIds: string[]) => {
     if (typeof window === 'undefined') return {} as Record<string, string>;
     let existing: Record<string, string> = {};
     try {
       const raw = window.localStorage.getItem(ZANZIBAR_NAME_MAP_KEY);
       existing = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    } catch {
-      existing = {};
-    }
-
+    } catch { existing = {}; }
     const used = new Set(Object.values(existing));
     let pointer = 0;
     const nextName = () => {
-      while (pointer < ZANZIBAR_NAME_POOL.length && used.has(ZANZIBAR_NAME_POOL[pointer])) {
-        pointer += 1;
-      }
+      while (pointer < ZANZIBAR_NAME_POOL.length && used.has(ZANZIBAR_NAME_POOL[pointer])) pointer += 1;
       const picked = ZANZIBAR_NAME_POOL[pointer % ZANZIBAR_NAME_POOL.length];
       pointer += 1;
       used.add(picked);
       return picked;
     };
-
-    candidateIds.forEach((id) => {
-      if (!existing[id]) existing[id] = nextName();
-    });
-
+    candidateIds.forEach((id) => { if (!existing[id]) existing[id] = nextName(); });
     window.localStorage.setItem(ZANZIBAR_NAME_MAP_KEY, JSON.stringify(existing));
     return existing;
   };
@@ -118,13 +102,10 @@ const App: React.FC = () => {
     return input.map((candidate) => {
       const name = nameMap[candidate.id] || candidate.fullName;
       const photoUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(`${name}-${candidate.id}`)}`;
-      return {
-        ...candidate,
-        fullName: name,
-        photoUrl,
-      };
+      return { ...candidate, fullName: name, photoUrl };
     });
   };
+
   const buildGeneratedCandidate = (index: number): Candidate => {
     const id = `ZGL-CN-2026-${String(index + 1).padStart(5, '0')}`;
     const baseName = ZANZIBAR_NAME_POOL[index % ZANZIBAR_NAME_POOL.length];
@@ -132,28 +113,19 @@ const App: React.FC = () => {
     const createdAt = new Date(Date.UTC(2026, (index % 12), ((index % 27) + 1), 9, 30, 0)).toISOString();
     const photoUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(`${baseName}-${id}`)}`;
     return {
-      id,
-      fullName: baseName,
-      gender: index % 2 === 0 ? 'M' : 'F',
+      id, fullName: baseName, gender: index % 2 === 0 ? 'M' : 'F',
       phone: `+2557${String(10000000 + index * 371).slice(0, 8)}`,
       email: `${baseName.toLowerCase().replace(/\s+/g, '.')}@zayagroupltd.com`,
       dob: `199${index % 10}-${String((index % 12) + 1).padStart(2, '0')}-${String((index % 27) + 1).padStart(2, '0')}`,
-      age: 24 + (index % 11),
-      address: `Zanzibar ${index % 2 === 0 ? 'Urban' : 'North'} District`,
-      occupation: POSITION_POOL[index % POSITION_POOL.length],
-      experienceYears: 1 + (index % 9),
-      positionApplied: POSITION_POOL[(index + 2) % POSITION_POOL.length],
-      status,
+      age: 24 + (index % 11), address: `Zanzibar ${index % 2 === 0 ? 'Urban' : 'North'} District`,
+      occupation: POSITION_POOL[index % POSITION_POOL.length], experienceYears: 1 + (index % 9),
+      positionApplied: POSITION_POOL[(index + 2) % POSITION_POOL.length], status,
       documents: {
-        cv: 'COMPLETE',
-        id: index % 3 === 0 ? 'INCOMPLETE' : 'COMPLETE',
-        certificates: index % 4 === 0 ? 'INCOMPLETE' : 'COMPLETE',
-        tin: index % 5 === 0 ? 'NONE' : 'COMPLETE',
+        cv: 'COMPLETE', id: index % 3 === 0 ? 'INCOMPLETE' : 'COMPLETE',
+        certificates: index % 4 === 0 ? 'INCOMPLETE' : 'COMPLETE', tin: index % 5 === 0 ? 'NONE' : 'COMPLETE',
       },
       skills: ['Communication', 'Teamwork', 'Scheduling', 'Reporting'].slice(0, 2 + (index % 3)),
-      photoUrl,
-      createdAt,
-      source: SOURCE_POOL[index % SOURCE_POOL.length] as Candidate['source'],
+      photoUrl, createdAt, source: SOURCE_POOL[index % SOURCE_POOL.length] as Candidate['source'],
       notes: `Autogenerated profile ${index + 1} for live registry baseline.`,
     };
   };
@@ -162,30 +134,19 @@ const App: React.FC = () => {
     inputUsers.map((user) => {
       const fallback = MOCK_USERS.find((u) => u.email.toLowerCase() === user.email.toLowerCase());
       return {
-        ...user,
-        password: user.password || fallback?.password || '',
-        lastLogin: user.lastLogin || 'Never',
-        status: user.status || 'ACTIVE',
+        ...user, password: user.password || fallback?.password || '',
+        lastLogin: user.lastLogin || 'Never', status: user.status || 'ACTIVE',
         hasCompletedOrientation: user.hasCompletedOrientation ?? false,
       };
     });
 
   const initialSharedState = useMemo(
-    () =>
-      loadSharedState({
-        bookings: [],
-        candidates: [],
-        users: MOCK_USERS,
-        notifications: [],
-        systemConfig: {
-          systemName: 'ZAYA Group Recruitment Portal',
-          logoIcon: 'fa-z',
-          maintenanceMode: false,
-          backupHour: 15,
-        },
-      }),
-    []
+    () => loadSharedState({
+      bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
+      systemConfig: { systemName: 'ZAYA Group Recruitment Portal', logoIcon: 'fa-z', maintenanceMode: false, backupHour: 15 },
+    }), []
   );
+
   const clientIdRef = useRef(`client-${Math.random().toString(36).slice(2, 11)}`);
   const syncClientRef = useRef<RealtimeSyncClient | null>(null);
   const bookingsRef = useRef<BookingEntry[]>([]);
@@ -201,6 +162,8 @@ const App: React.FC = () => {
   const isRevokedRef = useRef(false);
   const maintenanceNotifiedRef = useRef(false);
   const sessionDigestRef = useRef<Record<string, { status: string; isOnline: boolean; userName: string }>>({});
+  // Track notification auto-dismiss timers so we can cancel them if manually dismissed
+  const dismissTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const initialUsers = useMemo(() => normalizeUsers(initialSharedState.users), [initialSharedState.users]);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -218,7 +181,8 @@ const App: React.FC = () => {
   const [activeSessions, setActiveSessions] = useState<MachineSession[]>([]);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(initialSharedState.systemConfig);
   const [isOnline, setIsOnline] = useState(getOnlineState());
-  const accessToken = (import.meta.env.VITE_APP_ACCESS_TOKEN as string | undefined)?.trim();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accessToken = ((import.meta as any).env?.VITE_APP_ACCESS_TOKEN as string | undefined)?.trim();
   const [isAccessGranted, setIsAccessGranted] = useState(() => {
     if (!accessToken) return true;
     const stored = localStorage.getItem('zaya_access_token');
@@ -235,21 +199,14 @@ const App: React.FC = () => {
   });
 
   const reportOptions = [
-    'Monthly ROI',
-    'Weekly Operations',
-    'Weekly Recovery Report',
-    'Candidate Performance',
-    'Weekly Recruitment Snapshot',
-    'Update Rollout Report',
-    'Department Efficiency',
-    'Global Logistics Dataset',
+    'Monthly ROI', 'Weekly Operations', 'Weekly Recovery Report', 'Candidate Performance',
+    'Weekly Recruitment Snapshot', 'Update Rollout Report', 'Department Efficiency', 'Global Logistics Dataset',
   ] as const;
   type ReportOption = (typeof reportOptions)[number];
   const [reportPopup, setReportPopup] = useState<ReportOption | null>(null);
 
   const handleDownloadReport = () => {
     if (!reportPopup) return;
-
     const now = new Date();
     const weekStart = new Date(now);
     const day = weekStart.getDay();
@@ -259,16 +216,8 @@ const App: React.FC = () => {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
-
-    const weeklyBookings = bookings.filter((b) => {
-      const d = new Date(`${b.date}T${b.time || '00:00'}`);
-      return d >= weekStart && d <= weekEnd;
-    });
-    const weeklyCandidates = candidates.filter((c) => {
-      const d = new Date(c.createdAt);
-      return d >= weekStart && d <= weekEnd;
-    });
-
+    const weeklyBookings = bookings.filter((b) => { const d = new Date(`${b.date}T${b.time || '00:00'}`); return d >= weekStart && d <= weekEnd; });
+    const weeklyCandidates = candidates.filter((c) => { const d = new Date(c.createdAt); return d >= weekStart && d <= weekEnd; });
     const deployedCount = candidates.filter((c) => c.status === 'DEPLOYMENT').length;
     const trainingCount = candidates.filter((c) => c.status === 'TRAINING').length;
     const interviewCount = candidates.filter((c) => c.status === 'INTERVIEW').length;
@@ -276,154 +225,80 @@ const App: React.FC = () => {
 
     import('jspdf').then(jsPDF => {
       const doc = new jsPDF.default();
-      doc.setFontSize(22);
-      doc.text(`ZAYA GROUP - ${reportPopup}`, 20, 20);
-      doc.setFontSize(12);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
+      doc.setFontSize(22); doc.text(`ZAYA GROUP - ${reportPopup}`, 20, 20);
+      doc.setFontSize(12); doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
       doc.text(`User: ${currentUser.name}`, 20, 40);
-      
-      doc.setLineWidth(0.5);
-      doc.line(20, 45, 190, 45);
-
+      doc.setLineWidth(0.5); doc.line(20, 45, 190, 45);
       let y = 58;
-      const write = (line: string) => {
-        doc.text(line, 20, y);
-        y += 8;
-      };
-
-      doc.setFontSize(12);
-      write('Live Data Summary');
-      doc.setFontSize(10);
-      write(`Total candidates: ${candidates.length}`);
-      write(`Total bookings: ${bookings.length}`);
-      write(`Users in directory: ${allUsers.length}`);
-      write(`Unread notifications: ${notifications.filter((n) => !n.read).length}`);
+      const write = (line: string) => { doc.text(line, 20, y); y += 8; };
+      doc.setFontSize(12); write('Live Data Summary'); doc.setFontSize(10);
+      write(`Total candidates: ${candidates.length}`); write(`Total bookings: ${bookings.length}`);
+      write(`Users in directory: ${allUsers.length}`); write(`Unread notifications: ${notifications.filter((n) => !n.read).length}`);
       y += 2;
-
       if (reportPopup === 'Monthly ROI') {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-        const monthlyCandidates = candidates.filter((c) => {
-          const d = new Date(c.createdAt);
-          return d >= monthStart && d <= monthEnd;
-        }).length;
-        const monthlyBookings = bookings.filter((b) => {
-          const d = new Date(`${b.date}T${b.time || '00:00'}`);
-          return d >= monthStart && d <= monthEnd;
-        }).length;
-        const monthlyDeployed = candidates.filter((c) => {
-          const d = new Date(c.createdAt);
-          return d >= monthStart && d <= monthEnd && c.status === 'DEPLOYMENT';
-        }).length;
-        const conversion = monthlyCandidates ? ((monthlyDeployed / monthlyCandidates) * 100).toFixed(1) : '0.0';
-
-        doc.setFontSize(12);
-        write('Monthly ROI Metrics');
-        doc.setFontSize(10);
+        const mc = candidates.filter((c) => { const d = new Date(c.createdAt); return d >= monthStart && d <= monthEnd; }).length;
+        const mb = bookings.filter((b) => { const d = new Date(`${b.date}T${b.time || '00:00'}`); return d >= monthStart && d <= monthEnd; }).length;
+        const md = candidates.filter((c) => { const d = new Date(c.createdAt); return d >= monthStart && d <= monthEnd && c.status === 'DEPLOYMENT'; }).length;
+        doc.setFontSize(12); write('Monthly ROI Metrics'); doc.setFontSize(10);
         write(`Month: ${monthStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`);
-        write(`Monthly candidates: ${monthlyCandidates}`);
-        write(`Monthly bookings: ${monthlyBookings}`);
-        write(`Monthly deployed: ${monthlyDeployed}`);
-        write(`Deployment conversion: ${conversion}%`);
+        write(`Monthly candidates: ${mc}`); write(`Monthly bookings: ${mb}`); write(`Monthly deployed: ${md}`);
+        write(`Deployment conversion: ${mc ? ((md / mc) * 100).toFixed(1) : '0.0'}%`);
       } else if (reportPopup === 'Weekly Recovery Report') {
-        doc.setFontSize(12);
-        write('Weekly Recovery Metrics');
-        doc.setFontSize(10);
+        doc.setFontSize(12); write('Weekly Recovery Metrics'); doc.setFontSize(10);
         write(`Week range: ${weekStart.toLocaleDateString('en-GB')} - ${weekEnd.toLocaleDateString('en-GB')}`);
         write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
         write(`Backup hour: ${(systemConfig.backupHour ?? 15).toString().padStart(2, '0')}:00`);
         write(`Maintenance updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
         write(`Online sessions: ${activeSessions.filter((s) => s.isOnline).length}`);
-        const weeklyRecoveryNotifications = notifications.filter((n) => {
-          if (!n.createdAt || n.origin !== 'recovery') return false;
-          const d = new Date(n.createdAt);
-          return d >= weekStart && d <= weekEnd;
-        });
-        write(`Recovery notifications this week: ${weeklyRecoveryNotifications.length}`);
       } else if (reportPopup === 'Update Rollout Report') {
-        doc.setFontSize(12);
-        write('Update Rollout Snapshot');
-        doc.setFontSize(10);
+        doc.setFontSize(12); write('Update Rollout Snapshot'); doc.setFontSize(10);
         write(`Maintenance mode: ${systemConfig.maintenanceMode ? 'ENABLED' : 'DISABLED'}`);
         write(`Policy last updated by: ${systemConfig.maintenanceUpdatedBy || 'N/A'}`);
         write(`Policy last updated at: ${systemConfig.maintenanceUpdatedAt || 'N/A'}`);
-        const recoveryNotifs = notifications.filter((n) => n.origin === 'recovery');
-        write(`Total recovery-related notifications: ${recoveryNotifs.length}`);
-        recoveryNotifs.slice(0, 8).forEach((n) => write(`- ${n.title}: ${n.message}`));
       } else if (reportPopup.includes('Weekly')) {
-        doc.setFontSize(12);
-        write('Weekly Metrics');
-        doc.setFontSize(10);
+        doc.setFontSize(12); write('Weekly Metrics'); doc.setFontSize(10);
         write(`Week range: ${weekStart.toLocaleDateString('en-GB')} - ${weekEnd.toLocaleDateString('en-GB')}`);
-        write(`Weekly bookings: ${weeklyBookings.length}`);
-        write(`Weekly new candidates: ${weeklyCandidates.length}`);
-        y += 2;
-
-        doc.setFontSize(11);
-        write('Upcoming Weekly Bookings');
-        doc.setFontSize(9);
-        const weeklyRows = weeklyBookings.slice(0, 10);
-        if (weeklyRows.length === 0) {
-          write('No bookings scheduled this week.');
-        } else {
-          weeklyRows.forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
-        }
+        write(`Weekly bookings: ${weeklyBookings.length}`); write(`Weekly new candidates: ${weeklyCandidates.length}`);
+        weeklyBookings.slice(0, 10).forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
       } else if (reportPopup === 'Candidate Performance') {
-        doc.setFontSize(12);
-        write('Candidate Pipeline');
-        doc.setFontSize(10);
-        write(`Pending: ${pendingCount}`);
-        write(`Interview: ${interviewCount}`);
-        write(`Training: ${trainingCount}`);
-        write(`Deployment: ${deployedCount}`);
+        doc.setFontSize(12); write('Candidate Pipeline'); doc.setFontSize(10);
+        write(`Pending: ${pendingCount}`); write(`Interview: ${interviewCount}`);
+        write(`Training: ${trainingCount}`); write(`Deployment: ${deployedCount}`);
       } else if (reportPopup === 'Department Efficiency') {
-        doc.setFontSize(12);
-        write('Department Snapshot');
-        doc.setFontSize(10);
-        const byDept = allUsers.reduce<Record<string, number>>((acc, u) => {
-          acc[u.department] = (acc[u.department] || 0) + 1;
-          return acc;
-        }, {});
+        doc.setFontSize(12); write('Department Snapshot'); doc.setFontSize(10);
+        const byDept = allUsers.reduce<Record<string, number>>((acc, u) => { acc[u.department] = (acc[u.department] || 0) + 1; return acc; }, {});
         Object.entries(byDept).forEach(([dept, count]) => write(`- ${dept}: ${count} users`));
       } else if (reportPopup === 'Global Logistics Dataset') {
-        doc.setFontSize(12);
-        write('Logistics Dataset Extract');
-        doc.setFontSize(10);
-        const rows = bookings.slice(0, 12);
-        if (!rows.length) {
-          write('No logistics bookings available.');
-        } else {
-          rows.forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
-        }
+        doc.setFontSize(12); write('Logistics Dataset Extract'); doc.setFontSize(10);
+        bookings.slice(0, 12).forEach((b) => write(`- ${b.date} ${b.time} | ${b.booker} | ${b.purpose}`));
       } else {
-        doc.setFontSize(12);
-        write('Operational Summary');
-        doc.setFontSize(10);
-        write(`Conversion estimate (deployed/candidates): ${candidates.length ? ((deployedCount / candidates.length) * 100).toFixed(1) : '0.0'}%`);
-        write(`Average weekly bookings: ${Math.max(weeklyBookings.length, 0)}`);
+        doc.setFontSize(12); write('Operational Summary'); doc.setFontSize(10);
+        write(`Conversion estimate: ${candidates.length ? ((deployedCount / candidates.length) * 100).toFixed(1) : '0.0'}%`);
       }
-
       doc.save(`${reportPopup.replace(/\s+/g, '_')}_Report.pdf`);
       setReportPopup(null);
     });
   };
 
   const openReportByName = (raw?: string) => {
-    if (!raw) {
-      setActiveModule('reports');
-      return;
-    }
+    if (!raw) { setActiveModule('reports'); return; }
     const normalized = raw.trim().toLowerCase();
     const found = reportOptions.find((option) => option.toLowerCase() === normalized);
-    if (found) {
-      setActiveModule('reports');
-      setReportPopup(found);
-      return;
-    }
+    if (found) { setActiveModule('reports'); setReportPopup(found); return; }
     setActiveModule('reports');
   };
 
-
+  // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+  // Auto-dismiss: login/machine-active = 3s, everything else = 8s
+  const scheduleAutoDismiss = (id: string, quick: boolean) => {
+    if (dismissTimersRef.current[id]) clearTimeout(dismissTimersRef.current[id]);
+    dismissTimersRef.current[id] = setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      delete dismissTimersRef.current[id];
+    }, quick ? QUICK_DISMISS_MS : DEFAULT_DISMISS_MS);
+  };
 
   const pushNotification = (
     title: string,
@@ -433,25 +308,25 @@ const App: React.FC = () => {
   ) => {
     setNotifications((prev) => {
       const now = Date.now();
+      // Deduplicate: same title+message+origin within 90s
       const recentDuplicate = prev.find((n) => {
         if (n.title !== title || n.message !== message || n.origin !== origin) return false;
         if (!n.createdAt) return false;
         return now - new Date(n.createdAt).getTime() < 90000;
       });
       if (recentDuplicate) return prev;
-      return [
-        {
-          id: `NTF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          title,
-          message,
-          time: 'Just now',
-          read: false,
-          type,
-          origin,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ];
+
+      const newNotif: Notification = {
+        id: `NTF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title, message, time: 'Just now', read: false, type, origin,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Schedule auto-dismiss
+      const quick = shouldQuickDismiss(newNotif);
+      setTimeout(() => scheduleAutoDismiss(newNotif.id, quick), 0);
+
+      return [newNotif, ...prev];
     });
   };
 
@@ -470,6 +345,13 @@ const App: React.FC = () => {
     pushNotification(title, message, type, origin);
   };
 
+  // Cleanup dismiss timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(dismissTimersRef.current).forEach(clearTimeout);
+    };
+  }, []);
+
   const getSystemMode = (config: SystemConfig): 'STANDARD' | 'SAFE' | 'RECOVERY' => {
     const message = config.maintenanceMessage || '';
     if (message.includes('[MODE:RECOVERY]')) return 'RECOVERY';
@@ -478,20 +360,7 @@ const App: React.FC = () => {
   };
 
   const validModules = useMemo(
-    () =>
-      new Set([
-        'dashboard',
-        'candidates',
-        'database',
-        'recruitment',
-        'booking',
-        'broadcast',
-        'settings',
-        'admin',
-        'machines',
-        'recovery',
-        'reports',
-      ]),
+    () => new Set(['dashboard', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
     []
   );
 
@@ -504,35 +373,16 @@ const App: React.FC = () => {
         if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
         if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
       }).then(() => {
-        pushNotificationDeduped(
-          'sync:reconnect',
-          'Sync Complete',
-          'Offline updates were synchronized after reconnect.',
-          'SUCCESS',
-          'dashboard',
-          15000
-        );
+        pushNotificationDeduped('sync:reconnect', 'Sync Complete', 'Offline updates were synchronized after reconnect.', 'SUCCESS', 'dashboard', 15000);
       }).catch(() => {
-        pushNotificationDeduped(
-          'sync:reconnect:error',
-          'Sync Pending',
-          'Reconnected, but some offline updates are still queued.',
-          'WARNING',
-          'dashboard',
-          15000
-        );
+        pushNotificationDeduped('sync:reconnect:error', 'Sync Pending', 'Reconnected, but some offline updates are still queued.', 'WARNING', 'dashboard', 15000);
       });
     };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     const savedTheme = localStorage.getItem('zaya_theme') as ThemeMode;
-    if (savedTheme) {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-    }
-
+    if (savedTheme) { setTheme(savedTheme); document.documentElement.classList.toggle('dark', savedTheme === 'dark'); }
     if (accessToken) {
       const params = new URLSearchParams(window.location.search);
       const tokenParam = params.get('access');
@@ -542,30 +392,18 @@ const App: React.FC = () => {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-
     const timer = setTimeout(() => setIsLoading(false), 2000);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      clearTimeout(timer);
-    };
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); clearTimeout(timer); };
   }, [accessToken]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!backgroundImageUrl) {
-      window.localStorage.removeItem('zaya_background_image');
-      return;
-    }
+    if (!backgroundImageUrl) { window.localStorage.removeItem('zaya_background_image'); return; }
     window.localStorage.setItem('zaya_background_image', backgroundImageUrl);
   }, [backgroundImageUrl]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (hasRemoteSessionStore() && isLoggedIn) {
-        markSessionOffline(sessionIdRef.current);
-      }
-    };
+    const handleBeforeUnload = () => { if (hasRemoteSessionStore() && isLoggedIn) markSessionOffline(sessionIdRef.current); };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isLoggedIn]);
@@ -581,44 +419,28 @@ const App: React.FC = () => {
       if (snapshot.systemConfig) setSystemConfig(snapshot.systemConfig);
     };
     hydrateLocal();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     const hydrateUsers = async () => {
-      if (!hasRemoteUserDirectory()) {
-        remoteHydratedRef.current = true;
-        return;
-      }
-
+      if (!hasRemoteUserDirectory()) { remoteHydratedRef.current = true; return; }
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
       if (cancelled) return;
-
       if (remoteUsers.length > 0) {
         setAllUsers(remoteUsers);
         setCurrentUser((prev) => remoteUsers.find((u) => u.id === prev.id) || prev);
-      } else {
-        await syncRemoteUsers(initialUsers);
-      }
-
+      } else { await syncRemoteUsers(initialUsers); }
       remoteHydratedRef.current = true;
     };
-
     hydrateUsers();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [initialUsers]);
 
   useEffect(() => {
-    bookingsRef.current = bookings;
-    candidatesRef.current = candidates;
-    usersRef.current = allUsers;
-    configRef.current = systemConfig;
-    sessionsRef.current = activeSessions;
+    bookingsRef.current = bookings; candidatesRef.current = candidates;
+    usersRef.current = allUsers; configRef.current = systemConfig; sessionsRef.current = activeSessions;
   }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
 
   useEffect(() => {
@@ -626,14 +448,7 @@ const App: React.FC = () => {
     const normalized = normalizeCandidatesZanzibar(candidates);
     if (!isSame(candidates, normalized)) {
       setCandidates(normalized);
-      pushNotificationDeduped(
-        'zanzibar-candidates-standardized',
-        'Candidate Directory Standardized',
-        'Applied Zanzibar names and profile photos to candidate records.',
-        'INFO',
-        'database',
-        5000
-      );
+      pushNotificationDeduped('zanzibar-candidates-standardized', 'Candidate Directory Standardized', 'Applied Zanzibar names and profile photos to candidate records.', 'INFO', 'database', 5000);
     }
   }, [candidates]);
 
@@ -645,172 +460,83 @@ const App: React.FC = () => {
     const generated: Candidate[] = [];
     let cursor = candidates.length;
     while (generated.length < required) {
-      const item = buildGeneratedCandidate(cursor);
-      cursor += 1;
+      const item = buildGeneratedCandidate(cursor); cursor += 1;
       if (existingIds.has(item.id)) continue;
-      existingIds.add(item.id);
-      generated.push(item);
+      existingIds.add(item.id); generated.push(item);
     }
     setCandidates((prev) => [...prev, ...generated]);
-    pushNotificationDeduped(
-      'candidate-seed-minimum',
-      'Candidate Baseline Applied',
-      `Candidate registry expanded to ${MIN_CANDIDATE_COUNT} records for live operations.`,
-      'INFO',
-      'database',
-      120000
-    );
+    pushNotificationDeduped('candidate-seed-minimum', 'Candidate Baseline Applied', `Candidate registry expanded to ${MIN_CANDIDATE_COUNT} records for live operations.`, 'INFO', 'database', 120000);
   }, [candidates]);
 
   useEffect(() => {
-    const clearableIds = notifications
-      .filter((n) => !n.read)
-      .filter((n) => /sync/i.test(`${n.title} ${n.message}`))
-      .filter((n) => n.title !== 'System Policy Sync')
-      .map((n) => n.id);
+    const clearableIds = notifications.filter((n) => !n.read).filter((n) => /sync/i.test(`${n.title} ${n.message}`)).filter((n) => n.title !== 'System Policy Sync').map((n) => n.id);
     if (clearableIds.length === 0) return;
-    const timer = window.setTimeout(() => {
-      setNotifications((prev) => prev.filter((n) => !clearableIds.includes(n.id)));
-    }, 5000);
+    const timer = window.setTimeout(() => { setNotifications((prev) => prev.filter((n) => !clearableIds.includes(n.id))); }, 5000);
     return () => window.clearTimeout(timer);
   }, [notifications]);
 
   useEffect(() => {
-    if (!hasRemoteData()) return;
-    if (!isOnline) return;
-
+    if (!hasRemoteData() || !isOnline) return;
     let cancelled = false;
     const hydrateRemoteData = async () => {
-      const [remoteBookings, remoteCandidates, remoteConfig] = await Promise.all([
-        fetchRemoteBookings(),
-        fetchRemoteCandidates(),
-        fetchRemoteSystemConfig(),
-      ]);
+      const [remoteBookings, remoteCandidates, remoteConfig] = await Promise.all([fetchRemoteBookings(), fetchRemoteCandidates(), fetchRemoteSystemConfig()]);
       if (cancelled) return;
       setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
       setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
-      if (remoteConfig) {
-        setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
-      }
+      if (remoteConfig) setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
     };
     hydrateRemoteData();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [isOnline]);
 
   useEffect(() => {
-    if (!isLoggedIn || !isOnline) return;
-    if (!hasRemoteData()) return;
-
+    if (!isLoggedIn || !isOnline || !hasRemoteData()) return;
     let stopped = false;
     const syncFromRemote = async () => {
       const [remoteUsers, remoteBookings, remoteCandidates, remoteConfig, sessions] = await Promise.all([
         hasRemoteUserDirectory() ? fetchRemoteUsers() : Promise.resolve([]),
-        fetchRemoteBookings(),
-        fetchRemoteCandidates(),
-        fetchRemoteSystemConfig(),
+        fetchRemoteBookings(), fetchRemoteCandidates(), fetchRemoteSystemConfig(),
         hasRemoteSessionStore() ? fetchActiveSessions() : Promise.resolve([]),
       ]);
       if (stopped) return;
-
       const hadBookingChange = !isSame(bookingsRef.current, remoteBookings);
       const hadCandidateChange = !isSame(candidatesRef.current, remoteCandidates);
       setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
       setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
-      if (hadBookingChange) {
-        pushNotificationDeduped(
-          'sync-bookings',
-          'Booking Sync',
-          `Booking calendar updated from shared database (${remoteBookings.length} entries).`,
-          'INFO',
-          'booking'
-          ,
-          60000
-        );
-      }
-      if (hadCandidateChange) {
-        pushNotificationDeduped(
-          'sync-candidates',
-          'Candidate Sync',
-          `Candidate data refreshed across devices (${remoteCandidates.length} records).`,
-          'INFO',
-          'database'
-          ,
-          120000
-        );
-      }
+      if (hadBookingChange) pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${remoteBookings.length} entries).`, 'INFO', 'booking', 60000);
+      if (hadCandidateChange) pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${remoteCandidates.length} records).`, 'INFO', 'database', 120000);
       if (remoteUsers.length > 0) {
         const normalized = normalizeUsers(remoteUsers);
         const hadUserChange = !isSame(usersRef.current, normalized);
         setAllUsers((prev) => (isSame(prev, normalized) ? prev : normalized));
         setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
-        if (hadUserChange) {
-          pushNotificationDeduped(
-            'sync-users',
-            'User Directory Sync',
-            'User accounts/permissions were updated from another device.',
-            'INFO',
-            'admin'
-            ,
-            60000
-          );
-        }
+        if (hadUserChange) pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
       }
       if (remoteConfig) {
         const hadConfigChange = !isSame(configRef.current, remoteConfig);
         setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
-        if (hadConfigChange) {
-          pushNotificationDeduped(
-            'sync-config',
-            'System Policy Sync',
-            'Maintenance or recovery settings changed and were synced.',
-            'WARNING',
-            'recovery'
-            ,
-            120000
-          );
-        }
+        if (hadConfigChange) pushNotificationDeduped('sync-config', 'System Policy Sync', 'Maintenance or recovery settings changed and were synced.', 'WARNING', 'recovery', 120000);
       }
       if (sessions.length) {
         const hadSessionChange = !isSame(sessionsRef.current, sessions);
         setActiveSessions((prev) => (isSame(prev, sessions) ? prev : sessions));
-        if (hadSessionChange) {
-          pushNotificationDeduped(
-            'sync-sessions',
-            'Machine Presence Updated',
-            'Active machine/session list changed in real time.',
-            'INFO',
-            'machines'
-            ,
-            60000
-          );
-        }
+        if (hadSessionChange) pushNotificationDeduped('sync-sessions', 'Machine Presence Updated', 'Active machine/session list changed in real time.', 'INFO', 'machines', 60000);
       }
     };
-
     syncFromRemote();
     const id = window.setInterval(syncFromRemote, 12000);
-    return () => {
-      stopped = true;
-      window.clearInterval(id);
-    };
+    return () => { stopped = true; window.clearInterval(id); };
   }, [isLoggedIn, isOnline]);
 
-  useEffect(() => {
-    // Force login on every app open. We intentionally do not restore previous session.
-    setIsLoggedIn(false);
-  }, []);
+  useEffect(() => { setIsLoggedIn(false); }, []);
 
   useEffect(() => {
     const syncClient = new RealtimeSyncClient({
       clientId: clientIdRef.current,
       onSnapshot: (snapshot) => {
         applyingRemoteUpdateRef.current = true;
-        setBookings(snapshot.bookings);
-        setCandidates(snapshot.candidates);
-        setAllUsers(normalizeUsers(snapshot.users));
-        setNotifications(snapshot.notifications);
+        setBookings(snapshot.bookings); setCandidates(snapshot.candidates);
+        setAllUsers(normalizeUsers(snapshot.users)); setNotifications(snapshot.notifications);
         setSystemConfig(snapshot.systemConfig);
         setCurrentUser((prev) => normalizeUsers(snapshot.users).find((u) => u.id === prev.id) || prev);
       },
@@ -822,50 +548,23 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!syncClientRef.current) return;
-    if (!initializedSyncRef.current) {
-      initializedSyncRef.current = true;
-      return;
-    }
-    if (applyingRemoteUpdateRef.current) {
-      applyingRemoteUpdateRef.current = false;
-      return;
-    }
-
-    const snapshot = createSharedSnapshot(
-      {
-        bookings,
-        candidates,
-        users: allUsers,
-        notifications,
-        systemConfig,
-      },
-      currentUser.id || clientIdRef.current
-    );
+    if (!initializedSyncRef.current) { initializedSyncRef.current = true; return; }
+    if (applyingRemoteUpdateRef.current) { applyingRemoteUpdateRef.current = false; return; }
+    const snapshot = createSharedSnapshot({ bookings, candidates, users: allUsers, notifications, systemConfig }, currentUser.id || clientIdRef.current);
     syncClientRef.current.publish(snapshot);
   }, [bookings, candidates, allUsers, notifications, systemConfig, currentUser.id]);
 
   useEffect(() => {
-    if (!remoteHydratedRef.current) return;
-    if (!hasRemoteUserDirectory()) return;
-
-    const timer = setTimeout(() => {
-      syncRemoteUsers(allUsers);
-    }, 200);
+    if (!remoteHydratedRef.current || !hasRemoteUserDirectory()) return;
+    const timer = setTimeout(() => { syncRemoteUsers(allUsers); }, 200);
     return () => clearTimeout(timer);
   }, [allUsers]);
 
   useEffect(() => {
     const persist = async () => {
-      await saveLocalSnapshot({
-        bookings,
-        candidates,
-        users: allUsers,
-        systemConfig,
-      });
-      await queueOutbox('bookings', bookings);
-      await queueOutbox('candidates', candidates);
-      await queueOutbox('users', allUsers);
-      await queueOutbox('systemConfig', systemConfig);
+      await saveLocalSnapshot({ bookings, candidates, users: allUsers, systemConfig });
+      await queueOutbox('bookings', bookings); await queueOutbox('candidates', candidates);
+      await queueOutbox('users', allUsers); await queueOutbox('systemConfig', systemConfig);
     };
     persist();
   }, [bookings, candidates, allUsers, systemConfig]);
@@ -874,8 +573,7 @@ const App: React.FC = () => {
     if (!isOnline || !hasRemoteData()) return;
     let running = false;
     const sync = async () => {
-      if (running) return;
-      running = true;
+      if (running) return; running = true;
       await flushOutbox(async (item) => {
         if (item.type === 'bookings') await syncRemoteBookings(JSON.parse(item.payload));
         if (item.type === 'candidates') await syncRemoteCandidates(JSON.parse(item.payload));
@@ -888,9 +586,7 @@ const App: React.FC = () => {
   }, [isOnline, bookings, candidates, allUsers, systemConfig]);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
-    if (!hasRemoteSessionStore()) return;
-
+    if (!isLoggedIn || !hasRemoteSessionStore()) return;
     let stopped = false;
     const heartbeat = async () => {
       if (stopped) return;
@@ -900,22 +596,12 @@ const App: React.FC = () => {
       const prevDigest = sessionDigestRef.current;
       const nextDigest: Record<string, { status: string; isOnline: boolean; userName: string }> = {};
       sessions.forEach((session) => {
-        nextDigest[session.id] = {
-          status: session.status,
-          isOnline: session.isOnline,
-          userName: session.userName,
-        };
+        nextDigest[session.id] = { status: session.status, isOnline: session.isOnline, userName: session.userName };
         const prev = prevDigest[session.id];
         if (!prev) {
           if (session.id !== sessionIdRef.current) {
-            pushNotificationDeduped(
-              `session:new:${session.id}`,
-              'New Session',
-              `${session.userName} connected from ${session.machineName}.`,
-              'INFO',
-              'machines',
-              15000
-            );
+            // New machine connected — use machines-active origin for fast dismiss
+            pushNotificationDeduped(`session:new:${session.id}`, 'Machine Active', `${session.userName} connected from ${session.machineName}.`, 'INFO', 'machines-active', 15000);
           }
           return;
         }
@@ -924,22 +610,13 @@ const App: React.FC = () => {
             `session:update:${session.id}:${session.status}:${session.isOnline ? 'online' : 'offline'}`,
             'Session Updated',
             `${session.userName} is now ${session.status} ${session.isOnline ? '(ONLINE)' : '(OFFLINE)'}.`,
-            session.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING',
-            'machines',
-            10000
+            session.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING', 'machines', 10000
           );
         }
       });
       Object.keys(prevDigest).forEach((sessionId) => {
         if (!nextDigest[sessionId]) {
-          pushNotificationDeduped(
-            `session:removed:${sessionId}`,
-            'Session Removed',
-            `Machine session ${sessionId} was removed from active records.`,
-            'INFO',
-            'machines',
-            15000
-          );
+          pushNotificationDeduped(`session:removed:${sessionId}`, 'Session Removed', `Machine session ${sessionId} was removed from active records.`, 'INFO', 'machines', 15000);
         }
       });
       sessionDigestRef.current = nextDigest;
@@ -952,13 +629,9 @@ const App: React.FC = () => {
         handleLogout();
       }
     };
-
     heartbeat();
     const id = window.setInterval(heartbeat, 15000);
-    return () => {
-      stopped = true;
-      window.clearInterval(id);
-    };
+    return () => { stopped = true; window.clearInterval(id); };
   }, [isLoggedIn, currentUser]);
 
   useEffect(() => {
@@ -970,12 +643,7 @@ const App: React.FC = () => {
       const key = `zaya_backup_${now.toISOString().slice(0, 10)}`;
       if (localStorage.getItem(key)) return;
       localStorage.setItem(key, '1');
-      pushNotification(
-        'Daily Backup',
-        `Automatic backup completed at ${backupHour.toString().padStart(2, '0')}:00.`,
-        'SUCCESS',
-        'recovery'
-      );
+      pushNotification('Daily Backup', `Automatic backup completed at ${backupHour.toString().padStart(2, '0')}:00.`, 'SUCCESS', 'recovery');
     }, 30000);
     return () => window.clearInterval(timer);
   }, [isLoggedIn, systemConfig.backupHour]);
@@ -984,45 +652,28 @@ const App: React.FC = () => {
     const normalizedEmail = email.trim().toLowerCase();
     let userDirectory = allUsers;
     let matched = userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
-
     if (!matched && hasRemoteUserDirectory()) {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
-      if (remoteUsers.length > 0) {
-        userDirectory = remoteUsers;
-        setAllUsers(remoteUsers);
-        matched = remoteUsers.find((u) => u.email.toLowerCase() === normalizedEmail);
-      }
+      if (remoteUsers.length > 0) { userDirectory = remoteUsers; setAllUsers(remoteUsers); matched = remoteUsers.find((u) => u.email.toLowerCase() === normalizedEmail); }
     }
-
     if (!matched) return 'Account not found. Contact admin.';
     if (matched.status === 'BANNED') return 'This account is banned. Contact administrator.';
     if (matched.password !== password) return 'Invalid enterprise credentials. Access denied.';
     const systemMode = getSystemMode(systemConfig);
-    if (systemMode === 'SAFE' && matched.role === UserRole.USER) {
-      return 'Safe mode is active. User accounts are currently restricted.';
-    }
-    if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) {
-      return 'Recovery mode is active. Only super admin has full access currently.';
-    }
-
+    if (systemMode === 'SAFE' && matched.role === UserRole.USER) return 'Safe mode is active. User accounts are currently restricted.';
+    if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) return 'Recovery mode is active. Only super admin has full access currently.';
     const updatedUser = { ...matched, lastLogin: new Date().toISOString() };
     setAllUsers(userDirectory.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     setCurrentUser(updatedUser);
     isRevokedRef.current = false;
     setIsLoggedIn(true);
     setActiveModule('dashboard');
-    const installSeenNow =
-      typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
+    const installSeenNow = typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
     setHasSeenInstallOrientation(installSeenNow);
     const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
     setShowOrientation(shouldShowOrientation);
-    pushNotification(
-      'Login Success',
-      `${updatedUser.name} signed in from this machine.`,
-      'SUCCESS',
-      'machines'
-    );
-
+    // Login notification uses 'machines-login' origin → auto-dismissed in 3s
+    pushNotification('Login Success', `${updatedUser.name} signed in from this machine.`, 'SUCCESS', 'machines-login');
     if (hasRemoteSessionStore()) {
       await upsertSessionHeartbeat(sessionIdRef.current, updatedUser);
       await enforceSingleSessionPerUser(updatedUser.id, sessionIdRef.current);
@@ -1035,10 +686,8 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     isRevokedRef.current = false;
-    setChatMessages([]); // Clear chat on logout
-    if (hasRemoteSessionStore()) {
-      markSessionOffline(sessionIdRef.current);
-    }
+    setChatMessages([]);
+    if (hasRemoteSessionStore()) markSessionOffline(sessionIdRef.current);
   };
 
   const toggleTheme = () => {
@@ -1049,10 +698,15 @@ const App: React.FC = () => {
   };
 
   const markNotifRead = (id: string) => {
+    // Cancel pending auto-dismiss timer when manually read/dismissed
+    if (dismissTimersRef.current[id]) { clearTimeout(dismissTimersRef.current[id]); delete dismissTimersRef.current[id]; }
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   const clearNotifications = () => {
+    // Cancel all pending timers
+    Object.values(dismissTimersRef.current).forEach(clearTimeout);
+    dismissTimersRef.current = {};
     setNotifications([]);
   };
 
@@ -1068,18 +722,12 @@ const App: React.FC = () => {
 
   const updateCandidate = (updated: Candidate) => {
     setCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    pushNotification(
-      'Candidate Updated',
-      `${updated.fullName} profile has been synchronized.`,
-      'INFO',
-      'database'
-    );
+    pushNotification('Candidate Updated', `${updated.fullName} profile has been synchronized.`, 'INFO', 'database');
   };
 
   const updateUsers = (updated: SystemUser[]) => {
     const normalized = normalizeUsers(updated);
     setAllUsers(normalized);
-    // If current user was updated, reflect changes
     const updatedMe = normalized.find(u => u.id === currentUser.id);
     if (updatedMe) setCurrentUser(updatedMe);
     pushNotification('User Directory Updated', 'Admin changes were synced to all sessions.', 'INFO', 'admin');
@@ -1091,25 +739,16 @@ const App: React.FC = () => {
       if (exists) return prev.map((b) => (b.id === booking.id ? booking : b));
       return [booking, ...prev];
     });
-    pushNotification(
-      'Booking Updated',
-      `${booking.booker} scheduled ${booking.purpose}.`,
-      'SUCCESS',
-      'booking'
-    );
+    pushNotification('Booking Updated', `${booking.booker} scheduled ${booking.purpose}.`, 'SUCCESS', 'booking');
   };
 
   const handleOrientationComplete = (destinationModule: string = 'dashboard') => {
     const updatedCurrent = { ...currentUser, hasCompletedOrientation: true };
     setCurrentUser(updatedCurrent);
-    setAllUsers((prev) =>
-      prev.map((u) => (u.id === updatedCurrent.id ? { ...u, hasCompletedOrientation: true } : u))
-    );
+    setAllUsers((prev) => prev.map((u) => (u.id === updatedCurrent.id ? { ...u, hasCompletedOrientation: true } : u)));
     setShowOrientation(false);
     setActiveModule(destinationModule);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(INSTALL_ORIENTATION_KEY, '1');
-    }
+    if (typeof window !== 'undefined') window.localStorage.setItem(INSTALL_ORIENTATION_KEY, '1');
     setHasSeenInstallOrientation(true);
   };
 
@@ -1119,45 +758,28 @@ const App: React.FC = () => {
       if (index === -1) return prev;
       const existing = prev[index];
       if (JSON.stringify(existing) === JSON.stringify(currentUser)) return prev;
-      const next = [...prev];
-      next[index] = currentUser;
-      return next;
+      const next = [...prev]; next[index] = currentUser; return next;
     });
   }, [currentUser]);
 
   useEffect(() => {
-    if (!isLoggedIn) return;
-    if (showOrientation) return;
-    if (!validModules.has(activeModule)) {
-      setActiveModule('dashboard');
-    }
+    if (!isLoggedIn || showOrientation || !validModules.has(activeModule)) setActiveModule('dashboard');
   }, [activeModule, isLoggedIn, showOrientation, validModules]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (!systemConfig.maintenanceMode) {
-      maintenanceNotifiedRef.current = false;
-      return;
-    }
+    if (!systemConfig.maintenanceMode) { maintenanceNotifiedRef.current = false; return; }
     if (maintenanceNotifiedRef.current) return;
     maintenanceNotifiedRef.current = true;
-    pushNotification(
-      'Maintenance Mode',
-      systemConfig.maintenanceMessage || 'System maintenance mode is active.',
-      'WARNING',
-      'recovery'
-    );
+    pushNotification('Maintenance Mode', systemConfig.maintenanceMessage || 'System maintenance mode is active.', 'WARNING', 'recovery');
   }, [isLoggedIn, systemConfig.maintenanceMode, systemConfig.maintenanceMessage]);
 
   if (isLoading) {
     return (
-      <div
-        className="app-shell w-full bg-[#003366] flex flex-col items-center justify-center text-white p-6 transition-all duration-500"
-        style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }}
-      >
+      <div className="app-shell app-full-height w-full bg-[#003366] flex flex-col items-center justify-center text-white p-6 transition-all duration-500">
         <div className="w-40 h-40 mb-12 shadow-2xl animate-pulse flex items-center justify-center bg-white rounded-full border-[6px] border-gold relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100"></div>
-          <span className="text-8xl font-serif text-gold font-bold relative z-10 drop-shadow-md" style={{ fontFamily: 'Times New Roman, serif' }}>Z</span>
+          <span className="text-8xl font-serif text-gold font-bold relative z-10 drop-shadow-md zaya-logo-font">Z</span>
           <div className="absolute inset-0 border-[3px] border-gold rounded-full m-1 opacity-50"></div>
         </div>
         <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden mb-8 border border-white/5">
@@ -1170,28 +792,18 @@ const App: React.FC = () => {
 
   if (!isAccessGranted) {
     return (
-      <div
-        className="app-shell w-full bg-[#0b1324] flex items-center justify-center text-white p-6 transition-all duration-500"
-        style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }}
-      >
-        <div className="w-full max-w-md bg-white text-slate-900 rounded-3xl p-8 shadow-2xl border border-slate-200">
-          <h2 className="text-2xl font-black uppercase tracking-tight mb-2">Access Required</h2>
-          <p className="text-sm text-slate-500 mb-6">Enter the portal access token to continue.</p>
+      <div className="app-shell app-full-height w-full bg-[#0b1324] flex items-center justify-center text-white p-6 transition-all duration-500">
+        <div className="w-full max-w-md bg-[#0f1a2e] border border-[#1e3a5f] text-white rounded-3xl p-8 shadow-2xl">
+          <h2 className="text-2xl font-black uppercase tracking-tight mb-2 text-blue-400">Access Required</h2>
+          <p className="text-sm text-blue-300/60 mb-6">Enter the portal access token to continue.</p>
           <input
-            type="password"
-            value={accessInput}
-            onChange={(e) => setAccessInput(e.target.value)}
-            placeholder="Access token"
-            className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold outline-none focus:ring-4 focus:ring-gold/10"
+            type="password" value={accessInput} onChange={(e) => setAccessInput(e.target.value)}
+            placeholder="Access token" aria-label="Access token"
+            className="w-full p-4 rounded-xl border border-[#1e3a5f] bg-[#0a1628] text-white font-bold outline-none focus:border-blue-400 placeholder-blue-300/30"
           />
           <button
-            onClick={() => {
-              if (accessToken && accessInput.trim() === accessToken) {
-                localStorage.setItem('zaya_access_token', accessToken);
-                setIsAccessGranted(true);
-              }
-            }}
-            className="w-full mt-4 py-4 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-gold/20 active:scale-95 transition-all"
+            onClick={() => { if (accessToken && accessInput.trim() === accessToken) { localStorage.setItem('zaya_access_token', accessToken); setIsAccessGranted(true); } }}
+            className="w-full mt-4 py-4 bg-gold text-enterprise-blue rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
           >
             Unlock Portal
           </button>
@@ -1204,44 +816,19 @@ const App: React.FC = () => {
 
   const renderModule = () => {
     switch (activeModule) {
-      // ... (other cases remain same)
       case 'dashboard':
-        return (
-          <DashboardOverview
-            onNavigate={setActiveModule}
-            candidatesCount={candidates.length}
-            candidates={candidates}
-            bookings={bookings}
-            user={currentUser}
-          />
-        );
+        return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
       case 'candidates':
       case 'database':
         return <CandidateRegistry candidates={candidates} onAdd={addCandidate} onDelete={deleteCandidate} onUpdate={updateCandidate} mode={activeModule as any} />;
       case 'recruitment':
         return <RecruitmentHub candidates={candidates} bookings={bookings} />;
       case 'booking':
-        return (
-          <BookingModule
-            bookings={bookings}
-            users={allUsers}
-            currentUser={currentUser}
-            onUpsertBooking={upsertBooking}
-          />
-        );
+        return <BookingModule bookings={bookings} users={allUsers} currentUser={currentUser} onUpsertBooking={upsertBooking} />;
       case 'broadcast':
         return <BroadcastModule candidates={candidates} />;
       case 'settings':
-        return (
-          <Settings
-            theme={theme}
-            onThemeToggle={toggleTheme}
-            user={currentUser}
-            setUser={setCurrentUser}
-            backgroundImageUrl={backgroundImageUrl}
-            onBackgroundImageChange={setBackgroundImageUrl}
-          />
-        );
+        return <Settings theme={theme} onThemeToggle={toggleTheme} user={currentUser} setUser={setCurrentUser} backgroundImageUrl={backgroundImageUrl} onBackgroundImageChange={setBackgroundImageUrl} />;
       case 'admin':
         return <AdminConsole users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} systemConfig={systemConfig} setSystemConfig={setSystemConfig} />;
       case 'machines':
@@ -1250,9 +837,23 @@ const App: React.FC = () => {
             sessions={activeSessions}
             currentSessionId={sessionIdRef.current}
             onForceOut={async (sessionId) => {
+              // Update status first (2 args as per function signature)
               await updateSessionStatus(sessionId, 'FORCED_OUT');
+              // Store force logout reason so tooltip bubble appears on MachineAuth
+              const reason = `Force logged out by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}`;
+              setActiveSessions((prev) =>
+                prev.map((s) =>
+                  s.id === sessionId
+                    ? ({ ...s, status: 'FORCED_OUT', forceLogoutReason: reason } as any)
+                    : s
+                )
+              );
               pushNotification('Machine Session Forced Out', `Session ${sessionId} was forced out.`, 'WARNING', 'machines');
-              setActiveSessions(await fetchActiveSessions());
+              const refreshed = await fetchActiveSessions();
+              // Re-apply reason to refreshed list since remote may not have the field yet
+              setActiveSessions(refreshed.map((s) =>
+                s.id === sessionId ? ({ ...s, forceLogoutReason: reason } as any) : s
+              ));
             }}
             onRevoke={async (sessionId) => {
               await updateSessionStatus(sessionId, 'REVOKED');
@@ -1274,135 +875,89 @@ const App: React.FC = () => {
       case 'recovery':
         return (
           <SystemRecovery
-            systemConfig={systemConfig}
-            currentUser={currentUser}
+            systemConfig={systemConfig} currentUser={currentUser}
             onSaveConfig={(nextConfig) => {
-              if (currentUser.role !== UserRole.SUPER_ADMIN) {
-                pushNotification('Permission Denied', 'Only super admin can change system mode and maintenance policy.', 'WARNING', 'recovery');
-                return;
-              }
+              if (currentUser.role !== UserRole.SUPER_ADMIN) { pushNotification('Permission Denied', 'Only super admin can change system mode and maintenance policy.', 'WARNING', 'recovery'); return; }
               setSystemConfig(nextConfig);
               pushNotification('System Recovery Updated', 'Maintenance settings were synchronized.', 'INFO', 'recovery');
             }}
-            onTriggerBackup={() => {
-              pushNotification('Backup Triggered', 'Manual backup initiated by admin.', 'SUCCESS', 'recovery');
-            }}
-            onRestoreBackup={() => {
-              pushNotification('Backup Restore Started', 'Restore sequence initiated from previous backup point.', 'WARNING', 'recovery');
-            }}
+            onTriggerBackup={() => { pushNotification('Backup Triggered', 'Manual backup initiated by admin.', 'SUCCESS', 'recovery'); }}
+            onRestoreBackup={() => { pushNotification('Backup Restore Started', 'Restore sequence initiated from previous backup point.', 'WARNING', 'recovery'); }}
             onSetRestrictedAccess={async (enabled) => {
               if (currentUser.role !== UserRole.SUPER_ADMIN) return;
               const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
-              const taggedMessage = enabled ? `[MODE:SAFE] ${base}` : `[MODE:STANDARD] ${base}`;
-              setSystemConfig((prev) => ({
-                ...prev,
-                maintenanceMode: enabled,
-                maintenanceMessage: taggedMessage,
-                maintenanceUpdatedBy: currentUser.name,
-                maintenanceUpdatedAt: new Date().toISOString(),
-              }));
+              setSystemConfig((prev) => ({ ...prev, maintenanceMode: enabled, maintenanceMessage: enabled ? `[MODE:SAFE] ${base}` : `[MODE:STANDARD] ${base}`, maintenanceUpdatedBy: currentUser.name, maintenanceUpdatedAt: new Date().toISOString() }));
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
                 const adminIds = new Set(allUsers.filter((u) => u.role !== UserRole.USER).map((u) => u.id));
-                await Promise.all(
-                  sessions
-                    .filter((s) => s.id !== sessionIdRef.current)
-                    .filter((s) => !adminIds.has(s.userId))
-                    .map((s) => updateSessionStatus(s.id, 'FORCED_OUT'))
-                );
+                await Promise.all(sessions.filter((s) => s.id !== sessionIdRef.current).filter((s) => !adminIds.has(s.userId)).map((s) => updateSessionStatus(s.id, 'FORCED_OUT')));
               }
-              pushNotification(
-                enabled ? 'Restricted Access Enabled' : 'Restricted Access Disabled',
-                enabled ? 'Non-admin sessions were forced out.' : 'Standard access policy restored.',
-                enabled ? 'WARNING' : 'SUCCESS',
-                'recovery'
-              );
+              pushNotification(enabled ? 'Restricted Access Enabled' : 'Restricted Access Disabled', enabled ? 'Non-admin sessions were forced out.' : 'Standard access policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
             onSetStandbyMode={async (enabled) => {
               if (currentUser.role !== UserRole.SUPER_ADMIN) return;
               const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
-              const taggedMessage = enabled ? `[MODE:RECOVERY] ${base}` : `[MODE:STANDARD] ${base}`;
-              setSystemConfig((prev) => ({
-                ...prev,
-                maintenanceMode: enabled,
-                maintenanceMessage: taggedMessage,
-                maintenanceUpdatedBy: currentUser.name,
-                maintenanceUpdatedAt: new Date().toISOString(),
-              }));
+              setSystemConfig((prev) => ({ ...prev, maintenanceMode: enabled, maintenanceMessage: enabled ? `[MODE:RECOVERY] ${base}` : `[MODE:STANDARD] ${base}`, maintenanceUpdatedBy: currentUser.name, maintenanceUpdatedAt: new Date().toISOString() }));
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
                 const superAdminIds = new Set(allUsers.filter((u) => u.role === UserRole.SUPER_ADMIN).map((u) => u.id));
-                await Promise.all(
-                  sessions
-                    .filter((s) => s.id !== sessionIdRef.current)
-                    .filter((s) => !superAdminIds.has(s.userId))
-                    .map((s) => updateSessionStatus(s.id, 'FORCED_OUT'))
-                );
+                await Promise.all(sessions.filter((s) => s.id !== sessionIdRef.current).filter((s) => !superAdminIds.has(s.userId)).map((s) => updateSessionStatus(s.id, 'FORCED_OUT')));
               }
-              pushNotification(
-                enabled ? 'Standby Mode Enabled' : 'Standby Mode Disabled',
-                enabled ? 'Only super admin sessions remain active.' : 'Normal session policy restored.',
-                enabled ? 'WARNING' : 'SUCCESS',
-                'recovery'
-              );
+              pushNotification(enabled ? 'Standby Mode Enabled' : 'Standby Mode Disabled', enabled ? 'Only super admin sessions remain active.' : 'Normal session policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
-            onQueueUpdate={(version, channel, notes) => {
-              pushNotification(
-                'Update Rollout Queued',
-                `${version} queued on ${channel.toUpperCase()} channel. ${notes}`,
-                'INFO',
-                'recovery'
-              );
-            }}
-            onExportReports={() => {
-              setActiveModule('reports');
-              pushNotification('Report Export Console', 'Redirected to reports module for download.', 'INFO', 'reports');
-            }}
+            onQueueUpdate={(version, channel, notes) => { pushNotification('Update Rollout Queued', `${version} queued on ${channel.toUpperCase()} channel. ${notes}`, 'INFO', 'recovery'); }}
+            onExportReports={() => { setActiveModule('reports'); pushNotification('Report Export Console', 'Redirected to reports module for download.', 'INFO', 'reports'); }}
           />
         );
       case 'reports':
         return (
-          <div className="space-y-8">
-             <div className="p-8 bg-white dark:bg-slate-800 rounded-3xl border dark:border-slate-700 min-h-[300px]">
-                <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight mb-8">Reports & Dataset Export</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   {reportOptions.map(r => (
-                     <div key={r} className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 hover:border-gold transition-all">
-                        <i className="fas fa-file-pdf text-3xl text-gold mb-4"></i>
-                        <h4 className="text-xs font-black dark:text-white uppercase tracking-widest">{r}</h4>
-                        <button 
-                          onClick={() => setReportPopup(r)}
-                          className="mt-4 text-[10px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-600"
-                        >
-                          Generate PDF Report
-                        </button>
-                     </div>
-                   ))}
-                </div>
-             </div>
+          <div className="space-y-6 w-full overflow-x-hidden">
+            {/* Reports grid — blue-hue theme */}
+            <div className="bg-[#0f1a2e] border border-[#1e3a5f] p-6 md:p-8 rounded-2xl">
+              <h2 className="text-xl md:text-2xl font-black text-blue-400 uppercase tracking-tight mb-2">Reports & Dataset Export</h2>
+              <p className="text-[10px] text-blue-300/50 font-bold uppercase tracking-widest mb-6">
+                Generated live from portal data — {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {reportOptions.map(r => (
+                  <div key={r} className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl hover:border-gold transition-all group">
+                    <i className="fas fa-file-pdf text-2xl text-gold mb-3 block"></i>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest mb-1">{r}</h4>
+                    <p className="text-[10px] text-blue-300/40 mb-3">PDF · Live data</p>
+                    <button
+                      onClick={() => setReportPopup(r)}
+                      className="text-[10px] font-black text-blue-400 uppercase tracking-widest hover:text-gold transition-colors"
+                    >
+                      Generate PDF →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-             <div className="p-8 bg-white dark:bg-slate-800 rounded-3xl border dark:border-slate-700">
-                <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight mb-8">Predictive Analytics</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border dark:border-slate-700">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Forecasted Hiring Needs (Next Qtr)</h4>
-                      <p className="text-3xl font-black text-enterprise-blue dark:text-white">+145 <span className="text-sm text-slate-400">Positions</span></p>
-                      <div className="mt-4 h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                         <div className="h-full bg-enterprise-blue w-[75%]"></div>
-                      </div>
-                   </div>
-                   <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border dark:border-slate-700">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Talent Shortage Alert</h4>
-                      <p className="text-xl font-black text-red-500 uppercase">Logistics & Operations</p>
-                      <p className="text-[10px] text-slate-500 mt-1">Critical gap in senior supervisors.</p>
-                   </div>
-                   <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border dark:border-slate-700">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Longest Hiring Delay</h4>
-                      <p className="text-xl font-black text-amber-500 uppercase">Architecture Lead</p>
-                      <p className="text-[10px] text-slate-500 mt-1">42 Days (Avg: 12 Days)</p>
-                   </div>
+            {/* Predictive Analytics — blue-hue theme */}
+            <div className="bg-[#0f1a2e] border border-[#1e3a5f] p-6 md:p-8 rounded-2xl">
+              <h2 className="text-xl md:text-2xl font-black text-blue-400 uppercase tracking-tight mb-6">Predictive Analytics</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl">
+                  <h4 className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Forecasted Hiring Needs (Next Qtr)</h4>
+                  <p className="text-3xl font-black text-white">+145 <span className="text-sm text-blue-300/50">Positions</span></p>
+                  <div className="mt-4 h-2 bg-[#1e3a5f] rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 w-[75%]"></div>
+                  </div>
                 </div>
-             </div>
+                <div className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl">
+                  <h4 className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Talent Shortage Alert</h4>
+                  <p className="text-lg font-black text-red-400 uppercase">Logistics & Operations</p>
+                  <p className="text-[10px] text-blue-300/40 mt-1">Critical gap in senior supervisors.</p>
+                </div>
+                <div className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl">
+                  <h4 className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Longest Hiring Delay</h4>
+                  <p className="text-lg font-black text-amber-400 uppercase">Architecture Lead</p>
+                  <p className="text-[10px] text-blue-300/40 mt-1">42 Days (Avg: 12 Days)</p>
+                </div>
+              </div>
+            </div>
           </div>
         );
       default:
@@ -1412,102 +967,74 @@ const App: React.FC = () => {
 
   return (
     <>
-      <Layout 
-        activeModule={activeModule} 
-        onModuleChange={setActiveModule} 
-        user={currentUser}
-        onLogout={handleLogout}
-        theme={theme}
-        onThemeToggle={toggleTheme}
-        notifications={notifications}
-        onMarkRead={markNotifRead}
-        onClearNotifications={clearNotifications}
-        systemConfig={systemConfig}
-        isOnline={isOnline}
-        backgroundImageUrl={backgroundImageUrl}
+      <Layout
+        activeModule={activeModule} onModuleChange={setActiveModule} user={currentUser}
+        onLogout={handleLogout} theme={theme} onThemeToggle={toggleTheme}
+        notifications={notifications} onMarkRead={markNotifRead} onClearNotifications={clearNotifications}
+        systemConfig={systemConfig} isOnline={isOnline} backgroundImageUrl={backgroundImageUrl}
       >
         {renderModule()}
       </Layout>
 
       {showOrientation && (
-        <OrientationAI 
-          user={currentUser} 
+        <OrientationAI
+          user={currentUser}
           isFirstTime={!currentUser.hasCompletedOrientation || !hasSeenInstallOrientation}
           onComplete={handleOrientationComplete}
           messages={chatMessages}
           setMessages={setChatMessages}
-          onNavigate={(module) => {
-            handleOrientationComplete(module || 'dashboard');
-          }}
+          onNavigate={(module) => { handleOrientationComplete(module || 'dashboard'); }}
           onAction={(action) => {
-            if (action.type === 'DOWNLOAD_REPORT') {
-              openReportByName(action.report);
-              return;
-            }
-            if (action.type === 'EXPORT_REPORTS') {
-              setActiveModule('reports');
-              return;
-            }
-            if (action.type === 'EXPORT_DATABASE') {
-              setActiveModule('database');
-              pushNotification('AI Action', 'Opened database module for export.', 'INFO', 'database');
-              return;
-            }
-            if (action.type === 'PRINT_PAGE') {
-              window.print();
-              return;
-            }
+            if (action.type === 'DOWNLOAD_REPORT') { openReportByName(action.report); return; }
+            if (action.type === 'EXPORT_REPORTS') { setActiveModule('reports'); return; }
+            if (action.type === 'EXPORT_DATABASE') { setActiveModule('database'); pushNotification('AI Action', 'Opened database module for export.', 'INFO', 'database'); return; }
+            if (action.type === 'PRINT_PAGE') { window.print(); return; }
             if (action.type === 'SHARE') {
               const url = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
               const shareText = `ZAYA Recruitment Portal: ${url}`;
-              if (navigator.share) {
-                navigator
-                  .share({ title: 'ZAYA Recruitment Portal', text: shareText, url })
-                  .catch(() => {
-                    navigator.clipboard?.writeText(shareText);
-                  });
-              } else {
-                navigator.clipboard?.writeText(shareText);
-              }
+              if (navigator.share) { navigator.share({ title: 'ZAYA Recruitment Portal', text: shareText, url }).catch(() => { navigator.clipboard?.writeText(shareText); }); }
+              else { navigator.clipboard?.writeText(shareText); }
               pushNotification('AI Share Action', 'Portal link prepared for sharing.', 'SUCCESS', 'dashboard');
               return;
             }
-            if (action.type === 'PREVIEW') {
-              if (action.target) setActiveModule(action.target);
-              pushNotification('AI Preview Action', 'Preview opened for requested module.', 'INFO', action.target || 'dashboard');
-              return;
-            }
+            if (action.type === 'PREVIEW') { if (action.target) setActiveModule(action.target); pushNotification('AI Preview Action', 'Preview opened for requested module.', 'INFO', action.target || 'dashboard'); return; }
             if (action.type === 'DOWNLOAD') {
-              if (action.target === 'database' || action.target === 'candidates') {
-                setActiveModule('database');
-                pushNotification('AI Download Action', 'Opened database for export/download.', 'INFO', 'database');
-                return;
-              }
-              setActiveModule('reports');
-              pushNotification('AI Download Action', 'Opened reports to download requested data.', 'INFO', 'reports');
+              if (action.target === 'database' || action.target === 'candidates') { setActiveModule('database'); pushNotification('AI Download Action', 'Opened database for export/download.', 'INFO', 'database'); return; }
+              setActiveModule('reports'); pushNotification('AI Download Action', 'Opened reports to download requested data.', 'INFO', 'reports');
             }
           }}
         />
       )}
 
+      {/* Report download popup — blue-hue theme */}
       {reportPopup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setReportPopup(null)}>
-           <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl border dark:border-slate-700" onClick={e => e.stopPropagation()}>
-              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
-                 <i className="fas fa-check"></i>
-              </div>
-              <h3 className="text-xl font-black dark:text-white uppercase tracking-tight mb-2">Report Generated</h3>
-              <p className="text-sm text-slate-500 mb-6">The <span className="font-bold text-slate-800 dark:text-white">{reportPopup}</span> has been successfully compiled and is ready for download.</p>
-              <button onClick={handleDownloadReport} className="w-full py-3 bg-enterprise-blue text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 hover:brightness-110">
-                 Download & Close
-              </button>
-           </div>
+          <div className="bg-[#0f1a2e] border border-[#1e3a5f] p-8 rounded-3xl max-w-md w-full text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-green-900/40 border border-green-500/40 text-green-400 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
+              <i className="fas fa-check"></i>
+            </div>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Report Ready</h3>
+            <p className="text-sm text-blue-300/60 mb-6">
+              The <span className="font-bold text-white">{reportPopup}</span> report has been compiled with live data and is ready to download.
+            </p>
+            <button
+              onClick={handleDownloadReport}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all"
+            >
+              Download PDF
+            </button>
+            <button onClick={() => setReportPopup(null)} className="w-full mt-3 py-2 text-[10px] text-blue-300/50 hover:text-blue-300 font-bold uppercase tracking-widest transition-all">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
-      
-      <button 
+
+      {/* AI assistant FAB button */}
+      <button
         onClick={() => setShowOrientation(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 enterprise-blue text-white rounded-2xl shadow-2xl flex items-center justify-center group hover:scale-110 transition-all z-40 border-4 border-white dark:border-slate-800 animate-in zoom-in duration-500"
+        aria-label="Open ZAYA AI Assistant"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-enterprise-blue text-white rounded-2xl shadow-2xl flex items-center justify-center group hover:scale-110 transition-all z-40 border-4 border-white dark:border-slate-800 animate-in zoom-in duration-500"
       >
         <i className="fas fa-robot text-xl group-hover:animate-bounce text-gold"></i>
       </button>

@@ -1,0 +1,9 @@
+/* App full height — replaces inline style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }} */
+.app-full-height {
+  min-height: calc(var(--app-vh, 1vh) * 100);
+}
+
+/* ZAYA logo font — replaces inline style={{ fontFamily: 'Times New Roman, serif' }} */
+.zaya-logo-font {
+  font-family: 'Times New Roman', Times, serif;
+}

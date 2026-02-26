@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserRole, Notification, ThemeMode, SystemConfig } from '../types';
+// Types defined inline to avoid resolution conflict with duplicate types file
+enum UserRole { SUPER_ADMIN = 'SUPER_ADMIN', ADMIN = 'ADMIN', USER = 'USER' }
+type ThemeMode = 'light' | 'dark';
+interface Notification { id: string; title: string; message: string; time: string; read: boolean; type: 'INFO' | 'WARNING' | 'SUCCESS'; origin?: string; createdAt?: string; }
+interface SystemConfig { systemName: string; logoIcon: string; maintenanceMode?: boolean; maintenanceMessage?: string; maintenanceUpdatedBy?: string; maintenanceUpdatedAt?: string; backupHour?: number; }
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -211,8 +215,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div
-      className={`app-shell flex overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}
-      style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }}
+      className={`app-shell app-full-height flex overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}
     >
       {/* ── Mobile sidebar overlay ─────────────────────────────────────── */}
       {isMobileSidebarOpen && (
@@ -247,17 +250,20 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* ── Main content ───────────────────────────────────────────────── */}
       <main
-        className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] transition-colors duration-200"
-        style={
-          backgroundImageUrl
-            ? {
-                backgroundImage: `linear-gradient(rgba(8,14,35,0.78), rgba(8,14,35,0.86)), url(${backgroundImageUrl})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundAttachment: 'fixed',
-              }
-            : undefined
-        }
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors duration-200 ${
+          backgroundImageUrl ? 'main-bg-overlay' : 'bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)]'
+        }`}
+        {...(backgroundImageUrl ? { 'data-bg': backgroundImageUrl } as any : {})}
+        ref={(el) => {
+          if (el && backgroundImageUrl) {
+            el.style.backgroundImage = `linear-gradient(rgba(8,14,35,0.78), rgba(8,14,35,0.86)), url(${backgroundImageUrl})`;
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center';
+            el.style.backgroundAttachment = 'fixed';
+          } else if (el) {
+            el.style.backgroundImage = '';
+          }
+        }}
       >
         {/* ── Header ── */}
         <header className="h-14 md:h-16 bg-[#0f1b40]/95 border-b border-blue-400/20 flex items-center justify-between px-3 md:px-6 shrink-0 z-20 shadow-sm backdrop-blur">
