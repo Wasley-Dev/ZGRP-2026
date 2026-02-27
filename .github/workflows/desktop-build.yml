@@ -47,7 +47,7 @@ jobs:
           # Disable code signing entirely on Windows
           WIN_CSC_LINK: ""
           WIN_CSC_KEY_PASSWORD: ""
-        run: npx electron-builder --win nsis --publish never --config.win.certificateFile="" --config.win.certificatePassword=""
+        run: npx electron-builder --win nsis --publish never
 
       - name: Build desktop installer (macOS)
         if: matrix.target == 'mac'
