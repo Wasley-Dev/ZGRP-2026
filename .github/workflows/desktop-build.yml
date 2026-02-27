@@ -44,10 +44,16 @@ jobs:
         if: matrix.target == 'win'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Disable code signing entirely on Windows
-          WIN_CSC_LINK: ""
-          WIN_CSC_KEY_PASSWORD: ""
-        run: npx electron-builder --win nsis --publish never
+        shell: pwsh
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Windows installer build attempt $attempt/$maxAttempts"
+            npx electron-builder --win nsis --publish never
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -eq $maxAttempts) { exit $LASTEXITCODE }
+            Start-Sleep -Seconds 12
+          }
 
       - name: Build desktop installer (macOS)
         if: matrix.target == 'mac'
@@ -57,7 +63,20 @@ jobs:
           CSC_LINK: ""
           CSC_KEY_PASSWORD: ""
           SKIP_NOTARIZATION: "true"
-        run: npx electron-builder --mac dmg --publish never --config.mac.identity=null
+        shell: bash
+        run: |
+          set -e
+          max_attempts=3
+          for attempt in $(seq 1 $max_attempts); do
+            echo "macOS installer build attempt $attempt/$max_attempts"
+            if npx electron-builder --mac dmg --publish never --config.mac.identity=null; then
+              exit 0
+            fi
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              exit 1
+            fi
+            sleep 12
+          done
 
       - name: List dist folder (debug)
         # Shows what was actually built so we know the correct path
