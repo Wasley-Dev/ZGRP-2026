@@ -13,10 +13,13 @@ jobs:
         include:
           - os: windows-latest
             target: win
-            artifact_glob: release/*.exe
+            artifact_name: desktop-win
+            artifact_path: dist/*.exe
           - os: macos-latest
             target: mac
-            artifact_glob: release/*.dmg
+            artifact_name: desktop-mac
+            artifact_path: dist/*.dmg
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -30,7 +33,9 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Use --legacy-peer-deps to avoid peer dependency conflicts
+        # Fall back from npm ci to npm install if lock file is out of sync
+        run: npm install --legacy-peer-deps
 
       - name: Build web bundle
         run: npm run build
@@ -39,16 +44,36 @@ jobs:
         if: matrix.target == 'win'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --win nsis --publish never
+          # Disable code signing entirely on Windows
+          WIN_CSC_LINK: ""
+          WIN_CSC_KEY_PASSWORD: ""
+        run: npx electron-builder --win nsis --publish never --config.win.certificateFile="" --config.win.certificatePassword=""
 
       - name: Build desktop installer (macOS)
         if: matrix.target == 'mac'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --mac dmg --publish never
+          # Disable code signing entirely on macOS
+          CSC_LINK: ""
+          CSC_KEY_PASSWORD: ""
+          SKIP_NOTARIZATION: "true"
+        run: npx electron-builder --mac dmg --publish never --config.mac.identity=null
+
+      - name: List dist folder (debug)
+        # Shows what was actually built so we know the correct path
+        run: ls -la dist/ || dir dist
+        shell: bash
+        continue-on-error: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.os }}
-          path: ${{ matrix.artifact_glob }}
+          name: ${{ matrix.artifact_name }}
+          # Glob both dist/ and release/ in case electron-builder config differs
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            release/*.exe
+            release/*.dmg
+          if-no-files-found: warn
