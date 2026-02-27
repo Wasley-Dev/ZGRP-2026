@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,16 +55,25 @@
           margin-inline: 0;
           overflow: hidden;
         }
+
+        /* ── Utility classes replacing inline styles in App.tsx / Layout.tsx ── */
+        .app-full-height {
+          min-height: calc(var(--app-vh, 1vh) * 100);
+        }
+        .zaya-logo-font {
+          font-family: 'Times New Roman', Times, serif;
+        }
+
         .enterprise-blue { background-color: #003366; }
         .text-gold { color: #D4AF37; }
         .bg-gold { background-color: #D4AF37; }
         .border-gold { border-color: #D4AF37; }
-        
+
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
-        
+
         @keyframes loading {
           0% { width: 0%; transform: translateX(-100%); }
           50% { width: 40%; transform: translateX(100%); }
@@ -82,6 +90,8 @@
           border: 1px solid rgba(148, 163, 184, 0.35);
           border-radius: 1.5rem;
           box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+          /* -webkit- prefix MUST come before standard property for Safari 9+ / iOS 9+ */
+          -webkit-backdrop-filter: blur(8px);
           backdrop-filter: blur(8px);
         }
         .dark .ui-panel {
@@ -170,7 +180,7 @@
 }
 </script>
 </head>
-<body class="light">
+<body>
     <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>
