@@ -86,6 +86,59 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       img.src = dataUrl;
     });
 
+  const downloadSupplementalFiles = (files: UploadedSupplementalDocument[]) => {
+    files.forEach((doc, index) => {
+      window.setTimeout(() => {
+        const anchor = document.createElement("a");
+        anchor.href = doc.dataUrl;
+        anchor.download = doc.name;
+        anchor.rel = "noopener";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      }, index * 200);
+    });
+  };
+
+  const printSupplementalFile = (doc: UploadedSupplementalDocument, index: number, total: number) => {
+    const printWindow = window.open("", "_blank", "width=1000,height=900");
+    if (!printWindow) return;
+    const printableContent = doc.mimeType.startsWith("image/")
+      ? `<img src="${doc.dataUrl}" alt="${doc.name}" style="max-width:100%;max-height:90vh;object-fit:contain;" />`
+      : doc.mimeType === "application/pdf"
+        ? `<iframe src="${doc.dataUrl}" style="width:100%;height:90vh;border:none;"></iframe>`
+        : `<div style="padding:12px;border:1px solid #cbd5e1;border-radius:8px;">
+             <p><strong>File:</strong> ${doc.name}</p>
+             <p><strong>Type:</strong> ${doc.mimeType || "Unknown"}</p>
+             <p><strong>Size:</strong> ${(doc.size / 1024).toFixed(1)} KB</p>
+             <p>This file type is not directly printable in-browser.</p>
+           </div>`;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Supplemental Doc ${index + 1} - ${doc.name}</title>
+          <style>
+            body { margin: 0; padding: 24px; font-family: Arial, sans-serif; color: #0f172a; }
+            h1 { margin: 0 0 8px 0; font-size: 18px; }
+          </style>
+        </head>
+        <body>
+          <h1>Supplemental Doc ${index + 1} of ${total}</h1>
+          ${printableContent}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    window.setTimeout(() => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch {
+        // no-op: printing can be blocked by browser policy
+      }
+    }, doc.mimeType === "application/pdf" ? 800 : 300);
+  };
+
   const canInlinePreview = (doc: UploadedSupplementalDocument) =>
     doc.mimeType.startsWith("image/") || doc.mimeType === "application/pdf";
 
@@ -282,8 +335,8 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       margin: { left: 14, right: 14 },
     });
 
+    const supplementalFiles = includeSupplemental ? getSupplementalFiles(selectedCandidate) : [];
     if (includeSupplemental) {
-      const supplementalFiles = getSupplementalFiles(selectedCandidate);
       pdf.addPage();
       pdf.setTextColor(...colorBlue);
       pdf.setFont("helvetica", "bold");
@@ -358,6 +411,9 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     }
 
     pdf.save(`${selectedCandidate.fullName.replace(/\s+/g, "_")}_Dossier.pdf`);
+    if (includeSupplemental && supplementalFiles.length) {
+      downloadSupplementalFiles(supplementalFiles);
+    }
   };
 
   const handleBulkDownload = () => {
@@ -462,6 +518,13 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     printable.document.close();
     printable.focus();
     printable.print();
+    if (includeSupplemental && supplementalFiles.length) {
+      supplementalFiles.forEach((doc, index) => {
+        window.setTimeout(() => {
+          printSupplementalFile(doc, index, supplementalFiles.length);
+        }, 600 + index * 900);
+      });
+    }
   };
 
   const toggleDoc = (key: "cv" | "certificates" | "id" | "tin") => {
