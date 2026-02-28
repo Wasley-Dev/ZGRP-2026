@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 
 import { BookingEntry, Candidate, RecruitmentStatus, SystemUser, UserRole } from '../types';
+import { getTodayIsoInEAT } from '../services/dateTime';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -27,6 +28,7 @@ interface DashboardProps {
 }
 
 const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCount, candidates, bookings, user }) => {
+  const todayIsoInEAT = getTodayIsoInEAT();
   const panelClass =
     'rounded-3xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#121c46_0%,#0b1431_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur';
   const tileClass =
@@ -86,7 +88,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       {
         title: 'Interviews Today',
         items: (bookings.length ? bookings : [])
-          .filter((b) => b.date === new Date().toISOString().slice(0, 10))
+          .filter((b) => b.date === todayIsoInEAT)
           .slice(0, 2)
           .map((b) => `${b.booker} (${b.time})`),
         icon: 'fa-comments',
@@ -116,7 +118,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       },
       { title: 'System Maintenance', items: ['Daily auto-backup at 15:00', 'Realtime sync active'], icon: 'fa-tools', color: 'slate', action: 'maintenance' },
     ],
-    [bookings, trainingCount, interviewCount, deployedCount, pendingCount, appliedCount]
+    [bookings, trainingCount, interviewCount, deployedCount, pendingCount, appliedCount, todayIsoInEAT]
   );
 
   // Convert funnelSteps for Chart

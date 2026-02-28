@@ -288,20 +288,20 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-10 animate-in fade-in duration-500 pb-20 text-blue-100">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-10 rounded-3xl border dark:border-slate-700 shadow-sm space-y-8">
+        <div className="lg:col-span-2 bg-[#0f1a2e] p-10 rounded-3xl border border-[#1e3a5f] shadow-sm space-y-8">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-black text-[#003366] dark:text-white uppercase tracking-tight">
+            <h2 className="text-2xl font-black text-blue-400 uppercase tracking-tight">
               Mass Broadcast Console
             </h2>
-            <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-900 rounded-2xl border dark:border-slate-700">
+            <div className="flex gap-2 p-1 bg-[#0a1628] rounded-2xl border border-[#1e3a5f]">
               {(['SMS', 'Email', 'WhatsApp'] as const).map((entry) => (
                 <button
                   key={entry}
                   onClick={() => setChannel(entry)}
                   className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    channel === entry ? 'bg-enterprise-blue text-white shadow-lg' : 'text-slate-400 hover:text-enterprise-blue'
+                    channel === entry ? 'bg-enterprise-blue text-white shadow-lg' : 'text-blue-300/60 hover:text-blue-200'
                   }`}
                 >
                   {entry}
@@ -312,20 +312,20 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
 
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <label className="block text-[10px] font-black text-[#003366] dark:text-slate-400 uppercase tracking-[0.3em]">
+              <label className="block text-[10px] font-black text-blue-300/70 uppercase tracking-[0.3em]">
                 Communication payload
               </label>
-              <span className="text-[10px] font-bold text-slate-400">
+              <span className="text-[10px] font-bold text-blue-300/60">
                 From: {channel === 'Email' ? EMAIL_SENDER : `${SMS_SENDER_LABEL} (${SMS_SENDER})`}
               </span>
             </div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="text-[10px] font-bold text-blue-300/50 uppercase tracking-wider">
               Recipients from database: {recipients.phones.length} phone(s), {recipients.emails.length} email(s)
             </div>
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              className="w-full h-48 p-6 bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 rounded-3xl outline-none text-[#003366] dark:text-white font-bold text-sm focus:border-gold transition-colors"
+              className="w-full h-48 p-6 bg-[#0a1628] border border-[#1e3a5f] rounded-3xl outline-none text-white font-bold text-sm focus:border-gold transition-colors"
               placeholder={`Type ${channel} message here...`}
             />
           </div>
@@ -342,8 +342,8 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border dark:border-slate-700 shadow-sm flex flex-col">
-          <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-widest mb-8">Recipient Protocol</h3>
+        <div className="bg-[#0f1a2e] p-10 rounded-3xl border border-[#1e3a5f] shadow-sm flex flex-col">
+          <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-8">Recipient Protocol</h3>
           <div className="space-y-4 flex-1">
             {[
               { id: 'all', label: 'All Candidates' },
@@ -356,13 +356,13 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
                 key={item.id}
                 onClick={() => toggleTarget(item.id)}
                 className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
-                  target.includes(item.id) ? 'border-gold bg-gold/5' : 'border-slate-100 dark:border-slate-700'
+                  target.includes(item.id) ? 'border-gold bg-gold/5' : 'border-[#1e3a5f] bg-[#0a1628]'
                 }`}
               >
-                <span className="text-[10px] font-black uppercase text-[#003366] dark:text-white tracking-widest">{item.label}</span>
+                <span className="text-[10px] font-black uppercase text-white tracking-widest">{item.label}</span>
                 <div
                   className={`w-5 h-5 rounded flex items-center justify-center ${
-                    target.includes(item.id) ? 'bg-gold text-white' : 'bg-slate-200 dark:bg-slate-700 text-transparent'
+                    target.includes(item.id) ? 'bg-gold text-white' : 'bg-[#1e3a5f] text-transparent'
                   }`}
                 >
                   <i className="fas fa-check text-[10px]" />
@@ -370,35 +370,35 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
               </div>
             ))}
           </div>
-          <div className="pt-8 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest leading-loose">
+          <div className="pt-8 text-center text-[9px] font-black text-blue-300/50 uppercase tracking-widest leading-loose">
             Recipient filters are mapped directly to live candidate records.
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 p-10 rounded-3xl border dark:border-slate-700 shadow-sm">
-        <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-widest mb-8">Transmission History</h3>
+      <div className="bg-[#0f1a2e] p-10 rounded-3xl border border-[#1e3a5f] shadow-sm">
+        <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-8">Transmission History</h3>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b dark:border-slate-700 text-left">
-                <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Channel</th>
-                <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Target Audience</th>
-                <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Timestamp</th>
-                <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+              <tr className="border-b border-[#1e3a5f] text-left">
+                <th className="pb-4 text-[10px] font-black text-blue-300/60 uppercase tracking-widest">Channel</th>
+                <th className="pb-4 text-[10px] font-black text-blue-300/60 uppercase tracking-widest">Target Audience</th>
+                <th className="pb-4 text-[10px] font-black text-blue-300/60 uppercase tracking-widest">Timestamp</th>
+                <th className="pb-4 text-[10px] font-black text-blue-300/60 uppercase tracking-widest">Status</th>
+                <th className="pb-4 text-[10px] font-black text-blue-300/60 uppercase tracking-widest text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {history.map((entry) => (
-                <tr key={entry.id} className="border-b dark:border-slate-700/50 last:border-none">
-                  <td className="py-4 font-bold text-sm dark:text-white">{entry.channel}</td>
-                  <td className="py-4 text-sm text-slate-600 dark:text-slate-300">
+                <tr key={entry.id} className="border-b border-[#1e3a5f]/50 last:border-none">
+                  <td className="py-4 font-bold text-sm text-white">{entry.channel}</td>
+                  <td className="py-4 text-sm text-blue-200/80">
                     {entry.target}
                     {entry.failedReason && <div className="text-xs text-red-500 mt-1">{entry.failedReason}</div>}
                   </td>
-                  <td className="py-4 text-xs font-mono text-slate-400">{entry.time}</td>
-                  <td className="py-4 text-sm font-black text-slate-700 dark:text-slate-200">{entry.status}</td>
+                  <td className="py-4 text-xs font-mono text-blue-300/60">{entry.time}</td>
+                  <td className="py-4 text-sm font-black text-blue-100">{entry.status}</td>
                   <td className="py-4 text-right">
                     {entry.status === 'FAILED' ? (
                       <button
@@ -408,14 +408,14 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
                         Retry
                       </button>
                     ) : (
-                      <span className="text-[10px] text-slate-400">-</span>
+                      <span className="text-[10px] text-blue-300/60">-</span>
                     )}
                   </td>
                 </tr>
               ))}
               {history.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-slate-400">
+                  <td colSpan={5} className="py-8 text-center text-sm text-blue-300/60">
                     No transmissions yet.
                   </td>
                 </tr>

@@ -16,9 +16,14 @@ type SessionRow = {
   machine_name: string;
   os: string;
   ip: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  location_label?: string | null;
   last_seen_at: string;
   is_online: boolean;
-  status: 'ACTIVE' | 'FORCED_OUT' | 'REVOKED';
+  status: MachineSession['status'];
+  force_logout_reason?: string | null;
+  forced_out_at?: string | null;
 };
 
 const toSession = (row: SessionRow): MachineSession => ({
@@ -29,9 +34,14 @@ const toSession = (row: SessionRow): MachineSession => ({
   machineName: row.machine_name,
   os: row.os,
   ip: row.ip,
+  latitude: row.latitude ?? undefined,
+  longitude: row.longitude ?? undefined,
+  locationLabel: row.location_label ?? undefined,
   lastSeenAt: row.last_seen_at,
   isOnline: row.is_online,
   status: row.status,
+  forceLogoutReason: row.force_logout_reason ?? undefined,
+  forcedOutAt: row.forced_out_at ?? undefined,
 });
 
 const toRow = (session: MachineSession): SessionRow => ({
@@ -42,9 +52,14 @@ const toRow = (session: MachineSession): SessionRow => ({
   machine_name: session.machineName,
   os: session.os,
   ip: session.ip,
+  latitude: session.latitude ?? null,
+  longitude: session.longitude ?? null,
+  location_label: session.locationLabel ?? null,
   last_seen_at: session.lastSeenAt,
   is_online: session.isOnline,
   status: session.status,
+  force_logout_reason: session.forceLogoutReason ?? null,
+  forced_out_at: session.forcedOutAt ?? null,
 });
 
 const nowIso = () => new Date().toISOString();
@@ -76,6 +91,53 @@ const fetchPublicIp = async (): Promise<string> => {
   }
 };
 
+const fetchGeoFromIp = async (): Promise<{ latitude?: number; longitude?: number; locationLabel?: string }> => {
+  try {
+    const response = await fetch('https://ipapi.co/json/');
+    if (!response.ok) return {};
+    const payload = (await response.json()) as {
+      latitude?: number;
+      longitude?: number;
+      city?: string;
+      region?: string;
+      country_name?: string;
+    };
+    if (typeof payload.latitude !== 'number' || typeof payload.longitude !== 'number') return {};
+    const latitude = Number(payload.latitude.toFixed(6));
+    const longitude = Number(payload.longitude.toFixed(6));
+    const area = [payload.city, payload.region, payload.country_name].filter(Boolean).join(', ');
+    return {
+      latitude,
+      longitude,
+      locationLabel: area || `${latitude}, ${longitude}`,
+    };
+  } catch {
+    return {};
+  }
+};
+
+const fetchBrowserGeo = async (): Promise<{ latitude?: number; longitude?: number; locationLabel?: string }> => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return {};
+  try {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 120000,
+      });
+    });
+    const latitude = Number(position.coords.latitude.toFixed(6));
+    const longitude = Number(position.coords.longitude.toFixed(6));
+    return {
+      latitude,
+      longitude,
+      locationLabel: `${latitude}, ${longitude}`,
+    };
+  } catch {
+    return {};
+  }
+};
+
 export const hasRemoteSessionStore = () => Boolean(supabase);
 
 export const createLocalSessionId = () =>
@@ -87,7 +149,15 @@ export const upsertSessionHeartbeat = async (
   forceStatus?: MachineSession['status']
 ) => {
   if (!supabase) return;
-  const ip = await fetchPublicIp();
+  const [ip, browserGeo, ipGeo] = await Promise.all([fetchPublicIp(), fetchBrowserGeo(), fetchGeoFromIp()]);
+  const { data: existing } = await supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('id', sessionId)
+    .maybeSingle();
+  const existingSession = existing as SessionRow | null;
+  const forcedOrRevoked = existingSession?.status === 'FORCED_OUT' || existingSession?.status === 'REVOKED';
+  const effectiveStatus = forceStatus || (forcedOrRevoked ? existingSession!.status : 'ACTIVE');
   const session: MachineSession = {
     id: sessionId,
     userId: user.id,
@@ -96,9 +166,14 @@ export const upsertSessionHeartbeat = async (
     machineName: getMachineName(),
     os: getOsName(),
     ip,
+    latitude: browserGeo.latitude ?? ipGeo.latitude ?? existingSession?.latitude ?? undefined,
+    longitude: browserGeo.longitude ?? ipGeo.longitude ?? existingSession?.longitude ?? undefined,
+    locationLabel: browserGeo.locationLabel ?? ipGeo.locationLabel ?? existingSession?.location_label ?? undefined,
     lastSeenAt: nowIso(),
-    isOnline: true,
-    status: forceStatus || 'ACTIVE',
+    isOnline: effectiveStatus === 'ACTIVE',
+    status: effectiveStatus,
+    forceLogoutReason: existingSession?.force_logout_reason ?? undefined,
+    forcedOutAt: existingSession?.forced_out_at ?? undefined,
   };
   await supabase.from(TABLE_NAME).upsert(toRow(session), { onConflict: 'id' });
 };
@@ -123,12 +198,22 @@ export const fetchActiveSessions = async (): Promise<MachineSession[]> => {
 
 export const updateSessionStatus = async (
   sessionId: string,
-  status: MachineSession['status']
+  status: MachineSession['status'],
+  reason?: string
 ): Promise<void> => {
   if (!supabase) return;
+  const payload: Record<string, unknown> = {
+    status,
+    last_seen_at: nowIso(),
+    is_online: status === 'ACTIVE',
+  };
+  if (status === 'FORCED_OUT') {
+    payload.force_logout_reason = reason || 'This machine was signed out because a newer login became active.';
+    payload.forced_out_at = nowIso();
+  }
   await supabase
     .from(TABLE_NAME)
-    .update({ status, last_seen_at: nowIso(), is_online: status === 'ACTIVE' })
+    .update(payload)
     .eq('id', sessionId);
 };
 
@@ -142,9 +227,16 @@ export const enforceSingleSessionPerUser = async (
   keepSessionId: string
 ): Promise<void> => {
   if (!supabase) return;
+  const reason = 'You were signed out because your account logged in on another machine. Only the latest login stays online.';
   await supabase
     .from(TABLE_NAME)
-    .update({ status: 'FORCED_OUT', is_online: false, last_seen_at: nowIso() })
+    .update({
+      status: 'FORCED_OUT',
+      is_online: false,
+      last_seen_at: nowIso(),
+      force_logout_reason: reason,
+      forced_out_at: nowIso(),
+    })
     .eq('user_id', userId)
     .neq('id', keepSessionId)
     .eq('status', 'ACTIVE');

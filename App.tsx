@@ -47,13 +47,12 @@ import BroadcastModule from './components/BroadcastModule';
 import SystemRecovery from './components/SystemRecovery';
 
 const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
-const ZANZIBAR_NAME_MAP_KEY = 'zaya_zanzibar_name_map_v1';
-const ZANZIBAR_NAME_POOL = [
-  'Ali Juma', 'Asha Khamis', 'Salma Mwinyi', 'Omar Bakari', 'Nassor Hamad',
-  'Mariam Suleiman', 'Hassan Kombo', 'Zainab Abdalla', 'Yahya Mussa', 'Rukia Said',
-  'Abdalla Hemed', 'Saada Salim', 'Khadija Ali', 'Idd Seif', 'Amina Rajab',
-  'Jabir Nassor', 'Shabaan Othman', 'Habiba Omar', 'Hemed Khamis', 'Fatma Yahya',
-  'Mwanaidi Ali', 'Suleiman Juma', 'Rashid Kombo', 'Safiya Hamad',
+const GENERATED_NAME_POOL = [
+  'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
+  'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
+  'Skyler James', 'Rowan Brooks', 'Hayden Cole', 'Elliot Stone', 'Sawyer Lane',
+  'Drew Parker', 'Charlie Hayes', 'Reese Walker', 'Kendall Shaw', 'Finley Grant',
+  'Logan Miles', 'Sydney James', 'Blake Hunter', 'Dakota Lee',
 ] as const;
 const MIN_CANDIDATE_COUNT = 20;
 const POSITION_POOL = ['Driver', 'Logistics Officer', 'HR Assistant', 'Sales Agent', 'Account Officer', 'Storekeeper'] as const;
@@ -75,40 +74,9 @@ const shouldQuickDismiss = (n: Notification): boolean => {
 const App: React.FC = () => {
   const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
 
-  const buildZanzibarNameMap = (candidateIds: string[]) => {
-    if (typeof window === 'undefined') return {} as Record<string, string>;
-    let existing: Record<string, string> = {};
-    try {
-      const raw = window.localStorage.getItem(ZANZIBAR_NAME_MAP_KEY);
-      existing = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    } catch { existing = {}; }
-    const used = new Set(Object.values(existing));
-    let pointer = 0;
-    const nextName = () => {
-      while (pointer < ZANZIBAR_NAME_POOL.length && used.has(ZANZIBAR_NAME_POOL[pointer])) pointer += 1;
-      const picked = ZANZIBAR_NAME_POOL[pointer % ZANZIBAR_NAME_POOL.length];
-      pointer += 1;
-      used.add(picked);
-      return picked;
-    };
-    candidateIds.forEach((id) => { if (!existing[id]) existing[id] = nextName(); });
-    window.localStorage.setItem(ZANZIBAR_NAME_MAP_KEY, JSON.stringify(existing));
-    return existing;
-  };
-
-  const normalizeCandidatesZanzibar = (input: Candidate[]): Candidate[] => {
-    if (!input.length) return input;
-    const nameMap = buildZanzibarNameMap(input.map((c) => c.id));
-    return input.map((candidate) => {
-      const name = nameMap[candidate.id] || candidate.fullName;
-      const photoUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(`${name}-${candidate.id}`)}`;
-      return { ...candidate, fullName: name, photoUrl };
-    });
-  };
-
   const buildGeneratedCandidate = (index: number): Candidate => {
     const id = `ZGL-CN-2026-${String(index + 1).padStart(5, '0')}`;
-    const baseName = ZANZIBAR_NAME_POOL[index % ZANZIBAR_NAME_POOL.length];
+    const baseName = GENERATED_NAME_POOL[index % GENERATED_NAME_POOL.length];
     const status = STATUS_POOL[index % STATUS_POOL.length] as Candidate['status'];
     const createdAt = new Date(Date.UTC(2026, (index % 12), ((index % 27) + 1), 9, 30, 0)).toISOString();
     const photoUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(`${baseName}-${id}`)}`;
@@ -117,7 +85,7 @@ const App: React.FC = () => {
       phone: `+2557${String(10000000 + index * 371).slice(0, 8)}`,
       email: `${baseName.toLowerCase().replace(/\s+/g, '.')}@zayagroupltd.com`,
       dob: `199${index % 10}-${String((index % 12) + 1).padStart(2, '0')}-${String((index % 27) + 1).padStart(2, '0')}`,
-      age: 24 + (index % 11), address: `Zanzibar ${index % 2 === 0 ? 'Urban' : 'North'} District`,
+      age: 24 + (index % 11), address: `Region ${index % 2 === 0 ? 'North' : 'South'} District`,
       occupation: POSITION_POOL[index % POSITION_POOL.length], experienceYears: 1 + (index % 9),
       positionApplied: POSITION_POOL[(index + 2) % POSITION_POOL.length], status,
       documents: {
@@ -444,15 +412,6 @@ const App: React.FC = () => {
   }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
 
   useEffect(() => {
-    if (!candidates.length) return;
-    const normalized = normalizeCandidatesZanzibar(candidates);
-    if (!isSame(candidates, normalized)) {
-      setCandidates(normalized);
-      pushNotificationDeduped('zanzibar-candidates-standardized', 'Candidate Directory Standardized', 'Applied Zanzibar names and profile photos to candidate records.', 'INFO', 'database', 5000);
-    }
-  }, [candidates]);
-
-  useEffect(() => {
     if (candidates.length >= MIN_CANDIDATE_COUNT) return;
     const required = MIN_CANDIDATE_COUNT - candidates.length;
     if (required <= 0) return;
@@ -625,7 +584,12 @@ const App: React.FC = () => {
       if (!mine) return;
       if ((mine.status === 'FORCED_OUT' || mine.status === 'REVOKED') && !isRevokedRef.current) {
         isRevokedRef.current = true;
-        alert('Your session was revoked by an administrator.');
+        const reason = mine.forceLogoutReason
+          ? `Reason: ${mine.forceLogoutReason}`
+          : mine.status === 'FORCED_OUT'
+          ? 'Reason: Another newer login for your account became active, so this machine was signed out.'
+          : 'Reason: Your session was revoked by an administrator.';
+        alert(`You have been signed out.\n\n${reason}`);
         handleLogout();
       }
     };
@@ -837,14 +801,13 @@ const App: React.FC = () => {
             sessions={activeSessions}
             currentSessionId={sessionIdRef.current}
             onForceOut={async (sessionId) => {
-              // Update status first (2 args as per function signature)
-              await updateSessionStatus(sessionId, 'FORCED_OUT');
+              const reason = `Force logged out by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
+              await updateSessionStatus(sessionId, 'FORCED_OUT', reason);
               // Store force logout reason so tooltip bubble appears on MachineAuth
-              const reason = `Force logged out by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}`;
               setActiveSessions((prev) =>
                 prev.map((s) =>
                   s.id === sessionId
-                    ? ({ ...s, status: 'FORCED_OUT', forceLogoutReason: reason } as any)
+                    ? ({ ...s, status: 'FORCED_OUT', forceLogoutReason: reason })
                     : s
                 )
               );
@@ -852,7 +815,7 @@ const App: React.FC = () => {
               const refreshed = await fetchActiveSessions();
               // Re-apply reason to refreshed list since remote may not have the field yet
               setActiveSessions(refreshed.map((s) =>
-                s.id === sessionId ? ({ ...s, forceLogoutReason: reason } as any) : s
+                s.id === sessionId ? ({ ...s, forceLogoutReason: reason }) : s
               ));
             }}
             onRevoke={async (sessionId) => {

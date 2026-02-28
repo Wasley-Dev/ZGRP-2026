@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Candidate, RecruitmentStatus, DocumentStatus } from "../types";
+import { Candidate, RecruitmentStatus, DocumentStatus, UploadedSupplementalDocument } from "../types";
 
 interface RegistryProps {
   candidates: Candidate[];
@@ -31,8 +31,31 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   const [editingCandidate, setEditingCandidate] =
     useState<Candidate | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [supplementalPreview, setSupplementalPreview] = useState<UploadedSupplementalDocument | null>(null);
   const supplementalRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string) || "");
+      reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+      reader.readAsDataURL(file);
+    });
+
+  const getSupplementalFiles = (candidate: Partial<Candidate> | Candidate | null | undefined) =>
+    candidate?.documents?.supplementalFiles || [];
+
+  const getDocumentStatuses = (documents: Candidate["documents"] | undefined) => ({
+    cv: documents?.cv || "NONE",
+    certificates: documents?.certificates || "NONE",
+    id: documents?.id || "NONE",
+    tin: documents?.tin || "NONE",
+    supplemental: documents?.supplemental || (documents?.supplementalFiles?.length ? "COMPLETE" : "NONE"),
+  });
+
+  const canInlinePreview = (doc: UploadedSupplementalDocument) =>
+    doc.mimeType.startsWith("image/") || doc.mimeType === "application/pdf";
 
   const safeImageData = async (url?: string) => {
     if (!url) return null;
@@ -77,11 +100,18 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       certificates: "NONE",
       tin: "NONE",
       supplemental: "NONE",
+      supplementalFiles: [],
     },
   });
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const supplementalFiles = getSupplementalFiles(newCandidate);
+    const nextDocumentStatus: DocumentStatus = {
+      ...(newCandidate.documents as DocumentStatus),
+      supplemental: supplementalFiles.length ? "COMPLETE" : "NONE",
+      supplementalFiles,
+    };
 
     const candidate: Candidate = {
       id: editingCandidate ? editingCandidate.id :
@@ -97,10 +127,10 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       experienceYears: newCandidate.experienceYears || 0,
       positionApplied: newCandidate.positionApplied || 'General Application',
       status: newCandidate.status || RecruitmentStatus.PENDING,
-      documents: newCandidate.documents as DocumentStatus,
+      documents: nextDocumentStatus,
       skills: newCandidate.skills || [],
-      createdAt: new Date().toISOString(),
-      photoUrl: previewImage || `https://picsum.photos/seed/${newCandidate.fullName}/200/200`
+      createdAt: editingCandidate?.createdAt || new Date().toISOString(),
+      photoUrl: previewImage || editingCandidate?.photoUrl || fallbackImage(newCandidate.fullName || "Candidate"),
     };
 
     if (editingCandidate) {
@@ -112,6 +142,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     setIsFormOpen(false);
     setEditingCandidate(null);
     setPreviewImage(null);
+    setSupplementalPreview(null);
     setNewCandidate({
       fullName: "",
       gender: "M",
@@ -130,6 +161,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
         certificates: "NONE",
         tin: "NONE",
         supplemental: "NONE",
+        supplementalFiles: [],
       },
     });
   };
@@ -147,7 +179,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     }
   };
 
-  const handlePDFDownload = async () => {
+  const handlePDFDownload = async (includeSupplemental: boolean) => {
     if (!selectedCandidate) return;
 
     const pdf = new jsPDF("p", "mm", "a4");
@@ -202,11 +234,13 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       margin: { left: 14, right: 14 },
     });
 
+    const documentStatuses = getDocumentStatuses(selectedCandidate.documents);
+
     autoTable(pdf, {
       startY: (pdf as any).lastAutoTable.finalY + 6,
       theme: "grid",
       head: [["Document", "Status"]],
-      body: Object.entries(selectedCandidate.documents).map(([doc, status]) => [
+      body: Object.entries(documentStatuses).map(([doc, status]) => [
         doc.toUpperCase(),
         status,
       ]),
@@ -215,6 +249,26 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       alternateRowStyles: { fillColor: [245, 247, 252] },
       margin: { left: 14, right: 14 },
     });
+
+    if (includeSupplemental) {
+      const supplementalFiles = getSupplementalFiles(selectedCandidate);
+      autoTable(pdf, {
+        startY: (pdf as any).lastAutoTable.finalY + 6,
+        theme: "grid",
+        head: [["Supplemental Document", "Type", "Size (KB)"]],
+        body: supplementalFiles.length
+          ? supplementalFiles.map((doc) => [
+            doc.name,
+            doc.mimeType || "Unknown",
+            (doc.size / 1024).toFixed(1),
+          ])
+          : [["No supplemental files uploaded", "-", "-"]],
+        styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+        headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [245, 247, 252] },
+        margin: { left: 14, right: 14 },
+      });
+    }
 
     pdf.save(`${selectedCandidate.fullName.replace(/\s+/g, "_")}_Dossier.pdf`);
   };
@@ -233,7 +287,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     const tableRows: any[] = [];
 
     targetCandidates.forEach(candidate => {
-      const completedDocs = Object.values(candidate.documents).filter(d => d === 'COMPLETE').length;
+      const completedDocs = Object.values(getDocumentStatuses(candidate.documents)).filter((d) => d === 'COMPLETE').length;
       const candidateData = [
         candidate.id,
         candidate.fullName,
@@ -258,7 +312,72 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     doc.save(`zaya_candidates_db_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const toggleDoc = (key: keyof DocumentStatus) => {
+  const handlePrint = (includeSupplemental: boolean) => {
+    if (!selectedCandidate) return;
+    const printable = window.open("", "_blank", "width=1000,height=900");
+    if (!printable) return;
+
+    const docStatuses = getDocumentStatuses(selectedCandidate.documents);
+    const supplementalFiles = includeSupplemental ? getSupplementalFiles(selectedCandidate) : [];
+    const supplementalMarkup = supplementalFiles.length
+      ? supplementalFiles
+        .map((doc) => {
+          if (doc.mimeType.startsWith("image/")) {
+            return `<div style="margin-bottom:16px;"><p><strong>${doc.name}</strong></p><img src="${doc.dataUrl}" alt="${doc.name}" style="max-width:100%;max-height:320px;"/></div>`;
+          }
+          if (doc.mimeType === "application/pdf") {
+            return `<div style="margin-bottom:16px;"><p><strong>${doc.name}</strong></p><iframe src="${doc.dataUrl}" style="width:100%;height:420px;border:1px solid #ccc;"></iframe></div>`;
+          }
+          return `<p><strong>${doc.name}</strong> (${doc.mimeType || "Unknown"})</p>`;
+        })
+        .join("")
+      : "<p>No supplemental files uploaded.</p>";
+
+    printable.document.write(`
+      <html>
+        <head>
+          <title>${selectedCandidate.fullName} Profile</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
+            h1, h2 { margin: 0 0 10px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            td, th { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 12px; }
+            .header { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; }
+            .photo { width: 120px; height: 120px; border-radius: 16px; object-fit: cover; border: 2px solid #d4af37; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <img class="photo" src="${selectedCandidate.photoUrl || fallbackImage(selectedCandidate.fullName)}" alt="${selectedCandidate.fullName}" />
+            <div>
+              <h1>${selectedCandidate.fullName}</h1>
+              <p>${selectedCandidate.occupation} | ${selectedCandidate.status}</p>
+              <p>Reference: ${selectedCandidate.id}</p>
+            </div>
+          </div>
+          <h2>Profile</h2>
+          <table>
+            <tr><th>Email</th><td>${selectedCandidate.email || "-"}</td></tr>
+            <tr><th>Phone</th><td>${selectedCandidate.phone || "-"}</td></tr>
+            <tr><th>DOB</th><td>${selectedCandidate.dob || "-"}</td></tr>
+            <tr><th>Address</th><td>${selectedCandidate.address || "-"}</td></tr>
+            <tr><th>Position Applied</th><td>${selectedCandidate.positionApplied || "-"}</td></tr>
+            <tr><th>Skills</th><td>${(selectedCandidate.skills || []).join(", ") || "None"}</td></tr>
+          </table>
+          <h2 style="margin-top:20px;">Document Status</h2>
+          <table>
+            ${Object.entries(docStatuses).map(([doc, status]) => `<tr><th>${doc.toUpperCase()}</th><td>${status}</td></tr>`).join("")}
+          </table>
+          ${includeSupplemental ? `<h2 style="margin-top:20px;">Supplemental Documents</h2>${supplementalMarkup}` : ""}
+        </body>
+      </html>
+    `);
+    printable.document.close();
+    printable.focus();
+    printable.print();
+  };
+
+  const toggleDoc = (key: "cv" | "certificates" | "id" | "tin") => {
     setNewCandidate((prev) => ({
       ...prev,
       documents: {
@@ -376,7 +495,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                   {c.occupation}
                 </td>
                 <td className="p-4 flex gap-1 flex-wrap">
-                  {Object.entries(c.documents).map(([doc, status]) => (
+                  {Object.entries(getDocumentStatuses(c.documents)).map(([doc, status]) => (
                     <span
                       key={doc}
                       className={`px-2 py-1 text-[9px] font-black rounded-full ${
@@ -415,9 +534,14 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                         positionApplied: c.positionApplied,
                         status: c.status,
                         skills: c.skills,
-                        documents: c.documents,
+                        documents: {
+                          ...c.documents,
+                          supplemental: c.documents.supplemental || (c.documents.supplementalFiles?.length ? "COMPLETE" : "NONE"),
+                          supplementalFiles: c.documents.supplementalFiles || [],
+                        },
                       });
                       setPreviewImage(c.photoUrl || null);
+                      setSupplementalPreview(null);
                       setIsFormOpen(true);
                     }}
                     className="text-yellow-500"
@@ -755,19 +879,70 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                   multiple
                   ref={supplementalRef}
                   className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setNewCandidate((prev) => ({
+                  onChange={async (e) => {
+                    const files = Array.from((e.target.files || []) as FileList) as File[];
+                    if (!files.length) return;
+                    const mappedFiles = await Promise.all(
+                      files.map(async (file): Promise<UploadedSupplementalDocument> => ({
+                        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                        name: file.name,
+                        mimeType: file.type || "application/octet-stream",
+                        size: file.size,
+                        uploadedAt: new Date().toISOString(),
+                        dataUrl: await readFileAsDataUrl(file),
+                      }))
+                    );
+                    setNewCandidate((prev) => {
+                      const existing = getSupplementalFiles(prev);
+                      const supplementalFiles = [...existing, ...mappedFiles];
+                      return {
                         ...prev,
                         documents: {
                           ...prev.documents!,
-                          supplemental: "COMPLETE",
+                          supplemental: supplementalFiles.length ? "COMPLETE" : "NONE",
+                          supplementalFiles,
                         },
-                      }));
-                      alert(`${e.target.files.length} files selected.`);
-                    }
+                      };
+                    });
+                    e.currentTarget.value = "";
                   }}
                 />
+                {getSupplementalFiles(newCandidate).length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {getSupplementalFiles(newCandidate).map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold dark:text-white truncate">{doc.name}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {(doc.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewCandidate((prev) => {
+                              const filtered = getSupplementalFiles(prev).filter((file) => file.id !== doc.id);
+                              return {
+                                ...prev,
+                                documents: {
+                                  ...prev.documents!,
+                                  supplemental: filtered.length ? "COMPLETE" : "NONE",
+                                  supplementalFiles: filtered,
+                                },
+                              };
+                            })
+                          }
+                          className="text-red-500 hover:text-red-600 text-xs font-black uppercase"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button
@@ -815,7 +990,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                         {selectedCandidate.status}
                       </span>
                       <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-500">
-                        Docs: {Object.values(selectedCandidate.documents).filter(s => s === 'COMPLETE').length} / 5
+                        Docs: {Object.values(getDocumentStatuses(selectedCandidate.documents)).filter(s => s === 'COMPLETE').length} / 5
                       </span>
                     </div>
                   </div>
@@ -885,7 +1060,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                   Documentation Compliance
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  {Object.entries(selectedCandidate.documents).map(([doc, status]) => (
+                  {Object.entries(getDocumentStatuses(selectedCandidate.documents)).map(([doc, status]) => (
                     <div key={doc} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-2 ${
                       status === 'COMPLETE' 
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900/50' 
@@ -908,21 +1083,75 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                   ))}
                 </div>
               </div>
+
+              <div>
+                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest">
+                  Supplemental Documents
+                </h4>
+                {getSupplementalFiles(selectedCandidate).length > 0 ? (
+                  <div className="space-y-3" data-supplemental="true">
+                    {getSupplementalFiles(selectedCandidate).map((doc) => (
+                      <div key={doc.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50 dark:bg-slate-950">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-black dark:text-white truncate">{doc.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {doc.mimeType || "Unknown"} | {(doc.size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={doc.dataUrl}
+                              download={doc.name}
+                              className="px-3 py-2 text-[10px] font-black uppercase rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white"
+                            >
+                              Download
+                            </a>
+                            {canInlinePreview(doc) && (
+                              <button
+                                type="button"
+                                onClick={() => setSupplementalPreview(doc)}
+                                className="px-3 py-2 text-[10px] font-black uppercase rounded-lg bg-enterprise-blue text-white"
+                              >
+                                Preview
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs italic text-slate-400">No supplemental documents uploaded.</p>
+                )}
+              </div>
             </div>
 
             {/* Actions Footer */}
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-800 flex justify-end gap-3 sticky bottom-0">
               <button
-                onClick={handlePDFDownload}
+                onClick={() => handlePDFDownload(false)}
                 className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
               >
-                <i className="fas fa-file-pdf"></i> Export PDF
+                <i className="fas fa-file-pdf"></i> Export Profile PDF
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => handlePDFDownload(true)}
                 className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
               >
-                <i className="fas fa-print"></i> Print Dossier
+                <i className="fas fa-file-export"></i> Export + Docs
+              </button>
+              <button
+                onClick={() => handlePrint(false)}
+                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+              >
+                <i className="fas fa-print"></i> Print Profile
+              </button>
+              <button
+                onClick={() => handlePrint(true)}
+                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+              >
+                <i className="fas fa-print"></i> Print + Docs
               </button>
               <button
                 onClick={() => setIsProfileOpen(false)}
@@ -931,6 +1160,37 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                 Close Profile
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {supplementalPreview && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setSupplementalPreview(null)}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[90vh] overflow-auto bg-white dark:bg-slate-900 rounded-2xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black dark:text-white truncate">{supplementalPreview.name}</h3>
+              <button
+                type="button"
+                className="text-slate-500 hover:text-red-500"
+                onClick={() => setSupplementalPreview(null)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            {supplementalPreview.mimeType.startsWith("image/") ? (
+              <img src={supplementalPreview.dataUrl} alt={supplementalPreview.name} className="max-w-full h-auto rounded-lg" />
+            ) : (
+              <iframe
+                title={supplementalPreview.name}
+                src={supplementalPreview.dataUrl}
+                className="w-full h-[75vh] rounded-lg border border-slate-200 dark:border-slate-800"
+              />
+            )}
           </div>
         </div>
       )}

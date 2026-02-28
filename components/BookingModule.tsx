@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BookingEntry, SystemUser } from '../types';
+import { getTodayIsoInEAT, parseIsoDateAsLocalMidnight } from '../services/dateTime';
 
 interface BookingModuleProps {
   bookings: BookingEntry[];
@@ -9,18 +10,18 @@ interface BookingModuleProps {
 }
 
 const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentUser, onUpsertBooking }) => {
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const startOfToday = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00');
+  const todayIso = getTodayIsoInEAT();
+  const startOfToday = parseIsoDateAsLocalMidnight(todayIso);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingEntry | null>(null);
   const [selectedDate, setSelectedDate] = useState(todayIso);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [calendarMonth, setCalendarMonth] = useState(() => {
-    const d = new Date();
+    const d = parseIsoDateAsLocalMidnight(getTodayIsoInEAT());
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
-  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarYear, setCalendarYear] = useState(() => parseIsoDateAsLocalMidnight(getTodayIsoInEAT()).getFullYear());
   const [form, setForm] = useState({
     booker: '',
     date: '',
@@ -36,13 +37,13 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
   );
 
   const upcomingBookings = useMemo(
-    () => sortedBookings.filter((b) => new Date(`${b.date}T00:00:00`) >= startOfToday),
-    [sortedBookings]
+    () => sortedBookings.filter((b) => parseIsoDateAsLocalMidnight(b.date) >= startOfToday),
+    [sortedBookings, startOfToday]
   );
 
   const pastBookings = useMemo(
-    () => sortedBookings.filter((b) => new Date(`${b.date}T00:00:00`) < startOfToday),
-    [sortedBookings]
+    () => sortedBookings.filter((b) => parseIsoDateAsLocalMidnight(b.date) < startOfToday),
+    [sortedBookings, startOfToday]
   );
 
   const selectedDateBookings = useMemo(
@@ -71,7 +72,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
     const numberOfDays = new Date(year, month + 1, 0).getDate();
     const cells: Array<{ iso: string; day: number } | null> = Array.from({ length: firstWeekday }, () => null);
     for (let day = 1; day <= numberOfDays; day += 1) {
-      const iso = new Date(year, month, day).toISOString().slice(0, 10);
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       cells.push({ iso, day });
     }
     return cells;
@@ -80,14 +81,14 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
   const bookingsByMonth = useMemo(() => {
     const counts = new Array(12).fill(0) as number[];
     sortedBookings.forEach((booking) => {
-      const d = new Date(`${booking.date}T00:00:00`);
+      const d = parseIsoDateAsLocalMidnight(booking.date);
       if (d.getFullYear() === calendarYear) counts[d.getMonth()] += 1;
     });
     return counts;
   }, [sortedBookings, calendarYear]);
 
   const formatBookingDate = (isoDate: string) =>
-    new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
+    parseIsoDateAsLocalMidnight(isoDate).toLocaleDateString('en-GB', {
       weekday: 'long',
       day: '2-digit',
       month: '2-digit',
@@ -97,7 +98,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
   const getBookedByName = (createdByUserId: string) =>
     users.find((u) => u.id === createdByUserId)?.name || 'Unknown User';
 
-  const isPast = (isoDate: string) => new Date(`${isoDate}T00:00:00`) < startOfToday;
+  const isPast = (isoDate: string) => parseIsoDateAsLocalMidnight(isoDate) < startOfToday;
 
   const openCreate = () => {
     setSelectedBooking(null);
@@ -161,7 +162,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
               Scheduling Architecture
             </h2>
             <p className="text-[10px] font-bold text-blue-300/50 uppercase tracking-widest mt-1">
-              Live booking data — synced to {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+              Live booking data - synced to {parseIsoDateAsLocalMidnight(todayIso).toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
             </p>
           </div>
           <button
@@ -404,7 +405,7 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
 
               {/* Today indicator */}
               <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest mt-3 text-center">
-                Today: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                Today (EAT): {parseIsoDateAsLocalMidnight(todayIso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
               </p>
             </div>
           </div>

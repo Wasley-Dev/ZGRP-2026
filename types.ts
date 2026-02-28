@@ -15,6 +15,17 @@ export type ThemeMode = 'light' | 'dark';
 
 export type NotificationType = 'SUCCESS' | 'ERROR' | 'INFO' | 'WARNING';
 
+export type CandidateDocumentState = 'NONE' | 'INCOMPLETE' | 'COMPLETE';
+
+export interface UploadedSupplementalDocument {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+  dataUrl: string;
+}
+
 export interface Notification {
   id: string;
   title: string;
@@ -27,11 +38,15 @@ export interface Notification {
 }
 
 export interface CandidateDocuments {
-  cv: 'NONE' | 'INCOMPLETE' | 'COMPLETE';
-  id: 'NONE' | 'INCOMPLETE' | 'COMPLETE';
-  certificates: 'NONE' | 'INCOMPLETE' | 'COMPLETE';
-  tin: 'NONE' | 'INCOMPLETE' | 'COMPLETE';
+  cv: CandidateDocumentState;
+  id: CandidateDocumentState;
+  certificates: CandidateDocumentState;
+  tin: CandidateDocumentState;
+  supplemental?: CandidateDocumentState;
+  supplementalFiles?: UploadedSupplementalDocument[];
 }
+
+export type DocumentStatus = CandidateDocuments;
 
 export interface Candidate {
   id: string;
@@ -95,8 +110,13 @@ export interface MachineSession {
   machineName: string;
   os: string;
   ip: string;
+  latitude?: number;
+  longitude?: number;
+  locationLabel?: string;
   isOnline: boolean;
   status: 'ACTIVE' | 'OFFLINE' | 'TERMINATED' | 'FORCED_OUT' | 'REVOKED';
+  forceLogoutReason?: string;
+  forcedOutAt?: string;
   startedAt?: string;
   lastSeenAt: string;
 }

@@ -42,12 +42,12 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
+    <div className="space-y-10 animate-in fade-in duration-500 text-blue-100">
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[3rem] p-12 border dark:border-slate-700 shadow-sm space-y-12">
+          <div className="lg:col-span-2 bg-[#0f1a2e] rounded-[3rem] p-12 border border-[#1e3a5f] shadow-sm space-y-12">
              <div>
-                <h3 className="text-2xl font-black dark:text-white uppercase tracking-tight">Identity & Profiles</h3>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Corporate identity management</p>
+                <h3 className="text-2xl font-black text-blue-400 uppercase tracking-tight">Identity & Profiles</h3>
+                <p className="text-[10px] font-bold text-blue-300/60 uppercase tracking-widest mt-1">Corporate identity management</p>
              </div>
 
              <div className="flex flex-col md:flex-row items-center md:items-start gap-12">
@@ -62,19 +62,19 @@ const Settings: React.FC<SettingsProps> = ({
                 
                 <div className="flex-1 w-full grid grid-cols-2 gap-8">
                    <div className="col-span-2 md:col-span-1">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Display Identity</label>
-                      <input className="w-full p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10" value={user.name} onChange={e => setUser({...user, name: e.target.value})} />
+                      <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Display Identity</label>
+                      <input className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-white outline-none focus:ring-4 focus:ring-gold/10" value={user.name} onChange={e => setUser({...user, name: e.target.value})} />
                    </div>
                    <div className="col-span-2 md:col-span-1">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Work Department</label>
-                      <input className="w-full p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-bold text-slate-400 uppercase text-xs" disabled value={user.department} />
+                      <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Work Department</label>
+                      <input className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-blue-300/70 uppercase text-xs" disabled value={user.department} />
                    </div>
                    <div className="col-span-2">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">New Password (Optional)</label>
+                      <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">New Password (Optional)</label>
                       <input 
                         type="password" 
                         placeholder="Enter new password to change" 
-                        className="w-full p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10" 
+                        className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-white outline-none focus:ring-4 focus:ring-gold/10" 
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
                       />
@@ -87,13 +87,13 @@ const Settings: React.FC<SettingsProps> = ({
              </button>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-12 border dark:border-slate-700 shadow-sm space-y-10 flex flex-col items-center text-center">
+          <div className="bg-[#0f1a2e] rounded-[3rem] p-12 border border-[#1e3a5f] shadow-sm space-y-10 flex flex-col items-center text-center">
              <div className="w-24 h-24 rounded-[2rem] bg-gold/10 text-gold flex items-center justify-center text-4xl shadow-inner border border-gold/20">
                 <i className="fas fa-palette"></i>
              </div>
              <div>
-                <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">UI Rendering</h3>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 tracking-widest">Interface Appearance Sync</p>
+                <h3 className="text-xl font-black text-blue-400 uppercase tracking-tight">UI Rendering</h3>
+                <p className="text-[10px] text-blue-300/60 font-bold uppercase mt-1 tracking-widest">Interface Appearance Sync</p>
              </div>
              <div className="w-full space-y-6">
                 <button onClick={onThemeToggle} className="w-full p-5 rounded-2xl bg-enterprise-blue text-white flex items-center justify-between group overflow-hidden border-b-4 border-black/20 hover:brightness-110 transition-all">
@@ -102,7 +102,7 @@ const Settings: React.FC<SettingsProps> = ({
                 </button>
                 <button
                   onClick={() => bgInputRef.current?.click()}
-                  className="w-full p-5 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-white flex items-center justify-between border border-slate-200 dark:border-slate-700"
+                  className="w-full p-5 rounded-2xl bg-[#0a1628] text-white flex items-center justify-between border border-[#1e3a5f]"
                 >
                   <span className="font-black uppercase text-[10px] tracking-[0.2em]">Set Background Image</span>
                   <i className="fas fa-image text-gold text-lg"></i>
@@ -128,7 +128,7 @@ const Settings: React.FC<SettingsProps> = ({
                   </button>
                 )}
              </div>
-             <div className="mt-auto pt-10 w-full text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] opacity-40">ZAYA GROUP PORTAL v4.2</div>
+             <div className="mt-auto pt-10 w-full text-[9px] font-black text-blue-300/50 uppercase tracking-[0.4em] opacity-70">ZAYA GROUP PORTAL v4.2</div>
           </div>
        </div>
 
