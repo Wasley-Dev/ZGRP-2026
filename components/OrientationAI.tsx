@@ -164,25 +164,21 @@ const OrientationAI: React.FC<{
     const action = detectActionIntent(userMsg);
 
     if (action) {
-      setTimeout(() => {
-        const line = actionRepliesRef.current.shift() || 'Executing now! 🚀';
-        actionRepliesRef.current.push(line);
-        setMessages((prev) => [...prev, { role: 'ai', text: line }]);
-        if (onAction) onAction(action);
-        setIsTyping(false);
-      }, 60);
+      const line = actionRepliesRef.current.shift() || 'Executing now!';
+      actionRepliesRef.current.push(line);
+      setMessages((prev) => [...prev, { role: 'ai', text: line }]);
+      if (onAction) onAction(action);
+      setIsTyping(false);
       return;
     }
 
     if (navigateTo) {
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'ai', text: `Heading to **${navigateTo.toUpperCase()}** right now! 🚀 Follow me!` },
-        ]);
-        setIsTyping(false);
-        if (onNavigate) onNavigate(navigateTo);
-      }, 60);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'ai', text: `Heading to **${navigateTo.toUpperCase()}** right now.` },
+      ]);
+      setIsTyping(false);
+      if (onNavigate) onNavigate(navigateTo);
       return;
     }
 

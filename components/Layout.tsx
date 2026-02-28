@@ -121,6 +121,22 @@ const Layout: React.FC<LayoutProps> = ({
 
   const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const isDark = theme === 'dark';
+  const shellThemeClass = isDark ? 'dark theme-dark' : 'theme-light';
+  const sidebarThemeClass = isDark
+    ? 'enterprise-blue text-white'
+    : 'bg-[#f8fbff] text-[#0f172a] border-r border-[#d8e4ff]';
+  const headerThemeClass = isDark
+    ? 'bg-[#0f1b40]/95 border-blue-400/20'
+    : 'bg-white/95 border-slate-200';
+  const mainThemeClass = backgroundImageUrl
+    ? ''
+    : isDark
+    ? 'bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] text-slate-100'
+    : 'bg-[radial-gradient(circle_at_15%_10%,#f7fbff_0%,#edf3ff_40%,#e8effc_100%)] text-slate-900';
+  const panelThemeClass = isDark
+    ? 'bg-[#0f1a2e] border-[#1e3a5f]'
+    : 'bg-white border-slate-200';
 
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
@@ -145,7 +161,7 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
         {(isSidebarOpen || isMobileSidebarOpen) && (
           <div className="overflow-hidden whitespace-nowrap">
-            <h1 className="font-black text-[10px] tracking-tight uppercase truncate text-white">{systemConfig.systemName}</h1>
+            <h1 className={`font-black text-[10px] tracking-tight uppercase truncate ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{systemConfig.systemName}</h1>
             <p className="text-[10px] text-gold font-bold tracking-widest uppercase">PORTAL CORE</p>
           </div>
         )}
@@ -159,13 +175,13 @@ const Layout: React.FC<LayoutProps> = ({
             onClick={() => onModuleChange(item.id)}
             className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
               activeModule === item.id
-                ? 'bg-white/15 border-l-4 border-gold'
-                : 'hover:bg-white/5 opacity-70 hover:opacity-100'
+                ? `${isDark ? 'bg-white/15' : 'bg-[#dce8ff]'} border-l-4 border-gold`
+                : `${isDark ? 'hover:bg-white/5' : 'hover:bg-[#ecf3ff]'} opacity-70 hover:opacity-100`
             }`}
           >
-            <i className={`fas ${item.icon} w-5 text-center text-sm ${activeModule === item.id ? 'text-gold' : 'text-white'}`}></i>
+            <i className={`fas ${item.icon} w-5 text-center text-sm ${activeModule === item.id ? 'text-gold' : isDark ? 'text-white' : 'text-[#003366]'}`}></i>
             {(isSidebarOpen || isMobileSidebarOpen) && (
-              <span className="text-sm font-medium text-white">{item.label}</span>
+              <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{item.label}</span>
             )}
           </button>
         ))}
@@ -174,7 +190,7 @@ const Layout: React.FC<LayoutProps> = ({
           <>
             <div className="mt-6 mb-2 px-3">
               {(isSidebarOpen || isMobileSidebarOpen)
-                ? <span className="text-[9px] uppercase font-black text-white/30 tracking-[0.3em]">Administrator</span>
+                ? <span className={`text-[9px] uppercase font-black tracking-[0.3em] ${isDark ? 'text-white/30' : 'text-slate-500'}`}>Administrator</span>
                 : <hr className="border-white/5" />}
             </div>
             {adminItems.map((item) => (
@@ -183,13 +199,13 @@ const Layout: React.FC<LayoutProps> = ({
                 onClick={() => onModuleChange(item.id)}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
                   activeModule === item.id
-                    ? 'bg-gold/20 border-l-4 border-gold'
-                    : 'hover:bg-white/5 opacity-70 hover:opacity-100'
+                    ? `${isDark ? 'bg-gold/20' : 'bg-[#fff7d6]'} border-l-4 border-gold`
+                    : `${isDark ? 'hover:bg-white/5' : 'hover:bg-[#ecf3ff]'} opacity-70 hover:opacity-100`
                 }`}
               >
-                <i className={`fas ${item.icon} w-5 text-center text-sm ${activeModule === item.id ? 'text-gold' : 'text-white'}`}></i>
+                <i className={`fas ${item.icon} w-5 text-center text-sm ${activeModule === item.id ? 'text-gold' : isDark ? 'text-white' : 'text-[#003366]'}`}></i>
                 {(isSidebarOpen || isMobileSidebarOpen) && (
-                  <span className="text-sm font-medium text-white">{item.label}</span>
+                  <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{item.label}</span>
                 )}
               </button>
             ))}
@@ -198,7 +214,7 @@ const Layout: React.FC<LayoutProps> = ({
       </nav>
 
       {/* Logout */}
-      <div className="sticky bottom-0 p-3 border-t border-white/5 bg-[#003366]/95 backdrop-blur-sm shrink-0">
+      <div className={`sticky bottom-0 p-3 border-t backdrop-blur-sm shrink-0 ${isDark ? 'border-white/5 bg-[#003366]/95' : 'border-slate-200 bg-[#f8fbff]'}`}>
         <button
           onClick={onLogout}
           className="w-full py-3 text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors tracking-[0.2em] border border-red-400/40"
@@ -211,7 +227,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div
-      className={`app-shell flex overflow-hidden ${theme === 'dark' ? 'dark' : ''}`}
+      className={`app-shell flex overflow-hidden ${shellThemeClass}`}
       style={{ minHeight: 'calc(var(--app-vh, 1vh) * 100)' }}
     >
       {/* ── Mobile sidebar overlay ─────────────────────────────────────── */}
@@ -224,7 +240,7 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* ── Mobile sidebar drawer ──────────────────────────────────────── */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 enterprise-blue text-white flex flex-col z-50 shadow-2xl transition-transform duration-300 ease-in-out md:hidden ${
+        className={`fixed top-0 left-0 h-full w-72 ${sidebarThemeClass} flex flex-col z-50 shadow-2xl transition-transform duration-300 ease-in-out md:hidden ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -240,14 +256,14 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* ── Desktop sidebar ────────────────────────────────────────────── */}
       <aside
-        className={`hidden md:flex ${isSidebarOpen ? 'w-64' : 'w-20'} enterprise-blue text-white flex-col transition-all duration-300 ease-in-out z-30 shadow-2xl shadow-black/50 shrink-0`}
+        className={`hidden md:flex ${isSidebarOpen ? 'w-64' : 'w-20'} ${sidebarThemeClass} flex-col transition-all duration-300 ease-in-out z-30 shadow-2xl shadow-black/20 shrink-0`}
       >
         <SidebarContent />
       </aside>
 
       {/* ── Main content ───────────────────────────────────────────────── */}
       <main
-        className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] transition-colors duration-200"
+        className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors duration-200 ${mainThemeClass}`}
         style={
           backgroundImageUrl
             ? {
@@ -259,13 +275,13 @@ const Layout: React.FC<LayoutProps> = ({
             : undefined
         }
       >
-        {/* ── Header ── */}
-        <header className="h-14 md:h-16 bg-[#0f1b40]/95 border-b border-blue-400/20 flex items-center justify-between px-3 md:px-6 shrink-0 z-20 shadow-sm backdrop-blur">
+        {/* Header */}
+        <header className={`h-14 md:h-16 border-b flex items-center justify-between px-3 md:px-6 shrink-0 z-20 shadow-sm backdrop-blur ${headerThemeClass}`}>
           <div className="flex items-center gap-2 md:gap-4">
             {/* Mobile hamburger */}
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg text-blue-300 hover:bg-white/10 transition-colors"
+              className={`md:hidden p-2 rounded-lg transition-colors ${isDark ? 'text-blue-300 hover:bg-white/10' : 'text-[#003366] hover:bg-slate-100'}`}
               aria-label="Open menu"
             >
               <i className="fas fa-bars text-base"></i>
@@ -273,14 +289,14 @@ const Layout: React.FC<LayoutProps> = ({
             {/* Desktop sidebar toggle */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="hidden md:flex p-2 hover:bg-white/10 rounded-lg text-blue-300 transition-colors"
+              className={`hidden md:flex p-2 rounded-lg transition-colors ${isDark ? 'text-blue-300 hover:bg-white/10' : 'text-[#003366] hover:bg-slate-100'}`}
               aria-label="Toggle sidebar"
             >
               <i className="fas fa-bars"></i>
             </button>
 
             <div className="flex flex-col">
-              <h2 className="text-sm md:text-lg font-black uppercase tracking-tight text-white leading-none truncate max-w-[140px] md:max-w-none">
+              <h2 className={`text-sm md:text-lg font-black uppercase tracking-tight leading-none truncate max-w-[140px] md:max-w-none ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>
                 {activeModule.replace(/-/g, ' ')}
               </h2>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -297,7 +313,7 @@ const Layout: React.FC<LayoutProps> = ({
             <button
               onClick={onThemeToggle}
               aria-label="Toggle theme"
-              className="p-2 rounded-lg text-blue-300 hover:text-gold hover:bg-white/10 transition-colors"
+              className={`p-2 rounded-lg hover:text-gold transition-colors ${isDark ? 'text-blue-300 hover:bg-white/10' : 'text-[#003366] hover:bg-slate-100'}`}
             >
               <i className={`fas ${theme === 'dark' ? 'fa-sun' : 'fa-moon'} text-sm`}></i>
             </button>
@@ -307,7 +323,7 @@ const Layout: React.FC<LayoutProps> = ({
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
                 aria-label="Notifications"
-                className="relative p-2 rounded-lg text-blue-300 hover:text-gold hover:bg-white/10 transition-colors"
+                className={`relative p-2 rounded-lg hover:text-gold transition-colors ${isDark ? 'text-blue-300 hover:bg-white/10' : 'text-[#003366] hover:bg-slate-100'}`}
               >
                 <i className="fas fa-bell text-sm"></i>
                 {unreadCount > 0 && (
@@ -319,13 +335,13 @@ const Layout: React.FC<LayoutProps> = ({
 
               {/* Notification panel — blue-hue theme */}
               {isNotifOpen && (
-                <div className="absolute right-0 mt-2 w-72 md:w-80 bg-[#0f1a2e] border border-[#1e3a5f] rounded-2xl shadow-2xl z-50 overflow-hidden">
-                  <div className="p-4 border-b border-[#1e3a5f] flex justify-between items-center bg-[#0a1628]">
-                    <h3 className="font-black text-sm text-blue-400 uppercase tracking-widest">Notifications</h3>
+                <div className={`absolute right-0 mt-2 w-72 md:w-80 rounded-2xl shadow-2xl z-50 overflow-hidden border ${panelThemeClass}`}>
+                  <div className={`p-4 border-b flex justify-between items-center ${isDark ? 'border-[#1e3a5f] bg-[#0a1628]' : 'border-slate-200 bg-slate-50'}`}>
+                    <h3 className={`font-black text-sm uppercase tracking-widest ${isDark ? 'text-blue-400' : 'text-[#003366]'}`}>Notifications</h3>
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => { onClearNotifications(); setIsNotifOpen(false); }}
-                        className="text-[9px] text-blue-300/50 font-bold hover:text-red-400 transition-colors uppercase tracking-widest"
+                        className={`text-[9px] font-bold hover:text-red-400 transition-colors uppercase tracking-widest ${isDark ? 'text-blue-300/50' : 'text-slate-500'}`}
                       >
                         Clear All
                       </button>
@@ -339,8 +355,8 @@ const Layout: React.FC<LayoutProps> = ({
                   <div className="max-h-80 md:max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
                       <div className="p-8 text-center">
-                        <i className="fas fa-bell-slash text-2xl text-blue-300/20 mb-2 block"></i>
-                        <p className="text-blue-300/40 text-xs font-bold uppercase tracking-widest">All clear!</p>
+                        <i className={`fas fa-bell-slash text-2xl mb-2 block ${isDark ? 'text-blue-300/20' : 'text-slate-300'}`}></i>
+                        <p className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-blue-300/40' : 'text-slate-500'}`}>All clear!</p>
                       </div>
                     ) : (
                       notifications.map((n) => {
@@ -348,7 +364,7 @@ const Layout: React.FC<LayoutProps> = ({
                         return (
                           <div
                             key={n.id}
-                            className={`p-3 border-b border-[#1e3a5f] hover:bg-[#0a1628] transition-colors cursor-pointer ${!n.read ? 'bg-blue-900/10' : ''}`}
+                            className={`p-3 border-b transition-colors cursor-pointer ${isDark ? 'border-[#1e3a5f] hover:bg-[#0a1628]' : 'border-slate-200 hover:bg-slate-50'} ${!n.read ? 'bg-blue-900/10' : ''}`}
                             onClick={() => handleNotificationClick(n)}
                           >
                             <div className="flex gap-3">
@@ -356,9 +372,9 @@ const Layout: React.FC<LayoutProps> = ({
                                 <i className={`fas ${style.icon} text-[10px] ${style.text}`}></i>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className={`text-xs font-black truncate ${!n.read ? 'text-white' : 'text-blue-300/60'}`}>{n.title}</p>
-                                <p className="text-[10px] text-blue-300/50 mt-0.5 line-clamp-2">{n.message}</p>
-                                <p className="text-[8px] text-blue-300/30 uppercase font-black mt-1 tracking-widest">{n.time}</p>
+                                <p className={`text-xs font-black truncate ${!n.read ? (isDark ? 'text-white' : 'text-[#0f172a]') : (isDark ? 'text-blue-300/60' : 'text-slate-500')}`}>{n.title}</p>
+                                <p className={`text-[10px] mt-0.5 line-clamp-2 ${isDark ? 'text-blue-300/50' : 'text-slate-500'}`}>{n.message}</p>
+                                <p className={`text-[8px] uppercase font-black mt-1 tracking-widest ${isDark ? 'text-blue-300/30' : 'text-slate-400'}`}>{n.time}</p>
                               </div>
                               {!n.read && (
                                 <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 mt-1.5"></div>
@@ -376,7 +392,7 @@ const Layout: React.FC<LayoutProps> = ({
             {/* User avatar */}
             <button
               onClick={() => onModuleChange('settings')}
-              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-white/10 transition-colors border border-blue-400/20"
+              className={`flex items-center gap-2 p-1.5 rounded-xl transition-colors border ${isDark ? 'hover:bg-white/10 border-blue-400/20' : 'hover:bg-slate-100 border-slate-200'}`}
               title={user.name}
             >
               <img
@@ -385,7 +401,7 @@ const Layout: React.FC<LayoutProps> = ({
                 alt="Avatar"
               />
               <div className="hidden md:block text-left">
-                <p className="text-[10px] font-black truncate text-white uppercase max-w-[100px]">{user.name}</p>
+                <p className={`text-[10px] font-black truncate uppercase max-w-[100px] ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{user.name}</p>
                 <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase max-w-[100px]">{user.role}</p>
               </div>
             </button>
@@ -397,8 +413,8 @@ const Layout: React.FC<LayoutProps> = ({
           {children}
         </div>
 
-        {/* ── Mobile bottom nav bar ──────────────────────────────────────── */}
-        <nav className="md:hidden shrink-0 bg-[#0f1b40] border-t border-blue-400/20 flex items-center justify-around px-2 py-2 z-20">
+        {/* Mobile bottom nav bar */}
+        <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 ${isDark ? 'bg-[#0f1b40] border-blue-400/20' : 'bg-white border-slate-200'}`}>
           {[
             { id: 'dashboard', icon: 'fa-chart-line' },
             { id: 'candidates', icon: 'fa-users' },
@@ -433,19 +449,19 @@ const Layout: React.FC<LayoutProps> = ({
           return (
             <div
               key={`toast-${n.id}`}
-              className="pointer-events-auto bg-[#0f1a2e] border border-[#1e3a5f] rounded-xl shadow-2xl p-3 animate-in slide-in-from-right-6 duration-300"
+              className={`pointer-events-auto rounded-xl shadow-2xl p-3 animate-in slide-in-from-right-6 duration-300 border ${panelThemeClass}`}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${style.bg}`}>
                   <i className={`fas ${style.icon} text-[10px] ${style.text}`}></i>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-black text-white truncate">{n.title}</p>
-                  <p className="text-[10px] text-blue-300/60 line-clamp-2">{n.message}</p>
+                  <p className={`text-xs font-black truncate ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{n.title}</p>
+                  <p className={`text-[10px] line-clamp-2 ${isDark ? 'text-blue-300/60' : 'text-slate-500'}`}>{n.message}</p>
                 </div>
                 <button
                   onClick={() => dismissToast(n.id)}
-                  className="text-blue-300/40 hover:text-white transition-colors shrink-0"
+                  className={`transition-colors shrink-0 ${isDark ? 'text-blue-300/40 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
                   aria-label="Dismiss notification"
                 >
                   <i className="fas fa-times text-xs"></i>

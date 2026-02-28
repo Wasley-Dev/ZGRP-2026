@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { Candidate, RecruitmentStatus, DocumentStatus, UploadedSupplementalDocument } from "../types";
 
 interface RegistryProps {
@@ -32,7 +33,9 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     useState<Candidate | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [supplementalPreview, setSupplementalPreview] = useState<UploadedSupplementalDocument | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const supplementalRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const readFileAsDataUrl = (file: File) =>
@@ -396,20 +399,29 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
   );
 
   return (
-    <div className="space-y-4 text-slate-900 dark:text-white print:text-[#003366]">
+    <div className="space-y-4 text-slate-900 dark:text-blue-100 print:text-[#003366]">
 
       {/* HEADER */}
-      <div className="flex flex-col gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border dark:border-slate-800 shadow-sm print:hidden">
+      <div className="flex flex-col gap-4 bg-white dark:bg-[#0f1a2e] p-6 rounded-3xl border border-slate-200 dark:border-[#1e3a5f] shadow-sm print:hidden">
         <div className="flex justify-between items-center">
-           <h2 className="text-2xl font-black dark:text-white uppercase tracking-tight">Candidate Registry</h2>
+           <h2 className="text-2xl font-black text-[#0f172a] dark:text-blue-200 uppercase tracking-tight">Candidate Registry</h2>
            <div className="flex gap-2">
             {mode === "database" && (
-              <button
-                onClick={handleBulkDownload}
-                className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-900/20 hover:brightness-110 transition-all"
-              >
-                <i className="fas fa-download mr-2"></i> Download Database
-              </button>
+              <>
+                <button
+                  onClick={() => importRef.current?.click()}
+                  disabled={isImporting}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 hover:brightness-110 transition-all disabled:opacity-60"
+                >
+                  <i className="fas fa-file-import mr-2"></i> {isImporting ? "Importing..." : "Import CSV/Excel"}
+                </button>
+                <button
+                  onClick={handleBulkDownload}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-900/20 hover:brightness-110 transition-all"
+                >
+                  <i className="fas fa-download mr-2"></i> Download Database
+                </button>
+              </>
             )}
             <button
               onClick={() => setIsFormOpen(true)}
@@ -424,7 +436,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           <div className="relative flex-1 w-full">
             <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
-              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border dark:border-slate-800 dark:text-white font-bold outline-none focus:ring-2 focus:ring-gold/20"
+              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 dark:bg-[#0a1628] border border-slate-200 dark:border-[#1e3a5f] dark:text-white font-bold outline-none focus:ring-2 focus:ring-gold/20"
               placeholder="Search by Name or Reference ID..."
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -444,7 +456,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                 className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
                   filterStatus === opt.value 
                   ? 'bg-enterprise-blue text-white shadow-md' 
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  : 'bg-slate-100 dark:bg-[#132445] text-slate-600 dark:text-blue-200 hover:bg-slate-200 dark:hover:bg-[#1d325b]'
                 }`}
               >
                 {opt.label}
@@ -453,11 +465,26 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           </div>
         </div>
       </div>
+      {mode === "database" && (
+        <input
+          ref={importRef}
+          type="file"
+          className="hidden"
+          accept=".csv,.xlsx,.xls"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleImportSheet(file);
+            }
+            e.currentTarget.value = "";
+          }}
+        />
+      )}
 
       {/* TABLE */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 overflow-x-auto">
+      <div className="bg-white dark:bg-[#0f1a2e] rounded-xl border border-slate-200 dark:border-[#1e3a5f] overflow-x-auto">
         <table className="w-full min-w-[900px]">
-          <thead className="bg-slate-100 dark:bg-slate-800">
+          <thead className="bg-slate-100 dark:bg-[#132445]">
             <tr>
               <th className="p-4 text-left text-xs font-black">Reference</th>
               <th className="p-4 text-left text-xs font-black">Profile</th>
@@ -475,7 +502,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           </thead>
           <tbody>
             {filteredCandidates.map((c) => (
-              <tr key={c.id} className="border-b dark:border-slate-800">
+              <tr key={c.id} className="border-b dark:border-[#1e3a5f]">
                 <td className="p-4 font-mono text-xs font-bold dark:text-white">
                   {c.id}
                 </td>
@@ -569,10 +596,10 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           onClick={() => setIsFormOpen(false)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar border dark:border-slate-800"
+            className="bg-white dark:bg-[#0f1a2e] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar border dark:border-[#1e3a5f]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-6 border-b dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+            <div className="p-6 border-b dark:border-[#1e3a5f] flex justify-between items-center bg-slate-50 dark:bg-[#0f1a2e]/50 sticky top-0 z-10">
               <h3 className="text-xl font-black dark:text-white uppercase tracking-tight">
                 {editingCandidate ? "Edit Candidate" : "New Candidate Enrollment"}
               </h3>
@@ -595,7 +622,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       alt="Preview"
                     />
                   ) : (
-                    <div className="w-32 h-32 rounded-[2rem] bg-slate-100 dark:bg-slate-800 border-4 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:border-gold hover:text-gold transition-all">
+                    <div className="w-32 h-32 rounded-[2rem] bg-slate-100 dark:bg-[#132445] border-4 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center text-slate-400 hover:border-gold hover:text-gold transition-all">
                       <i className="fas fa-camera text-3xl mb-2"></i>
                       <span className="text-[8px] font-black uppercase">
                         Upload Profile
@@ -620,7 +647,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
 
               {/* Personal Information */}
               <div>
-                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-slate-800 pb-2">
+                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-[#1e3a5f] pb-2">
                   Personal Information
                 </h4>
                 <div className="grid grid-cols-2 gap-6">
@@ -630,7 +657,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     </label>
                     <input
                       required
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="Full Legal Name"
                       value={newCandidate.fullName}
                       onChange={(e) =>
@@ -648,7 +675,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     <input
                       required
                       type="email"
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="email@example.com"
                       value={newCandidate.email}
                       onChange={(e) =>
@@ -665,7 +692,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     </label>
                     <input
                       required
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="+255..."
                       value={newCandidate.phone}
                       onChange={(e) =>
@@ -682,7 +709,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     </label>
                     <input
                       type="date"
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       value={newCandidate.dob}
                       onChange={(e) =>
                         setNewCandidate({
@@ -697,7 +724,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Gender
                     </label>
                     <select
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       value={newCandidate.gender}
                       onChange={(e) =>
                         setNewCandidate({
@@ -715,7 +742,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Status
                     </label>
                     <select
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       value={newCandidate.status}
                       onChange={(e) =>
                         setNewCandidate({
@@ -735,7 +762,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Address
                     </label>
                     <input
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="Residential Address"
                       value={newCandidate.address}
                       onChange={(e) =>
@@ -751,7 +778,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
 
               {/* Professional Experience & Skills */}
               <div>
-                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-slate-800 pb-2">
+                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-[#1e3a5f] pb-2">
                   Professional Experience & Skills
                 </h4>
                 <div className="grid grid-cols-2 gap-6">
@@ -760,7 +787,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Occupation
                     </label>
                     <input
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="Current Role"
                       value={newCandidate.occupation}
                       onChange={(e) =>
@@ -778,7 +805,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     <input
                       type="number"
                       min={0}
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="0"
                       value={newCandidate.experienceYears}
                       onChange={(e) =>
@@ -794,7 +821,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Position Applied For
                     </label>
                     <input
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="Target Position"
                       value={newCandidate.positionApplied}
                       onChange={(e) =>
@@ -810,7 +837,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       Skills (Comma Separated)
                     </label>
                     <input
-                      className="w-full p-4 rounded-2xl border dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
+                      className="w-full p-4 rounded-2xl border dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] font-bold dark:text-white outline-none focus:ring-2 focus:ring-gold/20"
                       placeholder="e.g. React, Node.js, Project Management"
                       value={newCandidate.skills?.join(", ")}
                       onChange={(e) =>
@@ -826,7 +853,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
 
               {/* Documentation Checklist */}
               <div>
-                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-slate-800 pb-2">
+                <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest border-b dark:border-[#1e3a5f] pb-2">
                   Required Documentation
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -838,7 +865,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                         className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
                           newCandidate.documents![key] === "COMPLETE"
                             ? "border-gold bg-gold/10"
-                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50"
+                            : "border-slate-200 dark:border-[#1e3a5f] bg-white dark:bg-[#0f1a2e]/50"
                         }`}
                       >
                         <span className="text-[10px] font-black uppercase tracking-widest dark:text-white">
@@ -848,7 +875,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                           className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
                             newCandidate.documents![key] === "COMPLETE"
                               ? "bg-gold text-enterprise-blue shadow-lg"
-                              : "bg-slate-200 dark:bg-slate-800"
+                              : "bg-slate-200 dark:bg-[#132445]"
                           }`}
                         >
                           <i
@@ -912,7 +939,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                     {getSupplementalFiles(newCandidate).map((doc) => (
                       <div
                         key={doc.id}
-                        className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 py-2"
+                        className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-[#1e3a5f] bg-slate-50 dark:bg-[#0a1628] px-3 py-2"
                       >
                         <div className="min-w-0">
                           <p className="text-xs font-bold dark:text-white truncate">{doc.name}</p>
@@ -961,12 +988,12 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           onClick={() => setIsProfileOpen(false)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar border dark:border-slate-800 shadow-2xl"
+            className="bg-white dark:bg-[#0f1a2e] rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar border dark:border-[#1e3a5f] shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div ref={profileRef} className="p-8 space-y-8 print:text-[#003366]">
               {/* Header with Image and Basic Info */}
-              <div className="flex flex-col md:flex-row gap-8 items-start border-b dark:border-slate-800 pb-8">
+              <div className="flex flex-col md:flex-row gap-8 items-start border-b dark:border-[#1e3a5f] pb-8">
                 <img
                   src={selectedCandidate.photoUrl || fallbackImage(selectedCandidate.fullName)}
                   alt={selectedCandidate.fullName}
@@ -989,34 +1016,34 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                       <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${getStatusColor(selectedCandidate.status)}`}>
                         {selectedCandidate.status}
                       </span>
-                      <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                      <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-[#132445] text-[9px] font-black uppercase tracking-widest text-slate-500">
                         Docs: {Object.values(getDocumentStatuses(selectedCandidate.documents)).filter(s => s === 'COMPLETE').length} / 5
                       </span>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">Reference ID</p>
                       <p className="text-xs font-bold dark:text-white font-mono">{selectedCandidate.id}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">Email</p>
                       <p className="text-xs font-bold dark:text-white truncate">{selectedCandidate.email}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">Phone</p>
                       <p className="text-xs font-bold dark:text-white">{selectedCandidate.phone}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">DOB / Age</p>
                       <p className="text-xs font-bold dark:text-white">{selectedCandidate.dob} ({selectedCandidate.age})</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">Address</p>
                       <p className="text-xs font-bold dark:text-white truncate">{selectedCandidate.address}</p>
                     </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border dark:border-slate-800">
+                    <div className="p-3 bg-slate-50 dark:bg-[#0a1628] rounded-xl border dark:border-[#1e3a5f]">
                       <p className="text-[9px] font-black text-slate-400 uppercase">Position Applied</p>
                       <p className="text-xs font-bold dark:text-white">{selectedCandidate.positionApplied}</p>
                     </div>
@@ -1025,7 +1052,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
               </div>
 
               {/* Skills & Notes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b dark:border-slate-800 pb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b dark:border-[#1e3a5f] pb-8">
                 <div>
                   <h4 className="text-xs font-black text-slate-500 uppercase mb-4 tracking-widest">
                     Professional Skills
@@ -1033,7 +1060,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                   <div className="flex flex-wrap gap-2">
                     {selectedCandidate.skills && selectedCandidate.skills.length > 0 ? (
                       selectedCandidate.skills.map((skill, i) => (
-                        <span key={i} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase">
+                        <span key={i} className="px-3 py-1 bg-slate-100 dark:bg-[#132445] text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-bold uppercase">
                           {skill}
                         </span>
                       ))
@@ -1091,7 +1118,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                 {getSupplementalFiles(selectedCandidate).length > 0 ? (
                   <div className="space-y-3" data-supplemental="true">
                     {getSupplementalFiles(selectedCandidate).map((doc) => (
-                      <div key={doc.id} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50 dark:bg-slate-950">
+                      <div key={doc.id} className="rounded-xl border border-slate-200 dark:border-[#1e3a5f] p-4 bg-slate-50 dark:bg-[#0a1628]">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-sm font-black dark:text-white truncate">{doc.name}</p>
@@ -1103,7 +1130,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                             <a
                               href={doc.dataUrl}
                               download={doc.name}
-                              className="px-3 py-2 text-[10px] font-black uppercase rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white"
+                              className="px-3 py-2 text-[10px] font-black uppercase rounded-lg bg-slate-200 dark:bg-[#132445] text-slate-700 dark:text-white"
                             >
                               Download
                             </a>
@@ -1128,28 +1155,28 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
             </div>
 
             {/* Actions Footer */}
-            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t dark:border-slate-800 flex justify-end gap-3 sticky bottom-0">
+            <div className="p-6 bg-slate-50 dark:bg-[#0f1a2e]/50 border-t dark:border-[#1e3a5f] flex justify-end gap-3 sticky bottom-0">
               <button
                 onClick={() => handlePDFDownload(false)}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-slate-200 dark:bg-[#132445] text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-[#1d325b] transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-file-pdf"></i> Export Profile PDF
               </button>
               <button
                 onClick={() => handlePDFDownload(true)}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-slate-200 dark:bg-[#132445] text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-[#1d325b] transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-file-export"></i> Export + Docs
               </button>
               <button
                 onClick={() => handlePrint(false)}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-slate-200 dark:bg-[#132445] text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-[#1d325b] transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-print"></i> Print Profile
               </button>
               <button
                 onClick={() => handlePrint(true)}
-                className="px-6 py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                className="px-6 py-3 bg-slate-200 dark:bg-[#132445] text-slate-700 dark:text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-300 dark:hover:bg-[#1d325b] transition-colors flex items-center gap-2"
               >
                 <i className="fas fa-print"></i> Print + Docs
               </button>
@@ -1169,7 +1196,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           onClick={() => setSupplementalPreview(null)}
         >
           <div
-            className="w-full max-w-5xl max-h-[90vh] overflow-auto bg-white dark:bg-slate-900 rounded-2xl p-4"
+            className="w-full max-w-5xl max-h-[90vh] overflow-auto bg-white dark:bg-[#0f1a2e] rounded-2xl p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
@@ -1188,7 +1215,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
               <iframe
                 title={supplementalPreview.name}
                 src={supplementalPreview.dataUrl}
-                className="w-full h-[75vh] rounded-lg border border-slate-200 dark:border-slate-800"
+                className="w-full h-[75vh] rounded-lg border border-slate-200 dark:border-[#1e3a5f]"
               />
             )}
           </div>
@@ -1196,6 +1223,111 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       )}
     </div>
   );
+
+  const normalizeHeaderKey = (value: string) =>
+    value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+  const normalizeStatus = (value?: string): Candidate["status"] => {
+    const v = (value || "").toUpperCase();
+    if (v.includes("INTERVIEW")) return RecruitmentStatus.INTERVIEW;
+    if (v.includes("TRAIN")) return RecruitmentStatus.TRAINING;
+    if (v.includes("DEPLOY")) return RecruitmentStatus.DEPLOYMENT;
+    return RecruitmentStatus.PENDING;
+  };
+
+  const parseDocumentState = (value?: string): DocumentStatus[keyof DocumentStatus] => {
+    const v = (value || "").toUpperCase();
+    if (v.includes("COMPLETE") || v === "YES" || v === "TRUE" || v === "1") return "COMPLETE";
+    if (v.includes("INCOMPLETE")) return "INCOMPLETE";
+    return "NONE";
+  };
+
+  const parseSkillList = (value?: string): string[] =>
+    (value || "")
+      .split(/[;,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const computeAgeFromDob = (dob: string) => {
+    const birth = new Date(`${dob}T00:00:00`);
+    if (Number.isNaN(birth.getTime())) return 30;
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const monthDiff = now.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age -= 1;
+    return Math.max(18, age);
+  };
+
+  const importRecords = (rows: Record<string, unknown>[]) => {
+    const now = new Date().toISOString();
+    const created: Candidate[] = [];
+    rows.forEach((row, idx) => {
+      const normalized = Object.entries(row).reduce<Record<string, string>>((acc, [key, value]) => {
+        acc[normalizeHeaderKey(String(key))] = value == null ? "" : String(value).trim();
+        return acc;
+      }, {});
+      const fullName = normalized.fullname || normalized.name || normalized.candidatename;
+      if (!fullName) return;
+      const dob = normalized.dob || normalized.dateofbirth || "1990-01-01";
+      const email = normalized.email || `${fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`;
+      const phone = normalized.phone || normalized.phonenumber || "";
+      const id = normalized.id || normalized.reference || `ZGL-IMP-${Date.now()}-${idx + 1}`;
+      const documents: DocumentStatus = {
+        cv: parseDocumentState(normalized.cv),
+        id: parseDocumentState(normalized.idcard || normalized.iddocument || normalized.identity),
+        certificates: parseDocumentState(normalized.certificates),
+        tin: parseDocumentState(normalized.tin),
+        supplemental: "NONE",
+        supplementalFiles: [],
+      };
+      created.push({
+        id,
+        fullName,
+        gender: (normalized.gender || "M").toUpperCase().startsWith("F") ? "F" : "M",
+        phone,
+        email,
+        dob,
+        age: Number(normalized.age) > 0 ? Number(normalized.age) : computeAgeFromDob(dob),
+        address: normalized.address || "Registered Office",
+        occupation: normalized.occupation || "Candidate",
+        experienceYears: Number(normalized.experienceyears || normalized.experience || 0) || 0,
+        positionApplied: normalized.positionapplied || normalized.position || "General Application",
+        status: normalizeStatus(normalized.status),
+        documents,
+        skills: parseSkillList(normalized.skills),
+        createdAt: now,
+        photoUrl: fallbackImage(fullName),
+      });
+    });
+    return created;
+  };
+
+  const handleImportSheet = async (file: File) => {
+    setIsImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const workbook = XLSX.read(buf, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        alert("No worksheet found in file.");
+        return;
+      }
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const imported = importRecords(rows);
+      if (imported.length === 0) {
+        alert("No valid candidate rows were found. Ensure file includes at least a Name/FullName column.");
+        return;
+      }
+      imported.forEach((candidate) => onAdd(candidate));
+      alert(`Import complete. Added ${imported.length} candidate(s).`);
+    } catch {
+      alert("Unable to import file. Please check CSV/Excel format and try again.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
 };
 
 export default CandidateRegistry;
+
