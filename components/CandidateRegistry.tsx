@@ -57,6 +57,35 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     supplemental: documents?.supplemental || (documents?.supplementalFiles?.length ? "COMPLETE" : "NONE"),
   });
 
+  const formatDocumentLabel = (docKey: string) => {
+    switch (docKey) {
+      case "cv":
+        return "CV";
+      case "id":
+        return "ID Card / License";
+      case "certificates":
+        return "Certificates";
+      case "tin":
+        return "TIN";
+      case "supplemental":
+        return "Supplemental Docs";
+      default:
+        return docKey.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+  };
+
+  const getImageDimensions = (dataUrl: string) =>
+    new Promise<{ width: number; height: number }>((resolve) => {
+      const img = new Image();
+      img.onload = () =>
+        resolve({
+          width: img.naturalWidth || 1000,
+          height: img.naturalHeight || 1000,
+        });
+      img.onerror = () => resolve({ width: 1000, height: 1000 });
+      img.src = dataUrl;
+    });
+
   const canInlinePreview = (doc: UploadedSupplementalDocument) =>
     doc.mimeType.startsWith("image/") || doc.mimeType === "application/pdf";
 
@@ -244,7 +273,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       theme: "grid",
       head: [["Document", "Status"]],
       body: Object.entries(documentStatuses).map(([doc, status]) => [
-        doc.toUpperCase(),
+        formatDocumentLabel(doc),
         status,
       ]),
       styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
@@ -255,10 +284,15 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
 
     if (includeSupplemental) {
       const supplementalFiles = getSupplementalFiles(selectedCandidate);
+      pdf.addPage();
+      pdf.setTextColor(...colorBlue);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(14);
+      pdf.text("SUPPLEMENTAL DOCS", 14, 18);
       autoTable(pdf, {
-        startY: (pdf as any).lastAutoTable.finalY + 6,
+        startY: 24,
         theme: "grid",
-        head: [["Supplemental Document", "Type", "Size (KB)"]],
+        head: [["Attached Document", "Type", "Size (KB)"]],
         body: supplementalFiles.length
           ? supplementalFiles.map((doc) => [
             doc.name,
@@ -271,6 +305,56 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
         alternateRowStyles: { fillColor: [245, 247, 252] },
         margin: { left: 14, right: 14 },
       });
+
+      for (let i = 0; i < supplementalFiles.length; i += 1) {
+        const doc = supplementalFiles[i];
+        pdf.addPage();
+        pdf.setTextColor(...colorBlue);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(12);
+        pdf.text(`Attachment ${i + 1} of ${supplementalFiles.length}`, 14, 14);
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(doc.name, 14, 21);
+
+        if (doc.mimeType.startsWith("image/")) {
+          const imageData = (await safeImageData(doc.dataUrl)) || doc.dataUrl;
+          const { width, height } = await getImageDimensions(doc.dataUrl);
+          const pageWidth = pdf.internal.pageSize.getWidth();
+          const pageHeight = pdf.internal.pageSize.getHeight();
+          const margin = 14;
+          const top = 28;
+          const maxWidth = pageWidth - margin * 2;
+          const maxHeight = pageHeight - top - margin;
+          const scale = Math.min(maxWidth / width, maxHeight / height);
+          const renderWidth = width * scale;
+          const renderHeight = height * scale;
+          const x = (pageWidth - renderWidth) / 2;
+          const y = top + (maxHeight - renderHeight) / 2;
+          try {
+            pdf.addImage(imageData, "JPEG", x, y, renderWidth, renderHeight);
+          } catch {
+            pdf.setFontSize(10);
+            pdf.text("Unable to render this image attachment in the PDF export.", 14, 32);
+          }
+        } else {
+          autoTable(pdf, {
+            startY: 30,
+            theme: "grid",
+            head: [["File", "Value"]],
+            body: [
+              ["Name", doc.name],
+              ["Type", doc.mimeType || "Unknown"],
+              ["Size (KB)", (doc.size / 1024).toFixed(1)],
+              ["Uploaded", new Date(doc.uploadedAt).toLocaleString()],
+            ],
+            styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+            headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: "bold" },
+            alternateRowStyles: { fillColor: [245, 247, 252] },
+            margin: { left: 14, right: 14 },
+          });
+        }
+      }
     }
 
     pdf.save(`${selectedCandidate.fullName.replace(/\s+/g, "_")}_Dossier.pdf`);
@@ -369,7 +453,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
           </table>
           <h2 style="margin-top:20px;">Document Status</h2>
           <table>
-            ${Object.entries(docStatuses).map(([doc, status]) => `<tr><th>${doc.toUpperCase()}</th><td>${status}</td></tr>`).join("")}
+            ${Object.entries(docStatuses).map(([doc, status]) => `<tr><th>${formatDocumentLabel(doc)}</th><td>${status}</td></tr>`).join("")}
           </table>
           ${includeSupplemental ? `<h2 style="margin-top:20px;">Supplemental Documents</h2>${supplementalMarkup}` : ""}
         </body>
@@ -531,7 +615,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                           : "bg-red-100 text-red-700"
                       }`}
                     >
-                      {doc.toUpperCase()}
+                      {formatDocumentLabel(doc)}
                     </span>
                   ))}
                 </td>
@@ -1099,7 +1183,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
                         <i className={`fas ${status === 'COMPLETE' ? 'fa-check' : 'fa-times'}`}></i>
                       </div>
                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">
-                        {doc}
+                        {formatDocumentLabel(doc)}
                       </span>
                       <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
                         status === 'COMPLETE' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
