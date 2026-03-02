@@ -11,7 +11,7 @@ import {
   UserRole,
 } from './types';
 import { createSharedSnapshot, loadSharedState, RealtimeSyncClient } from './services/realtimeSync';
-import { fetchRemoteUsers, hasRemoteUserDirectory, syncRemoteUsers } from './services/userDirectoryService';
+import { fetchRemoteUsers, hasRemoteUserDirectory, removeRemoteUsers, syncRemoteUsers } from './services/userDirectoryService';
 import { loadLocalSnapshot, saveLocalSnapshot, queueOutbox, flushOutbox, getOnlineState } from './services/offlineStore';
 import {
   fetchRemoteBookings,
@@ -760,10 +760,16 @@ const App: React.FC = () => {
   };
 
   const updateUsers = (updated: SystemUser[]) => {
+    const removedIds = allUsers
+      .map((u) => u.id)
+      .filter((id) => !updated.some((next) => next.id === id));
     const normalized = normalizeUsers(updated);
     setAllUsers(normalized);
     const updatedMe = normalized.find(u => u.id === currentUser.id);
     if (updatedMe) setCurrentUser(updatedMe);
+    if (removedIds.length > 0 && hasRemoteUserDirectory()) {
+      void removeRemoteUsers(removedIds);
+    }
     pushNotification('User Directory Updated', 'Admin changes were synced to all sessions.', 'INFO', 'admin');
   };
 
@@ -774,6 +780,11 @@ const App: React.FC = () => {
       return [booking, ...prev];
     });
     pushNotification('Booking Updated', `${booking.booker} scheduled ${booking.purpose}.`, 'SUCCESS', 'booking');
+  };
+
+  const deleteBooking = (bookingId: string) => {
+    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    pushNotification('Booking Deleted', `Booking ${bookingId} was removed.`, 'WARNING', 'booking');
   };
 
   const handleOrientationComplete = (destinationModule: string = 'dashboard') => {
@@ -858,7 +869,7 @@ const App: React.FC = () => {
       case 'recruitment':
         return <RecruitmentHub candidates={candidates} bookings={bookings} />;
       case 'booking':
-        return <BookingModule bookings={bookings} users={allUsers} currentUser={currentUser} onUpsertBooking={upsertBooking} />;
+        return <BookingModule bookings={bookings} users={allUsers} currentUser={currentUser} onUpsertBooking={upsertBooking} onDeleteBooking={deleteBooking} />;
       case 'broadcast':
         return <BroadcastModule candidates={candidates} />;
       case 'settings':
@@ -923,7 +934,13 @@ const App: React.FC = () => {
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
                 const adminIds = new Set(allUsers.filter((u) => u.role !== UserRole.USER).map((u) => u.id));
-                await Promise.all(sessions.filter((s) => s.id !== sessionIdRef.current).filter((s) => !adminIds.has(s.userId)).map((s) => updateSessionStatus(s.id, 'FORCED_OUT')));
+                const reason = `Forced out by system policy: SAFE mode maintenance enabled by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
+                await Promise.all(
+                  sessions
+                    .filter((s) => s.id !== sessionIdRef.current)
+                    .filter((s) => !adminIds.has(s.userId))
+                    .map((s) => updateSessionStatus(s.id, 'FORCED_OUT', reason))
+                );
               }
               pushNotification(enabled ? 'Restricted Access Enabled' : 'Restricted Access Disabled', enabled ? 'Non-admin sessions were forced out.' : 'Standard access policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
@@ -934,7 +951,13 @@ const App: React.FC = () => {
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
                 const superAdminIds = new Set(allUsers.filter((u) => u.role === UserRole.SUPER_ADMIN).map((u) => u.id));
-                await Promise.all(sessions.filter((s) => s.id !== sessionIdRef.current).filter((s) => !superAdminIds.has(s.userId)).map((s) => updateSessionStatus(s.id, 'FORCED_OUT')));
+                const reason = `Forced out by system policy: RECOVERY mode enabled by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
+                await Promise.all(
+                  sessions
+                    .filter((s) => s.id !== sessionIdRef.current)
+                    .filter((s) => !superAdminIds.has(s.userId))
+                    .map((s) => updateSessionStatus(s.id, 'FORCED_OUT', reason))
+                );
               }
               pushNotification(enabled ? 'Standby Mode Enabled' : 'Standby Mode Disabled', enabled ? 'Only super admin sessions remain active.' : 'Normal session policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
@@ -1016,6 +1039,7 @@ const App: React.FC = () => {
           onComplete={handleOrientationComplete}
           messages={chatMessages}
           setMessages={setChatMessages}
+          activeModule={activeModule}
           onNavigate={(module) => { handleOrientationComplete(module || 'dashboard'); }}
           onAction={(action) => {
             if (action.type === 'DOWNLOAD_REPORT') { openReportByName(action.report); return; }
@@ -1067,7 +1091,7 @@ const App: React.FC = () => {
       <button
         onClick={() => setShowOrientation(true)}
         aria-label="Open ZAYA AI Assistant"
-        className="fixed bottom-6 right-6 w-14 h-14 bg-enterprise-blue text-white rounded-2xl shadow-2xl flex items-center justify-center group hover:scale-110 transition-all z-40 border-4 border-white dark:border-slate-800 animate-in zoom-in duration-500"
+        className="fixed bottom-20 right-4 md:bottom-6 md:right-6 w-14 h-14 bg-enterprise-blue text-white rounded-2xl shadow-2xl flex items-center justify-center group hover:scale-110 transition-all z-40 border-4 border-white dark:border-slate-800 animate-in zoom-in duration-500"
       >
         <i className="fas fa-robot text-xl group-hover:animate-bounce text-gold"></i>
       </button>

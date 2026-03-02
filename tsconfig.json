@@ -11,6 +11,7 @@
     ],
     "skipLibCheck": true,
     "types": [
+      "vite/client",
       "node"
     ],
     "moduleResolution": "bundler",
@@ -25,5 +26,21 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "index.tsx",
+    "App.tsx",
+    "types.ts",
+    "constants.tsx",
+    "components/**/*.tsx",
+    "services/**/*.ts",
+    "electron/**/*.cjs",
+    "api/**/*.js",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "release"
+  ]
 }

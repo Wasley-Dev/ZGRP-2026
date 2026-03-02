@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-import { Candidate, RecruitmentStatus, DocumentStatus, UploadedSupplementalDocument } from "../types";
+import { Candidate, RecruitmentStatus, DocumentStatus, CandidateDocumentState, UploadedSupplementalDocument } from "../types";
 
 interface RegistryProps {
   candidates: Candidate[];
@@ -1382,7 +1382,7 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
     return RecruitmentStatus.PENDING;
   };
 
-  const parseDocumentState = (value?: string): DocumentStatus[keyof DocumentStatus] => {
+  const parseDocumentState = (value?: string): CandidateDocumentState => {
     const v = (value || "").toUpperCase();
     if (v.includes("COMPLETE") || v === "YES" || v === "TRUE" || v === "1") return "COMPLETE";
     if (v.includes("INCOMPLETE")) return "INCOMPLETE";

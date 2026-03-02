@@ -16,7 +16,7 @@ type PortalUserRow = {
   department: string;
   avatar: string | null;
   last_login: string;
-  status: 'ACTIVE' | 'BANNED';
+  status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
 };
 
 const hasConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -69,22 +69,14 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   const { error: upsertError } = await supabase.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
   if (upsertError) {
     console.error('Remote user upsert error:', upsertError);
-    return;
   }
+};
 
-  const { data: existing, error: existingError } = await supabase.from(TABLE_NAME).select('id');
-  if (existingError || !existing) {
-    if (existingError) console.error('Remote user ID fetch error:', existingError);
-    return;
-  }
-
-  const localIds = new Set(users.map((u) => u.id));
-  const toDelete = (existing as { id: string }[]).map((r) => r.id).filter((id) => !localIds.has(id));
-  if (toDelete.length === 0) return;
-
-  const { error: deleteError } = await supabase.from(TABLE_NAME).delete().in('id', toDelete);
-  if (deleteError) {
-    console.error('Remote user delete error:', deleteError);
+export const removeRemoteUsers = async (ids: string[]): Promise<void> => {
+  if (!supabase || ids.length === 0) return;
+  const { error } = await supabase.from(TABLE_NAME).delete().in('id', ids);
+  if (error) {
+    console.error('Remote user explicit delete error:', error);
   }
 };
 

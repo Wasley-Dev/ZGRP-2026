@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { BookingEntry, SystemUser } from '../types';
+import { BookingEntry, SystemUser, UserRole } from '../types';
 import { getTodayIsoInEAT, parseIsoDateAsLocalMidnight } from '../services/dateTime';
 
 interface BookingModuleProps {
@@ -7,9 +7,16 @@ interface BookingModuleProps {
   users: SystemUser[];
   currentUser: SystemUser;
   onUpsertBooking: (booking: BookingEntry) => void;
+  onDeleteBooking: (bookingId: string) => void;
 }
 
-const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentUser, onUpsertBooking }) => {
+const BookingModule: React.FC<BookingModuleProps> = ({
+  bookings,
+  users,
+  currentUser,
+  onUpsertBooking,
+  onDeleteBooking,
+}) => {
   const todayIso = getTodayIsoInEAT();
   const startOfToday = parseIsoDateAsLocalMidnight(todayIso);
 
@@ -99,6 +106,9 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
     users.find((u) => u.id === createdByUserId)?.name || 'Unknown User';
 
   const isPast = (isoDate: string) => parseIsoDateAsLocalMidnight(isoDate) < startOfToday;
+  const canManageAllBookings = currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPER_ADMIN;
+  const canManageBooking = (booking: BookingEntry) =>
+    canManageAllBookings || booking.createdByUserId === currentUser.id;
 
   const openCreate = () => {
     setSelectedBooking(null);
@@ -114,6 +124,10 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
   };
 
   const openEdit = (booking: BookingEntry) => {
+    if (!canManageBooking(booking)) {
+      alert('You can only edit your own bookings.');
+      return;
+    }
     setSelectedBooking(booking);
     setForm({
       booker: booking.booker,
@@ -142,6 +156,19 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
       createdAt: selectedBooking?.createdAt || new Date().toISOString(),
       createdByUserId: selectedBooking?.createdByUserId || currentUser.id,
     } as any);
+    setShowForm(false);
+    setSelectedBooking(null);
+  };
+
+  const removeSelectedBooking = () => {
+    if (!selectedBooking) return;
+    if (!canManageBooking(selectedBooking)) {
+      alert('You do not have permission to delete this booking.');
+      return;
+    }
+    const confirmed = window.confirm(`Delete booking for ${selectedBooking.booker} on ${selectedBooking.date} at ${selectedBooking.time}?`);
+    if (!confirmed) return;
+    onDeleteBooking(selectedBooking.id);
     setShowForm(false);
     setSelectedBooking(null);
   };
@@ -254,8 +281,11 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
                   displayList.map((b) => (
                     <div
                       key={b.id}
-                      className={`${innerCardClass} p-4 hover:border-gold transition-all cursor-pointer`}
-                      onClick={() => openEdit(b)}
+                      className={`${innerCardClass} p-4 ${canManageBooking(b) ? 'hover:border-gold cursor-pointer' : 'cursor-default'} transition-all`}
+                      onClick={() => {
+                        if (!canManageBooking(b)) return;
+                        openEdit(b);
+                      }}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <h4 className="text-xs font-black text-white uppercase tracking-tight">{b.booker}</h4>
@@ -493,6 +523,14 @@ const BookingModule: React.FC<BookingModuleProps> = ({ bookings, users, currentU
               >
                 {selectedBooking ? 'Update Booking' : 'Confirm Booking'}
               </button>
+              {selectedBooking && canManageBooking(selectedBooking) && (
+                <button
+                  onClick={removeSelectedBooking}
+                  className="w-full py-3 bg-red-700 hover:bg-red-600 text-white rounded-xl font-black uppercase tracking-widest shadow-xl transition-all"
+                >
+                  Delete Booking
+                </button>
+              )}
             </div>
           </div>
         </div>

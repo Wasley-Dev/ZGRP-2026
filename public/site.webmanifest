@@ -1,0 +1,21 @@
+{
+  "name": "ZAYA Group Recruitment Portal",
+  "short_name": "ZAYA Portal",
+  "description": "ZAYA Recruitment and operations portal.",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#003366",
+  "background_color": "#003366",
+  "display": "standalone",
+  "start_url": "/"
+}
