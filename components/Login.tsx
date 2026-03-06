@@ -63,20 +63,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   };
 
   return (
-    <div className="app-shell app-full-height relative w-full overflow-hidden bg-[radial-gradient(circle_at_top,#0f4c97_0%,#003366_36%,#02111f_100%)] text-[#0f172a]">
+    <div className="app-shell app-full-height relative w-full overflow-hidden bg-[radial-gradient(circle_at_top,#1055a5_0%,#003366_34%,#02111f_100%)] text-[#0f172a]">
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(255,255,255,0.85)_0_1px,transparent_1.8px),radial-gradient(circle_at_28%_36%,rgba(212,175,55,0.55)_0_1.2px,transparent_2px),radial-gradient(circle_at_44%_18%,rgba(255,255,255,0.75)_0_1px,transparent_1.7px),radial-gradient(circle_at_67%_24%,rgba(255,255,255,0.85)_0_1.1px,transparent_1.8px),radial-gradient(circle_at_83%_14%,rgba(212,175,55,0.5)_0_1.2px,transparent_2px),radial-gradient(circle_at_74%_68%,rgba(255,255,255,0.75)_0_1px,transparent_1.7px),radial-gradient(circle_at_22%_78%,rgba(255,255,255,0.8)_0_1px,transparent_1.8px),radial-gradient(circle_at_91%_72%,rgba(255,255,255,0.72)_0_1px,transparent_1.7px)]"></div>
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[length:52px_52px] opacity-20"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,transparent_58%,rgba(255,255,255,0.08)_58.4%,transparent_59%),radial-gradient(circle_at_center,transparent_0%,transparent_72%,rgba(212,175,55,0.08)_72.4%,transparent_73%)] opacity-60"></div>
         <div className="absolute -left-24 top-8 h-72 w-72 rounded-full bg-[#0f4c97]/30 blur-3xl"></div>
         <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-gold/10 blur-3xl"></div>
       </div>
-      <div className="relative min-h-full w-full px-4 py-6 md:px-8 md:py-10 lg:px-12">
-        <div className="mx-auto flex min-h-[calc(var(--app-vh,1vh)*100-3rem)] max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-gold/20 bg-[#e9f1fb] shadow-[0_42px_120px_rgba(1,12,27,0.42)] md:min-h-[720px] md:flex-row">
-          <div className="relative flex w-full items-center justify-center bg-[linear-gradient(180deg,#f4f8ff_0%,#e8f0fb_100%)] p-6 md:w-[48%] md:p-10 lg:p-14">
+      <div className="relative flex min-h-full w-full items-center px-4 py-6 md:px-8 md:py-8 lg:px-12">
+        <div className="mx-auto flex min-h-[calc(var(--app-vh,1vh)*100-2.2rem)] max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-gold/20 bg-[#e9f1fb] shadow-[0_42px_120px_rgba(1,12,27,0.42)] md:min-h-[680px] md:flex-row">
+          <div className="relative flex w-full items-center justify-center bg-[linear-gradient(180deg,#f4f8ff_0%,#e8f0fb_100%)] p-6 md:w-[48%] md:p-10 lg:p-12">
             <div className="absolute inset-0 opacity-[0.04] pointer-events-none bg-enterprise-pattern"></div>
-            <div className="relative z-10 w-full max-w-md">
-              <div className="mb-10">
-                <div className="mb-8 flex items-center gap-4">
+            <div className="relative z-10 flex w-full max-w-md flex-col justify-center">
+              <div className="mb-8">
+                <div className="mb-7 flex items-center gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-lg ring-1 ring-[#003366]/10">
                     {renderLogo('h-8 w-8')}
                   </div>
@@ -85,7 +86,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                     <p className="mt-1 text-base font-black tracking-tight text-[#003366]">{systemConfig.systemName}</p>
                   </div>
                 </div>
-                <h2 className="text-4xl font-black tracking-tight text-[#003366] md:text-5xl">Welcome Back!</h2>
+                <h2 className="text-4xl font-black tracking-tight text-[#003366] md:text-[3.2rem]">Welcome Back!</h2>
                 <p className="mt-3 text-base leading-7 text-slate-500">Please sign in to continue to your corporate workspace.</p>
               </div>
 
@@ -133,11 +134,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                   <span className="font-semibold text-gold">Forgot password?</span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 border-black/15 bg-[#0d7a78] py-5 text-lg font-black text-white shadow-2xl shadow-[#0d7a78]/20 transition-all hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 border-black/15 bg-gold py-5 text-lg font-black text-[#003366] shadow-2xl shadow-gold/20 transition-all hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isLoading ? (
                       <i className="fas fa-circle-notch fa-spin"></i>
@@ -148,18 +149,17 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                       </>
                     )}
                   </button>
-                  <button
-                    type="button"
-                    className="rounded-2xl border border-[#003366]/25 bg-white/70 py-5 text-base font-black text-[#003366] transition-all hover:bg-white"
-                  >
-                    Create account
-                  </button>
                 </div>
               </form>
 
-              <p className="mt-10 text-xs leading-6 text-[#003366]/50">
-                By signing in you confirm that access to this environment is monitored under corporate policy.
-              </p>
+              <div className="mt-8 space-y-3">
+                <p className="text-xs leading-6 text-[#003366]/50">
+                  By signing in you confirm that access to this environment is monitored under corporate policy.
+                </p>
+                <p className="text-[11px] font-semibold tracking-[0.08em] text-[#003366]/65">
+                  All copyrights reserved by Zaya Group Ltd. @2026
+                </p>
+              </div>
             </div>
           </div>
 
@@ -177,7 +177,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                   }
             }
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.2),transparent_22%),radial-gradient(circle_at_80%_18%,rgba(255,255,255,0.12),transparent_16%),linear-gradient(120deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[length:auto,auto,36px_36px] opacity-60"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.16),transparent_22%),radial-gradient(circle_at_80%_18%,rgba(255,255,255,0.09),transparent_16%),linear-gradient(120deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:auto,auto,36px_36px] opacity-50"></div>
             <div className="absolute -bottom-16 -right-12 h-56 w-56 rounded-full border border-white/25 bg-white/10 blur-2xl"></div>
 
             <div className="relative z-10 flex items-center gap-4">
@@ -190,13 +190,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
               </div>
             </div>
 
-            <div className="relative z-10 max-w-xl space-y-5">
+            <div className="relative z-10 max-w-lg space-y-4">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-gold backdrop-blur">
                 <i className="fas fa-building-shield"></i>
                 Corporate matters and development wisdom
               </div>
               <div>
-                <p className="max-w-lg text-sm leading-7 text-white/82 md:text-base">{showcaseSummary}</p>
+                <p className="max-w-lg text-sm font-medium leading-7 text-white/80 md:text-base">{showcaseSummary}</p>
               </div>
 
               <div className="grid gap-3 max-w-md">
@@ -204,18 +204,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                   <div key={`${fact}-${index}`} className="rounded-2xl border border-white/18 bg-black/20 px-4 py-3 backdrop-blur-sm">
                     <div className="flex items-start gap-3">
                       <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold"></span>
-                      <p className="text-sm leading-6 text-white/92">{fact}</p>
+                      <p className="text-sm font-medium leading-6 text-white/90">{fact}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="relative z-10 max-w-xl rounded-[1.6rem] border border-white/18 bg-white/12 p-5 shadow-2xl backdrop-blur-md">
-              <p className="text-sm font-black uppercase tracking-[0.18em] text-white">{showcaseTitle}</p>
+            <div className="relative z-10 max-w-lg rounded-[1.6rem] border border-white/18 bg-white/12 p-5 shadow-2xl backdrop-blur-md">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white">{showcaseTitle}</p>
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-gold">Wise Quote For Development</p>
-              <p className="mt-3 text-lg font-semibold leading-8 text-white">"{showcaseQuote}"</p>
-              <p className="mt-4 text-sm font-bold uppercase tracking-[0.24em] text-white/70">{showcaseAuthor}</p>
+              <p className="mt-3 text-lg font-medium leading-8 text-white">"{showcaseQuote}"</p>
+              <p className="mt-4 text-sm font-semibold uppercase tracking-[0.24em] text-white/70">{showcaseAuthor}</p>
             </div>
           </div>
         </div>

@@ -20,7 +20,7 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Strong approval chains protect both compliance and delivery speed when responsibilities are clear.',
       'A shared operational dashboard prevents departments from solving the same problem twice.',
     ],
-    image: pexelsImage('https://images.pexels.com/photos/7643758/pexels-photo-7643758.jpeg?fm=jpg'),
+    image: pexelsImage('https://images.pexels.com/photos/8938358/pexels-photo-8938358.jpeg?fm=jpg'),
   },
   {
     title: 'Development improves when standards arrive first.',
@@ -32,7 +32,7 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Smaller changes are easier to verify, easier to explain, and easier to reverse safely.',
       'Systems with clear ownership recover faster because the right team acts first.',
     ],
-    image: pexelsImage('https://images.pexels.com/photos/8127690/pexels-photo-8127690.jpeg?fm=jpg'),
+    image: pexelsImage('https://images.pexels.com/photos/10347163/pexels-photo-10347163.jpeg?fm=jpg'),
   },
   {
     title: 'Strategy is visible when teams work from one source of truth.',
@@ -44,7 +44,7 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Good strategy meetings end with owners, timelines, and measurable next steps.',
       'Teams trust systems more when the workflow reflects actual business priorities.',
     ],
-    image: pexelsImage('https://images.pexels.com/photos/22046266/pexels-photo-22046266.jpeg?fm=jpg'),
+    image: pexelsImage('https://images.pexels.com/photos/31709062/pexels-photo-31709062.jpeg?fm=jpg'),
   },
   {
     title: 'Resilience is built before recovery is needed.',
@@ -56,6 +56,6 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Regular backups are useful only when restore steps are also tested and understood.',
       'Visibility into sessions, machines, and changes reduces downtime during incident response.',
     ],
-    image: pexelsImage('https://images.pexels.com/photos/29786116/pexels-photo-29786116.jpeg?fm=jpg'),
+    image: pexelsImage('https://images.pexels.com/photos/7984727/pexels-photo-7984727.jpeg?fm=jpg'),
   },
 ];
