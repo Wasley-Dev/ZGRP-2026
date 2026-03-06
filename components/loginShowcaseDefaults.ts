@@ -1,52 +1,4 @@
-const svgToDataUrl = (svg: string): string => `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-
-const createCorporateScene = (
-  title: string,
-  accent: string,
-  secondary: string,
-  panelTone: string,
-  icon: string
-): string =>
-  svgToDataUrl(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" role="img" aria-label="${title}">
-      <defs>
-        <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="#031a34"/>
-          <stop offset="45%" stop-color="${secondary}"/>
-          <stop offset="100%" stop-color="#04101d"/>
-        </linearGradient>
-        <radialGradient id="glow" cx="25%" cy="15%" r="60%">
-          <stop offset="0%" stop-color="${accent}" stop-opacity="0.75"/>
-          <stop offset="100%" stop-color="${accent}" stop-opacity="0"/>
-        </radialGradient>
-      </defs>
-      <rect width="1600" height="1100" fill="url(#bg)"/>
-      <rect width="1600" height="1100" fill="url(#glow)"/>
-      <circle cx="1350" cy="180" r="260" fill="${accent}" fill-opacity="0.14"/>
-      <circle cx="1240" cy="860" r="340" fill="#ffffff" fill-opacity="0.05"/>
-      <rect x="120" y="130" width="470" height="320" rx="34" fill="${panelTone}" fill-opacity="0.88"/>
-      <rect x="168" y="190" width="270" height="26" rx="13" fill="#ffffff" fill-opacity="0.22"/>
-      <rect x="168" y="238" width="192" height="18" rx="9" fill="${accent}" fill-opacity="0.92"/>
-      <rect x="168" y="290" width="340" height="16" rx="8" fill="#ffffff" fill-opacity="0.18"/>
-      <rect x="168" y="324" width="300" height="16" rx="8" fill="#ffffff" fill-opacity="0.14"/>
-      <rect x="168" y="358" width="252" height="16" rx="8" fill="#ffffff" fill-opacity="0.12"/>
-      <rect x="120" y="520" width="590" height="250" rx="38" fill="#ffffff" fill-opacity="0.09" stroke="#ffffff" stroke-opacity="0.12"/>
-      <rect x="170" y="575" width="210" height="132" rx="24" fill="${accent}" fill-opacity="0.82"/>
-      <rect x="410" y="575" width="250" height="32" rx="16" fill="#ffffff" fill-opacity="0.18"/>
-      <rect x="410" y="630" width="214" height="18" rx="9" fill="#ffffff" fill-opacity="0.14"/>
-      <rect x="410" y="665" width="190" height="18" rx="9" fill="#ffffff" fill-opacity="0.14"/>
-      <rect x="410" y="700" width="156" height="18" rx="9" fill="#ffffff" fill-opacity="0.14"/>
-      <g transform="translate(1040 540)">
-        <circle r="248" fill="#ffffff" fill-opacity="0.08"/>
-        <circle r="178" fill="#ffffff" fill-opacity="0.06"/>
-        <rect x="-118" y="-164" width="236" height="328" rx="42" fill="${panelTone}" fill-opacity="0.82" stroke="#ffffff" stroke-opacity="0.14"/>
-        <text x="0" y="-16" text-anchor="middle" font-size="150" fill="${accent}" font-family="Arial, sans-serif">${icon}</text>
-        <rect x="-78" y="58" width="156" height="16" rx="8" fill="#ffffff" fill-opacity="0.18"/>
-        <rect x="-58" y="92" width="116" height="16" rx="8" fill="#ffffff" fill-opacity="0.14"/>
-      </g>
-      <text x="126" y="986" fill="#ffffff" fill-opacity="0.82" font-size="44" font-weight="700" font-family="Arial, sans-serif">${title}</text>
-    </svg>
-  `);
+const pexelsImage = (url: string): string => `${url}&auto=compress&cs=tinysrgb&w=3840`;
 
 export interface ShowcasePreset {
   title: string;
@@ -68,7 +20,7 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Strong approval chains protect both compliance and delivery speed when responsibilities are clear.',
       'A shared operational dashboard prevents departments from solving the same problem twice.',
     ],
-    image: createCorporateScene('Governance and Visibility', '#D4AF37', '#0b3f78', '#103f66', 'G'),
+    image: pexelsImage('https://images.pexels.com/photos/7643758/pexels-photo-7643758.jpeg?fm=jpg'),
   },
   {
     title: 'Development improves when standards arrive first.',
@@ -80,19 +32,19 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Smaller changes are easier to verify, easier to explain, and easier to reverse safely.',
       'Systems with clear ownership recover faster because the right team acts first.',
     ],
-    image: createCorporateScene('Development Discipline', '#7dd3fc', '#123d63', '#15486d', 'D'),
+    image: pexelsImage('https://images.pexels.com/photos/8127690/pexels-photo-8127690.jpeg?fm=jpg'),
   },
   {
-    title: 'Corporate control works best when communication is structured.',
-    summary: 'Reliable communication is not just messaging. It includes timing, approvals, records, and the ability to trace decisions later.',
-    quote: 'A message becomes policy only when the system can prove who approved it and when.',
-    author: 'ZAYA Corporate Affairs',
+    title: 'Strategy is visible when teams work from one source of truth.',
+    summary: 'Aligned teams execute better when planning, review, and decisions happen around the same operational picture.',
+    quote: 'Clear strategy becomes practical only when the team can see the same facts at the same time.',
+    author: 'ZAYA Leadership Desk',
     facts: [
-      'Centralized communication records protect the business during escalations and audits.',
-      'Operational delays often come from unclear handoffs rather than lack of effort.',
-      'Documented decisions shorten onboarding because new staff inherit context, not confusion.',
+      'Shared visibility reduces handoff errors between operations, recruitment, and leadership teams.',
+      'Good strategy meetings end with owners, timelines, and measurable next steps.',
+      'Teams trust systems more when the workflow reflects actual business priorities.',
     ],
-    image: createCorporateScene('Structured Communication', '#fbbf24', '#0d3458', '#14425f', 'C'),
+    image: pexelsImage('https://images.pexels.com/photos/22046266/pexels-photo-22046266.jpeg?fm=jpg'),
   },
   {
     title: 'Resilience is built before recovery is needed.',
@@ -104,6 +56,6 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
       'Regular backups are useful only when restore steps are also tested and understood.',
       'Visibility into sessions, machines, and changes reduces downtime during incident response.',
     ],
-    image: createCorporateScene('Resilience and Continuity', '#34d399', '#0b3551', '#134461', 'R'),
+    image: pexelsImage('https://images.pexels.com/photos/29786116/pexels-photo-29786116.jpeg?fm=jpg'),
   },
 ];

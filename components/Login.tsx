@@ -190,23 +190,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
               </div>
             </div>
 
-            <div className="relative z-10 max-w-xl space-y-6">
+            <div className="relative z-10 max-w-xl space-y-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-gold backdrop-blur">
                 <i className="fas fa-building-shield"></i>
                 Corporate matters and development wisdom
               </div>
               <div>
-                <h2 className="max-w-lg text-3xl font-black leading-tight md:text-5xl">{showcaseTitle}</h2>
-                <p className="mt-4 max-w-lg text-sm leading-7 text-white/82 md:text-base">{showcaseSummary}</p>
+                <p className="max-w-lg text-sm leading-7 text-white/82 md:text-base">{showcaseSummary}</p>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 max-w-md">
                 {loginFacts.map((fact, index) => (
                   <div key={`${fact}-${index}`} className="rounded-2xl border border-white/18 bg-black/20 px-4 py-3 backdrop-blur-sm">
                     <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold text-[11px] font-black text-[#003366]">
-                        {index + 1}
-                      </span>
+                      <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold"></span>
                       <p className="text-sm leading-6 text-white/92">{fact}</p>
                     </div>
                   </div>
@@ -215,6 +212,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
             </div>
 
             <div className="relative z-10 max-w-xl rounded-[1.6rem] border border-white/18 bg-white/12 p-5 shadow-2xl backdrop-blur-md">
+              <p className="text-sm font-black uppercase tracking-[0.18em] text-white">{showcaseTitle}</p>
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-gold">Wise Quote For Development</p>
               <p className="mt-3 text-lg font-semibold leading-8 text-white">"{showcaseQuote}"</p>
               <p className="mt-4 text-sm font-bold uppercase tracking-[0.24em] text-white/70">{showcaseAuthor}</p>
