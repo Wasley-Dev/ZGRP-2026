@@ -151,13 +151,20 @@ const Layout: React.FC<LayoutProps> = ({
     return { bg: 'bg-blue-900/40 border border-blue-500/30', icon: 'fa-info', text: 'text-blue-400' };
   };
 
+  const renderSystemLogo = (sizeClass: string) => {
+    if (systemConfig.logoIcon?.startsWith('data:image')) {
+      return <img src={systemConfig.logoIcon} alt="System Logo" className={`${sizeClass} object-contain`} />;
+    }
+    return <i className={`fas ${systemConfig.logoIcon} text-gold text-lg`}></i>;
+  };
+
   // Shared sidebar nav content (used for both desktop and mobile)
   const SidebarContent = () => (
     <>
       {/* Logo / system name */}
       <div className="p-4 flex items-center gap-3 border-b border-white/10 h-16 md:h-20 shrink-0">
         <div className="w-10 h-10 shrink-0 bg-white rounded-full flex items-center justify-center border-2 border-gold overflow-hidden shadow-inner">
-          <i className={`fas ${systemConfig.logoIcon} text-gold text-lg`}></i>
+          {renderSystemLogo('h-7 w-7')}
         </div>
         {(isSidebarOpen || isMobileSidebarOpen) && (
           <div className="overflow-hidden whitespace-nowrap">

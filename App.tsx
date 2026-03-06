@@ -155,7 +155,22 @@ const App: React.FC = () => {
   const initialSharedState = useMemo(
     () => loadSharedState({
       bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
-      systemConfig: { systemName: 'ZAYA Group Recruitment Portal', logoIcon: 'fa-z', maintenanceMode: false, backupHour: 15 },
+      systemConfig: {
+        systemName: 'ZAYA Group Recruitment Portal',
+        logoIcon: 'fa-z',
+        loginHeroImages: [],
+        loginShowcaseTitle: 'Corporate intelligence for teams that build with discipline.',
+        loginShowcaseSummary: 'Operations, recruitment, compliance, and delivery stay aligned when the system surfaces the right information at the right moment.',
+        loginQuote: 'Well-built systems reduce noise so teams can focus on decisions that matter.',
+        loginQuoteAuthor: 'ZAYA Development Desk',
+        loginFacts: [
+          'Strong governance depends on policies that are visible, repeatable, and measurable.',
+          'Good documentation reduces onboarding time and lowers operational risk.',
+          'Disciplined release management protects data, reputation, and delivery timelines.',
+        ],
+        maintenanceMode: false,
+        backupHour: 15,
+      },
     }), []
   );
 

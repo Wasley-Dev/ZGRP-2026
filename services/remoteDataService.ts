@@ -34,6 +34,13 @@ type ConfigRow = {
   id: string;
   system_name: string;
   logo_icon: string;
+  login_hero_image: string | null;
+  login_hero_images: unknown;
+  login_showcase_title: string | null;
+  login_showcase_summary: string | null;
+  login_quote: string | null;
+  login_quote_author: string | null;
+  login_facts: unknown;
   maintenance_mode: boolean;
   maintenance_message: string | null;
   maintenance_updated_by: string | null;
@@ -123,6 +130,13 @@ export const fetchRemoteSystemConfig = async (): Promise<SystemConfig | null> =>
   return {
     systemName: row.system_name,
     logoIcon: row.logo_icon,
+    loginHeroImage: row.login_hero_image || undefined,
+    loginHeroImages: Array.isArray(row.login_hero_images) ? (row.login_hero_images as string[]) : undefined,
+    loginShowcaseTitle: row.login_showcase_title || undefined,
+    loginShowcaseSummary: row.login_showcase_summary || undefined,
+    loginQuote: row.login_quote || undefined,
+    loginQuoteAuthor: row.login_quote_author || undefined,
+    loginFacts: Array.isArray(row.login_facts) ? (row.login_facts as string[]) : undefined,
     maintenanceMode: row.maintenance_mode,
     maintenanceMessage: row.maintenance_message || undefined,
     maintenanceUpdatedBy: row.maintenance_updated_by || undefined,
@@ -137,6 +151,13 @@ export const syncRemoteSystemConfig = async (config: SystemConfig): Promise<void
     id: 'config',
     system_name: config.systemName,
     logo_icon: config.logoIcon,
+    login_hero_image: config.loginHeroImage ?? null,
+    login_hero_images: config.loginHeroImages ?? null,
+    login_showcase_title: config.loginShowcaseTitle ?? null,
+    login_showcase_summary: config.loginShowcaseSummary ?? null,
+    login_quote: config.loginQuote ?? null,
+    login_quote_author: config.loginQuoteAuthor ?? null,
+    login_facts: config.loginFacts ?? null,
     maintenance_mode: config.maintenanceMode ?? false,
     maintenance_message: config.maintenanceMessage ?? null,
     maintenance_updated_by: config.maintenanceUpdatedBy ?? null,

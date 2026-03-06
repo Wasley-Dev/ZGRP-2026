@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SystemUser, UserRole, SystemConfig } from '../types';
 
 interface AdminProps {
@@ -20,6 +20,13 @@ const AdminConsole: React.FC<AdminProps> = ({
 }) => {
   const [localSystemName, setLocalSystemName] = useState(systemConfig.systemName);
   const [localLogoIcon, setLocalLogoIcon] = useState(systemConfig.logoIcon);
+  const [localLoginHeroImage, setLocalLoginHeroImage] = useState(systemConfig.loginHeroImage || '');
+  const [localLoginHeroImages, setLocalLoginHeroImages] = useState<string[]>(systemConfig.loginHeroImages || []);
+  const [localLoginShowcaseTitle, setLocalLoginShowcaseTitle] = useState(systemConfig.loginShowcaseTitle || '');
+  const [localLoginShowcaseSummary, setLocalLoginShowcaseSummary] = useState(systemConfig.loginShowcaseSummary || '');
+  const [localLoginQuote, setLocalLoginQuote] = useState(systemConfig.loginQuote || '');
+  const [localLoginQuoteAuthor, setLocalLoginQuoteAuthor] = useState(systemConfig.loginQuoteAuthor || '');
+  const [localLoginFactsText, setLocalLoginFactsText] = useState((systemConfig.loginFacts || []).join('\n'));
 
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -32,6 +39,19 @@ const AdminConsole: React.FC<AdminProps> = ({
 
   const isSuperAdmin = (user: SystemUser) =>
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+  const canManageLoginExperience = isSuperAdmin(currentUser);
+
+  useEffect(() => {
+    setLocalSystemName(systemConfig.systemName);
+    setLocalLogoIcon(systemConfig.logoIcon);
+    setLocalLoginHeroImage(systemConfig.loginHeroImage || '');
+    setLocalLoginHeroImages(systemConfig.loginHeroImages || []);
+    setLocalLoginShowcaseTitle(systemConfig.loginShowcaseTitle || '');
+    setLocalLoginShowcaseSummary(systemConfig.loginShowcaseSummary || '');
+    setLocalLoginQuote(systemConfig.loginQuote || '');
+    setLocalLoginQuoteAuthor(systemConfig.loginQuoteAuthor || '');
+    setLocalLoginFactsText((systemConfig.loginFacts || []).join('\n'));
+  }, [systemConfig]);
 
   const handleRoleToggle = (userId: string) => {
     const user = users.find((u) => u.id === userId);
@@ -102,21 +122,58 @@ const AdminConsole: React.FC<AdminProps> = ({
     reader.onloadend = () => {
       const result = reader.result as string;
       setLocalLogoIcon(result);
-      setSystemConfig({
-        ...systemConfig,
-        logoIcon: result,
-      });
     };
     reader.readAsDataURL(file);
   };
+
+  const handleLoginHeroUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    files.forEach((file, index) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const nextImage = reader.result as string;
+        setLocalLoginHeroImages((prev) => {
+          const next = [...prev, nextImage].slice(0, 12);
+          if (index === 0) setLocalLoginHeroImage(next[0] || nextImage);
+          return next;
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+    event.target.value = '';
+  };
+
+  const handleRemoveHeroImage = (imageIndex: number) => {
+    setLocalLoginHeroImages((prev) => {
+      const next = prev.filter((_, index) => index !== imageIndex);
+      setLocalLoginHeroImage(next[0] || '');
+      return next;
+    });
+  };
+
+  const getSanitizedFacts = () =>
+    localLoginFactsText
+      .split('\n')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 5);
 
   const handleApplyBranding = () => {
     setSystemConfig({
       ...systemConfig,
       systemName: localSystemName,
       logoIcon: localLogoIcon,
+      loginHeroImage: localLoginHeroImages[0] || localLoginHeroImage || undefined,
+      loginHeroImages: localLoginHeroImages,
+      loginShowcaseTitle: localLoginShowcaseTitle.trim() || undefined,
+      loginShowcaseSummary: localLoginShowcaseSummary.trim() || undefined,
+      loginQuote: localLoginQuote.trim() || undefined,
+      loginQuoteAuthor: localLoginQuoteAuthor.trim() || undefined,
+      loginFacts: getSanitizedFacts(),
     });
-    alert('Global branding updated.');
+    alert('Global branding and login experience updated.');
   };
 
   const handleInviteUser = () => {
@@ -351,10 +408,137 @@ const AdminConsole: React.FC<AdminProps> = ({
               )}
             </div>
 
+            <div className="border-t dark:border-slate-700 pt-6 space-y-6">
+              <div>
+                <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                  Login Showcase
+                </h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                  Super Admin Controlled
+                </p>
+              </div>
+
+              {!canManageLoginExperience && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
+                  Only the super admin can change login quotes, facts, and hero images.
+                </div>
+              )}
+
+              <div className={`space-y-6 ${canManageLoginExperience ? '' : 'opacity-60 pointer-events-none'}`}>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Rotating Login Images
+                  </label>
+                  <label className="flex min-h-40 cursor-pointer items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-slate-400 transition hover:border-gold dark:border-slate-600 dark:bg-slate-950">
+                    {localLoginHeroImages[0] ? (
+                      <img src={localLoginHeroImages[0]} alt="Login hero preview" className="h-40 w-full rounded-2xl object-cover" />
+                    ) : (
+                      <div className="text-center">
+                        <i className="fas fa-image text-2xl"></i>
+                        <p className="mt-3 text-[10px] font-black uppercase tracking-widest">Upload login images</p>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleLoginHeroUpload}
+                    />
+                  </label>
+                  <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    One image is shown globally for 24 hours, then the next image appears automatically.
+                  </p>
+                  {localLoginHeroImages.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {localLoginHeroImages.map((image, index) => (
+                        <div key={`${image.slice(0, 32)}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                          <img src={image} alt={`Login rotation ${index + 1}`} className="h-24 w-full rounded-xl object-cover" />
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                              Day {index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHeroImage(index)}
+                              className="text-[9px] font-black uppercase tracking-widest text-red-500"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Showcase Headline
+                  </label>
+                  <input
+                    className="w-full p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10"
+                    value={localLoginShowcaseTitle}
+                    onChange={(e) => setLocalLoginShowcaseTitle(e.target.value)}
+                    placeholder="Corporate intelligence for teams that build with discipline."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Showcase Summary
+                  </label>
+                  <textarea
+                    className="w-full min-h-28 p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10"
+                    value={localLoginShowcaseSummary}
+                    onChange={(e) => setLocalLoginShowcaseSummary(e.target.value)}
+                    placeholder="Short corporate message shown on the login image panel."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Wise Quote
+                  </label>
+                  <textarea
+                    className="w-full min-h-24 p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10"
+                    value={localLoginQuote}
+                    onChange={(e) => setLocalLoginQuote(e.target.value)}
+                    placeholder="Well-built systems reduce noise so teams can focus on decisions that matter."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Quote Author
+                  </label>
+                  <input
+                    className="w-full p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10"
+                    value={localLoginQuoteAuthor}
+                    onChange={(e) => setLocalLoginQuoteAuthor(e.target.value)}
+                    placeholder="ZAYA Development Desk"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    Fun Facts About Corporate Matters
+                  </label>
+                  <textarea
+                    className="w-full min-h-32 p-5 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none focus:ring-4 focus:ring-gold/10"
+                    value={localLoginFactsText}
+                    onChange={(e) => setLocalLoginFactsText(e.target.value)}
+                    placeholder={'One fact per line\nGood governance reduces confusion during audits.\nClear release rules protect system stability.'}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="pt-6">
               <button
                 onClick={handleApplyBranding}
-                className="w-full py-5 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-gold/30 active:scale-95 transition-all flex items-center justify-center gap-3"
+                disabled={!canManageLoginExperience}
+                className="w-full py-5 bg-gold text-enterprise-blue rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-gold/30 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <i className="fas fa-sync"></i> Deploy Global Identity
               </button>

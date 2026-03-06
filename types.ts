@@ -125,6 +125,13 @@ export interface MachineSession {
 export interface SystemConfig {
   systemName: string;
   logoIcon: string;
+  loginHeroImage?: string;
+  loginHeroImages?: string[];
+  loginShowcaseTitle?: string;
+  loginShowcaseSummary?: string;
+  loginQuote?: string;
+  loginQuoteAuthor?: string;
+  loginFacts?: string[];
   maintenanceMode?: boolean;
   maintenanceMessage?: string;
   maintenanceUpdatedBy?: string;

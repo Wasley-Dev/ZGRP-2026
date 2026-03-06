@@ -24,6 +24,13 @@ create table if not exists public.portal_system_config (
   id text primary key,
   system_name text not null,
   logo_icon text not null,
+  login_hero_image text,
+  login_hero_images jsonb,
+  login_showcase_title text,
+  login_showcase_summary text,
+  login_quote text,
+  login_quote_author text,
+  login_facts jsonb,
   maintenance_mode boolean not null default false,
   maintenance_message text,
   maintenance_updated_by text,
@@ -31,6 +38,14 @@ create table if not exists public.portal_system_config (
   backup_hour integer not null default 15,
   updated_at timestamptz not null default now()
 );
+
+alter table public.portal_system_config add column if not exists login_hero_image text;
+alter table public.portal_system_config add column if not exists login_hero_images jsonb;
+alter table public.portal_system_config add column if not exists login_showcase_title text;
+alter table public.portal_system_config add column if not exists login_showcase_summary text;
+alter table public.portal_system_config add column if not exists login_quote text;
+alter table public.portal_system_config add column if not exists login_quote_author text;
+alter table public.portal_system_config add column if not exists login_facts jsonb;
 
 create table if not exists public.portal_bookings (
   id text primary key,
