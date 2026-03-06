@@ -59,12 +59,14 @@ function createMainWindow() {
   const token = ACCESS_TOKEN || resolveBundledToken();
   const url = token ? `${LIVE_URL}?access=${encodeURIComponent(token)}` : LIVE_URL;
   const hasDevUrl = Boolean(process.env.ELECTRON_START_URL);
+  const localLoadOptions = token ? { query: { access: token } } : undefined;
 
-  // Dev mode uses URL; packaged app also prefers live URL so older installers receive latest UI/features.
+  // Dev mode uses the live dev server. Packaged apps load the bundled build first to avoid
+  // blank windows when the network, CDN resources, or remote site are slow/unavailable.
   if (hasDevUrl) {
     win.loadURL(url).catch(async () => {
       if (fs.existsSync(localBuild)) {
-        await win.loadFile(localBuild);
+        await win.loadFile(localBuild, localLoadOptions);
       } else {
         await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
       }
@@ -72,9 +74,25 @@ function createMainWindow() {
     return;
   }
 
-  win.loadURL(url).catch(async () => {
+  win.loadFile(localBuild, localLoadOptions).catch(async () => {
+    if (mainWindow) {
+      console.error('[main-window] bundled app load failed, retrying live URL');
+    }
+    await win.loadURL(url).catch(async () => {
+      if (fs.existsSync(localBuild)) {
+        await win.loadFile(localBuild, localLoadOptions);
+        return;
+      }
+      await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
+    });
+  });
+
+  win.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    if (!validatedURL || validatedURL.startsWith('file://')) return;
     if (fs.existsSync(localBuild)) {
-      await win.loadFile(localBuild);
+      console.error('[main-window] live content load failed:', errorCode, errorDescription);
+      await win.loadFile(localBuild, localLoadOptions);
       return;
     }
     await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
