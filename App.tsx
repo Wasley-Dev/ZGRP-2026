@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { MOCK_USER, MOCK_USERS } from './constants';
 import {
   BookingEntry,
@@ -33,18 +33,20 @@ import {
   updateSessionStatus,
   upsertSessionHeartbeat,
 } from './services/sessionService';
-import Layout from './components/Layout';
-import DashboardOverview from './components/DashboardOverview';
-import CandidateRegistry from './components/CandidateRegistry';
-import OrientationAI from './components/OrientationAI';
-import MachineAuth from './components/MachineAuth';
 import Login from './components/Login';
-import Settings from './components/Settings';
-import AdminConsole from './components/AdminConsole';
-import RecruitmentHub from './components/RecruitmentHub';
-import BookingModule from './components/BookingModule';
-import BroadcastModule from './components/BroadcastModule';
-import SystemRecovery from './components/SystemRecovery';
+import { ZAYA_LOGO_SRC } from './brand';
+
+const Layout = React.lazy(() => import('./components/Layout'));
+const DashboardOverview = React.lazy(() => import('./components/DashboardOverview'));
+const CandidateRegistry = React.lazy(() => import('./components/CandidateRegistry'));
+const OrientationAI = React.lazy(() => import('./components/OrientationAI'));
+const MachineAuth = React.lazy(() => import('./components/MachineAuth'));
+const Settings = React.lazy(() => import('./components/Settings'));
+const AdminConsole = React.lazy(() => import('./components/AdminConsole'));
+const RecruitmentHub = React.lazy(() => import('./components/RecruitmentHub'));
+const BookingModule = React.lazy(() => import('./components/BookingModule'));
+const BroadcastModule = React.lazy(() => import('./components/BroadcastModule'));
+const SystemRecovery = React.lazy(() => import('./components/SystemRecovery'));
 
 const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
 const GENERATED_NAME_POOL = [
@@ -410,7 +412,7 @@ const App: React.FC = () => {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-    const timer = setTimeout(() => setIsLoading(false), 2000);
+    const timer = setTimeout(() => setIsLoading(false), 6000);
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); clearTimeout(timer); };
   }, [accessToken]);
 
@@ -828,15 +830,18 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="app-shell app-full-height w-full bg-[#003366] flex flex-col items-center justify-center text-white p-6 transition-all duration-500">
-        <div className="w-40 h-40 mb-12 shadow-2xl animate-pulse flex items-center justify-center bg-white rounded-full border-[6px] border-gold relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-white to-slate-100"></div>
-          <span className="text-8xl font-serif text-gold font-bold relative z-10 drop-shadow-md zaya-logo-font">Z</span>
-          <div className="absolute inset-0 border-[3px] border-gold rounded-full m-1 opacity-50"></div>
+        <div className="mb-10 flex h-44 w-44 items-center justify-center rounded-[2rem] bg-white/96 p-4 shadow-[0_28px_80px_rgba(0,0,0,0.35)] ring-1 ring-white/30 backdrop-blur-sm">
+          <img
+            src={ZAYA_LOGO_SRC}
+            alt="Zaya Group logo"
+            className="h-full w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+          />
         </div>
         <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden mb-8 border border-white/5">
           <div className="h-full bg-gold animate-[loading_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(212,175,55,0.8)]"></div>
         </div>
         <p className="text-[10px] font-black tracking-[0.6em] uppercase text-gold">{systemConfig.systemName.toUpperCase()}</p>
+        <p className="mt-3 text-xs font-medium tracking-[0.18em] uppercase text-white/70">Executive Operations Workspace</p>
       </div>
     );
   }
@@ -1027,46 +1032,64 @@ const App: React.FC = () => {
     }
   };
 
+  const moduleFallback = (
+    <div className="flex min-h-[60vh] items-center justify-center p-6">
+      <div className="flex w-full max-w-md flex-col items-center rounded-[2rem] border border-gold/20 bg-white/80 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-blue-400/20 dark:bg-[#0f1a2e]/90">
+        <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-white p-3 shadow-lg dark:bg-[#081024]">
+          <img src={ZAYA_LOGO_SRC} alt="Zaya Group logo" className="h-full w-full object-contain" />
+        </div>
+        <p className="text-[11px] font-black uppercase tracking-[0.34em] text-gold">Loading Module</p>
+        <p className="mt-3 text-sm font-medium text-slate-600 dark:text-blue-100/75">Preparing the workspace without blocking the rest of the portal.</p>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <Layout
-        activeModule={activeModule} onModuleChange={setActiveModule} user={currentUser}
-        onLogout={handleLogout} theme={theme} onThemeToggle={toggleTheme}
-        notifications={notifications} onMarkRead={markNotifRead} onClearNotifications={clearNotifications}
-        systemConfig={systemConfig} isOnline={isOnline} backgroundImageUrl={backgroundImageUrl}
-      >
-        {renderModule()}
-      </Layout>
+      <Suspense fallback={moduleFallback}>
+        <Layout
+          activeModule={activeModule} onModuleChange={setActiveModule} user={currentUser}
+          onLogout={handleLogout} theme={theme} onThemeToggle={toggleTheme}
+          notifications={notifications} onMarkRead={markNotifRead} onClearNotifications={clearNotifications}
+          systemConfig={systemConfig} isOnline={isOnline} backgroundImageUrl={backgroundImageUrl}
+        >
+          <Suspense fallback={moduleFallback}>
+            {renderModule()}
+          </Suspense>
+        </Layout>
+      </Suspense>
 
       {showOrientation && (
-        <OrientationAI
-          user={currentUser}
-          isFirstTime={!currentUser.hasCompletedOrientation || !hasSeenInstallOrientation}
-          onComplete={handleOrientationComplete}
-          messages={chatMessages}
-          setMessages={setChatMessages}
-          activeModule={activeModule}
-          onNavigate={(module) => { handleOrientationComplete(module || 'dashboard'); }}
-          onAction={(action) => {
-            if (action.type === 'DOWNLOAD_REPORT') { openReportByName(action.report); return; }
-            if (action.type === 'EXPORT_REPORTS') { setActiveModule('reports'); return; }
-            if (action.type === 'EXPORT_DATABASE') { setActiveModule('database'); pushNotification('AI Action', 'Opened database module for export.', 'INFO', 'database'); return; }
-            if (action.type === 'PRINT_PAGE') { window.print(); return; }
-            if (action.type === 'SHARE') {
-              const url = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
-              const shareText = `ZAYA Recruitment Portal: ${url}`;
-              if (navigator.share) { navigator.share({ title: 'ZAYA Recruitment Portal', text: shareText, url }).catch(() => { navigator.clipboard?.writeText(shareText); }); }
-              else { navigator.clipboard?.writeText(shareText); }
-              pushNotification('AI Share Action', 'Portal link prepared for sharing.', 'SUCCESS', 'dashboard');
-              return;
-            }
-            if (action.type === 'PREVIEW') { if (action.target) setActiveModule(action.target); pushNotification('AI Preview Action', 'Preview opened for requested module.', 'INFO', action.target || 'dashboard'); return; }
-            if (action.type === 'DOWNLOAD') {
-              if (action.target === 'database' || action.target === 'candidates') { setActiveModule('database'); pushNotification('AI Download Action', 'Opened database for export/download.', 'INFO', 'database'); return; }
-              setActiveModule('reports'); pushNotification('AI Download Action', 'Opened reports to download requested data.', 'INFO', 'reports');
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <OrientationAI
+            user={currentUser}
+            isFirstTime={!currentUser.hasCompletedOrientation || !hasSeenInstallOrientation}
+            onComplete={handleOrientationComplete}
+            messages={chatMessages}
+            setMessages={setChatMessages}
+            activeModule={activeModule}
+            onNavigate={(module) => { handleOrientationComplete(module || 'dashboard'); }}
+            onAction={(action) => {
+              if (action.type === 'DOWNLOAD_REPORT') { openReportByName(action.report); return; }
+              if (action.type === 'EXPORT_REPORTS') { setActiveModule('reports'); return; }
+              if (action.type === 'EXPORT_DATABASE') { setActiveModule('database'); pushNotification('AI Action', 'Opened database module for export.', 'INFO', 'database'); return; }
+              if (action.type === 'PRINT_PAGE') { window.print(); return; }
+              if (action.type === 'SHARE') {
+                const url = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
+                const shareText = `ZAYA Recruitment Portal: ${url}`;
+                if (navigator.share) { navigator.share({ title: 'ZAYA Recruitment Portal', text: shareText, url }).catch(() => { navigator.clipboard?.writeText(shareText); }); }
+                else { navigator.clipboard?.writeText(shareText); }
+                pushNotification('AI Share Action', 'Portal link prepared for sharing.', 'SUCCESS', 'dashboard');
+                return;
+              }
+              if (action.type === 'PREVIEW') { if (action.target) setActiveModule(action.target); pushNotification('AI Preview Action', 'Preview opened for requested module.', 'INFO', action.target || 'dashboard'); return; }
+              if (action.type === 'DOWNLOAD') {
+                if (action.target === 'database' || action.target === 'candidates') { setActiveModule('database'); pushNotification('AI Download Action', 'Opened database for export/download.', 'INFO', 'database'); return; }
+                setActiveModule('reports'); pushNotification('AI Download Action', 'Opened reports to download requested data.', 'INFO', 'reports');
+              }
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Report download popup — blue-hue theme */}

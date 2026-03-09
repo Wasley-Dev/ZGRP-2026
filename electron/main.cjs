@@ -6,7 +6,12 @@ const { autoUpdater } = require('electron-updater');
 const LIVE_URL = process.env.ELECTRON_START_URL || 'https://zgrp-portal-2026.vercel.app';
 const ACCESS_TOKEN = process.env.ELECTRON_ACCESS_TOKEN;
 const APP_USER_MODEL_ID = 'com.zayagroup.recruitmentportal';
-const WINDOW_ICON_PATH = path.join(__dirname, '..', 'assets', 'app-icon.png');
+const WINDOW_ICON_PATH = path.join(
+  __dirname,
+  '..',
+  'assets',
+  process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
+);
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4;
 
 let mainWindow = null;

@@ -3,6 +3,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { BookingEntry, Candidate, RecruitmentStatus } from '../types';
 
 const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry[] }> = ({ candidates, bookings }) => {
+  const cardClass = 'bg-white dark:bg-[#0f1a2e] border border-slate-200 dark:border-[#1e3a5f]';
+  const titleClass = 'text-sm font-black text-[#003366] dark:text-white uppercase tracking-widest';
+  const subtleTextClass = 'text-slate-600 dark:text-white';
   const trainingCount = candidates.filter((c) => c.status === RecruitmentStatus.TRAINING).length;
   const interviewCount = candidates.filter((c) => c.status === RecruitmentStatus.INTERVIEW).length;
   const deployedCount = candidates.filter((c) => c.status === RecruitmentStatus.DEPLOYMENT).length;
@@ -55,10 +58,10 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
             { label: 'Deployment', val: deployedCount, icon: 'fa-shipping-fast' },
             { label: 'Pending', val: pendingCount, icon: 'fa-hourglass-half' }
           ].map(stat => (
-            <div key={stat.label} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border dark:border-slate-700 shadow-sm flex items-center justify-between">
+            <div key={stat.label} className={`${cardClass} p-6 rounded-3xl shadow-sm flex items-center justify-between`}>
                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-                  <h3 className="text-2xl font-black dark:text-white tracking-tight">{stat.val.toLocaleString()}</h3>
+                  <p className="text-[10px] font-black text-[#003366]/60 dark:text-white/60 uppercase tracking-widest mb-1">{stat.label}</p>
+                  <h3 className="text-2xl font-black text-[#003366] dark:text-white tracking-tight">{stat.val.toLocaleString()}</h3>
                </div>
                <div className="text-gold text-2xl drop-shadow-md"><i className={`fas ${stat.icon}`}></i></div>
             </div>
@@ -66,8 +69,8 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
        </div>
 
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm">
-             <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-widest mb-8">Hiring Velocity & Trends</h3>
+          <div className={`lg:col-span-2 ${cardClass} p-8 rounded-3xl shadow-sm`}>
+             <h3 className={`${titleClass} mb-8`}>Hiring Velocity & Trends</h3>
              <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                    <AreaChart data={dataTrends}>
@@ -88,8 +91,8 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
              </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border dark:border-slate-700 shadow-sm">
-             <h3 className="text-sm font-black text-[#003366] dark:text-white uppercase tracking-widest mb-8">Candidate Sources</h3>
+          <div className={`${cardClass} p-8 rounded-3xl shadow-sm`}>
+             <h3 className={`${titleClass} mb-8`}>Candidate Sources</h3>
              <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                    <PieChart>
@@ -103,8 +106,8 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
              <div className="mt-6 space-y-3">
                 {dataSource.map(s => (
                   <div key={s.name} className="flex justify-between items-center text-[10px] font-bold uppercase">
-                     <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{backgroundColor: s.color}}></div> <span className="text-slate-500">{s.name}</span></div>
-                     <span className="dark:text-white">{s.value}</span>
+                     <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{backgroundColor: s.color}}></div> <span className="text-[#003366]/70 dark:text-white/70">{s.name}</span></div>
+                     <span className={subtleTextClass}>{s.value}</span>
                   </div>
                 ))}
              </div>
@@ -112,7 +115,7 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
        </div>
 
        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-[#001a33] p-10 rounded-[3rem] text-white space-y-8 relative overflow-hidden">
+          <div className="bg-[#0f1a2e] border border-[#1e3a5f] p-10 rounded-[3rem] text-white space-y-8 relative overflow-hidden">
              <h4 className="text-gold font-black uppercase tracking-[0.3em] text-[10px] relative z-10">Smart Enterprise Insights</h4>
              <div className="space-y-6 relative z-10">
                 {[ 
@@ -121,7 +124,7 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
                   { label: 'Upcoming Bookings', val: `${bookings.length} Active` }
                 ].map(i => (
                   <div key={i.label} className="flex justify-between border-b border-white/5 pb-4">
-                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{i.label}</span>
+                     <span className="text-[10px] font-black text-blue-200/60 uppercase tracking-widest">{i.label}</span>
                      <span className="text-xs font-bold text-white uppercase">{i.val}</span>
                   </div>
                 ))}
@@ -129,8 +132,8 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
              <div className="absolute top-0 right-0 w-64 h-64 bg-gold/5 rounded-full -mr-32 -mt-32 blur-3xl"></div>
           </div>
           
-          <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border dark:border-slate-700 shadow-sm">
-             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 text-center">Recruitment Funnel Overview</h4>
+          <div className={`${cardClass} p-8 rounded-[3rem] shadow-sm`}>
+             <h4 className="text-[10px] font-black text-[#003366]/60 dark:text-white/60 uppercase tracking-widest mb-6 text-center">Recruitment Funnel Overview</h4>
              <div className="space-y-4">
                 {[
                   { label: 'Applied', per: 100 },
@@ -141,11 +144,11 @@ const RecruitmentHub: React.FC<{ candidates: Candidate[]; bookings: BookingEntry
                   { label: 'Hired / Deployed', per: 8 }
                 ].map(f => (
                   <div key={f.label} className="space-y-1">
-                     <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
+                     <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-[#003366]/70 dark:text-white/70">
                         <span>{f.label}</span>
                         <span>{f.per}%</span>
                      </div>
-                     <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                     <div className="h-1.5 w-full bg-slate-100 dark:bg-[#1d325b] rounded-full overflow-hidden">
                         <div className="h-full bg-gold rounded-full" style={{width: `${f.per}%`}}></div>
                      </div>
                   </div>

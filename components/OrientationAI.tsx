@@ -18,9 +18,10 @@ const OrientationAI: React.FC<{
   onComplete: (destinationModule?: string) => void;
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+  activeModule?: string;
   onNavigate?: (module: string) => void;
   onAction?: (action: AIAction) => void;
-}> = ({ user, isFirstTime = false, onComplete, messages, setMessages, onNavigate, onAction }) => {
+}> = ({ user, isFirstTime = false, onComplete, messages, setMessages, activeModule, onNavigate, onAction }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [tourStep, setTourStep] = useState(0);
@@ -30,6 +31,108 @@ const OrientationAI: React.FC<{
   const assistPulseRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const playbooks: Record<string, { label: string; steps: string[]; prompts: string[] }> = {
+    dashboard: {
+      label: 'Dashboard review',
+      steps: [
+        'Review KPI cards for candidate volume, training, and deployment status.',
+        'Open one KPI card to inspect details in its target module.',
+        'Capture any bottleneck and assign the next action.',
+      ],
+      prompts: ['Summarize current dashboard KPIs', 'Show recruitment bottlenecks', 'Open candidates module'],
+    },
+    candidates: {
+      label: 'Candidate onboarding',
+      steps: [
+        'Open Candidate Registry and start a new candidate entry.',
+        'Fill identity/contact details and attach required documents.',
+        'Save, verify status, then export dossier or continue to booking.',
+      ],
+      prompts: ['How do I add a candidate?', 'Check missing candidate documents', 'Export candidate data'],
+    },
+    booking: {
+      label: 'Interview scheduling',
+      steps: [
+        'Open Booking module and click create booking.',
+        'Select candidate, interview/training type, and time slot.',
+        'Save booking and confirm it appears under upcoming schedule.',
+      ],
+      prompts: ['Book an interview step by step', 'Show today bookings', 'Open recruitment module next'],
+    },
+    recruitment: {
+      label: 'Recruitment pipeline',
+      steps: [
+        'Review funnel metrics by stage and identify delayed stages.',
+        'Open affected candidate groups from funnel insights.',
+        'Update statuses and verify trend impact on dashboard.',
+      ],
+      prompts: ['Show me hiring funnel actions', 'How to move candidates to training?', 'Open reports for recruitment'],
+    },
+    broadcast: {
+      label: 'Broadcast campaign',
+      steps: [
+        'Choose channel (SMS, Email, or WhatsApp) and audience segment.',
+        'Draft message and validate sender configuration.',
+        'Dispatch campaign and monitor delivery status.',
+      ],
+      prompts: ['Send a broadcast step by step', 'Prepare an email campaign', 'Check failed deliveries'],
+    },
+    reports: {
+      label: 'Report export',
+      steps: [
+        'Open Reports module and choose required report type.',
+        'Generate report from live data and verify date context.',
+        'Download and share with stakeholders.',
+      ],
+      prompts: ['Export weekly operations report', 'Generate monthly ROI report', 'Open database for raw export'],
+    },
+    database: {
+      label: 'Database export',
+      steps: [
+        'Open database management and choose dataset scope.',
+        'Run export and validate row counts for accuracy.',
+        'Store output in approved location and share if needed.',
+      ],
+      prompts: ['Export full candidate database', 'Download filtered candidate list', 'Open reports module'],
+    },
+    admin: {
+      label: 'Admin operations',
+      steps: [
+        'Open Admin Console and select user/security action.',
+        'Apply user add/ban/reset with reason and verification.',
+        'Confirm audit visibility and active-session impact.',
+      ],
+      prompts: ['How to reset a user password?', 'Add a new portal user', 'Ban a user account'],
+    },
+    machines: {
+      label: 'Machine/session security',
+      steps: [
+        'Open Machine Auth and inspect active sessions.',
+        'Revoke suspicious or stale sessions immediately.',
+        'Validate forced-logout reason and monitor re-login.',
+      ],
+      prompts: ['Revoke a machine session', 'Show suspicious device checks', 'Open recovery controls'],
+    },
+    recovery: {
+      label: 'Recovery controls',
+      steps: [
+        'Open System Recovery and choose policy mode (safe/recovery/normal).',
+        'Apply policy and verify active-session restrictions.',
+        'Run backup/sync confirmation and notify admins.',
+      ],
+      prompts: ['Enable recovery mode safely', 'Show backup status workflow', 'Open admin console'],
+    },
+    settings: {
+      label: 'Settings update',
+      steps: [
+        'Open Settings and select profile or appearance section.',
+        'Apply updates and verify immediate UI behavior.',
+        'Confirm persistence after reload.',
+      ],
+      prompts: ['Update profile settings', 'Change theme and verify', 'Open dashboard'],
+    },
+  };
 
   const actionRepliesRef = React.useRef<string[]>([
     "On it! Give me just a sec 🚀",
@@ -98,10 +201,10 @@ const OrientationAI: React.FC<{
     const firstName = user.name.split(' ')[0];
     const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
     const greeting = isFirstTime
-      ? `Hey ${firstName}! 👋 Welcome to the ZAYA Group Portal — so excited you're here! I'm ZAYA AI, your personal guide. I'll walk you through everything before you dive in. Ready? Let's go! 🚀`
+      ? `Hey ${firstName}! 👋 Welcome to the ZAYA Group Portal. I can guide you step by step through each workflow and also answer general questions outside the system.`
       : isAdmin
-      ? `Welcome back, ${firstName}! 😊 Great to see you again. I'm ZAYA AI — ready to help you navigate, surface insights, or execute tasks. What are we tackling today?`
-      : `Hey ${firstName}, welcome back! 🌟 I'm ZAYA AI — here to help you find what you need fast. What can I do for you today?`;
+      ? `Welcome back, ${firstName}! I can suggest next actions, guide workflows step by step, and handle broader chatbot questions when needed.`
+      : `Hey ${firstName}, welcome back! I can help you complete tasks step by step, suggest what to do next, or answer general questions.`;
     setMessages([{ role: 'ai', text: greeting }]);
   }, [isFirstTime, messages.length, setMessages, user.name, user.role]);
 
@@ -150,6 +253,74 @@ const OrientationAI: React.FC<{
     return { type: 'EXPORT_REPORTS' };
   };
 
+  const buildAssistiveFlow = (query: string): { text: string; navigateTo?: string; action?: AIAction } | null => {
+    const q = query.toLowerCase();
+
+    if (/(add|create|register).*(candidate)|new candidate/.test(q)) {
+      return {
+        navigateTo: 'candidates',
+        text: `Step-by-step for adding a candidate:\n1. Open Candidates Registry.\n2. Click add/new candidate.\n3. Fill profile and contact fields.\n4. Upload required documents.\n5. Save and confirm status update.`,
+      };
+    }
+
+    if (/(book|schedule).*(interview|training)|create booking/.test(q)) {
+      return {
+        navigateTo: 'booking',
+        text: `Step-by-step for booking:\n1. Open Booking module.\n2. Select candidate and booking type.\n3. Choose date/time and notes.\n4. Save and verify under upcoming bookings.`,
+      };
+    }
+
+    if (/(send|create|run).*(broadcast|campaign|email|sms|whatsapp)/.test(q)) {
+      return {
+        navigateTo: 'broadcast',
+        text: `Broadcast checklist:\n1. Pick channel and target group.\n2. Draft and review message.\n3. Send campaign.\n4. Track delivery and failures.`,
+      };
+    }
+
+    if (/(export|download|generate).*(report|pdf)/.test(q)) {
+      return {
+        action: { type: 'EXPORT_REPORTS' },
+        navigateTo: 'reports',
+        text: `Report export flow:\n1. Open Reports module.\n2. Choose report type.\n3. Generate from live data.\n4. Download PDF and share.`,
+      };
+    }
+
+    if (/(export|download).*(database|candidate list|candidates)/.test(q)) {
+      return {
+        action: { type: 'EXPORT_DATABASE' },
+        navigateTo: 'database',
+        text: `Database export flow:\n1. Open Database module.\n2. Select dataset scope/filters.\n3. Export and validate output.\n4. Save and distribute securely.`,
+      };
+    }
+
+    if (/(reset).*(password)|(ban|unban).*(user)|add user/.test(q)) {
+      return {
+        navigateTo: 'admin',
+        text: `Admin user-management flow:\n1. Open Admin Console.\n2. Locate the user account.\n3. Apply action (add/reset/ban).\n4. Confirm session/security impact.`,
+      };
+    }
+
+    if (/(machine|device|session).*(revoke|logout|security)|force logout/.test(q)) {
+      return {
+        navigateTo: 'machines',
+        text: `Session security flow:\n1. Open Machine Auth.\n2. Inspect active sessions.\n3. Revoke suspicious sessions.\n4. Verify status updates.`,
+      };
+    }
+
+    return null;
+  };
+
+  const getContextSuggestions = (): string[] => {
+    const key = (activeModule || detectNavigationIntent(steps[tourStep].title) || 'dashboard').toLowerCase();
+    const modulePrompts = playbooks[key]?.prompts || [];
+    const generalPrompts = [
+      'Suggest my next best action in this module',
+      'Give me a step-by-step plan for this task',
+      'Ask me anything outside the system',
+    ];
+    return [...modulePrompts, ...generalPrompts].slice(0, 6);
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isTyping) return;
     resetIdleTimer();
@@ -162,6 +333,15 @@ const OrientationAI: React.FC<{
 
     const navigateTo = detectNavigationIntent(userMsg);
     const action = detectActionIntent(userMsg);
+    const assistive = buildAssistiveFlow(userMsg);
+
+    if (assistive) {
+      setMessages((prev) => [...prev, { role: 'ai', text: assistive.text }]);
+      if (assistive.action && onAction) onAction(assistive.action);
+      if (assistive.navigateTo && onNavigate) onNavigate(assistive.navigateTo);
+      setIsTyping(false);
+      return;
+    }
 
     if (action) {
       const line = actionRepliesRef.current.shift() || 'Executing now!';
@@ -221,12 +401,9 @@ const OrientationAI: React.FC<{
   };
 
   // Quick suggestion chips
-  const suggestions = [
-    "How do I add a candidate?",
-    "Show me the booking module",
-    "What does Machine Auth do?",
-    "How do I export a report?",
-  ];
+  const suggestions = getContextSuggestions();
+  const activePlaybookKey = (activeModule || detectNavigationIntent(steps[tourStep].title) || 'dashboard').toLowerCase();
+  const currentPlaybook = playbooks[activePlaybookKey];
 
   return (
     <div
@@ -407,6 +584,15 @@ const OrientationAI: React.FC<{
                 </div>
               </div>
             </div>
+
+            {currentPlaybook && (
+              <div className="px-4 py-3 border-b border-[#1e3a5f] bg-[#0c1a31]">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-300/60">
+                  Suggested Workflow: {currentPlaybook.label}
+                </p>
+                <p className="text-[11px] text-blue-200/80 mt-1">{currentPlaybook.steps[0]}</p>
+              </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-4">

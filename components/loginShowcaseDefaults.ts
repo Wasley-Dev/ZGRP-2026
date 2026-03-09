@@ -11,9 +11,9 @@ export interface ShowcasePreset {
 
 export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
   {
-    title: 'Governance that keeps operations measurable.',
-    summary: 'The system rotates its own enterprise showcase every 24 hours so teams see fresh guidance even before an admin customizes the portal.',
-    quote: 'A stable system is one where governance is designed before growth demands it.',
+    title: 'Governance that keeps leadership informed.',
+    summary: 'The portal rotates a refined executive showcase each day so the login experience stays current, disciplined, and aligned with enterprise standards.',
+    quote: 'Growth holds when governance is visible before complexity arrives.',
     author: 'ZAYA Operations Playbook',
     facts: [
       'Audit-ready workflows reduce disputes because the process is visible before a problem appears.',
@@ -23,9 +23,9 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
     image: pexelsImage('https://images.pexels.com/photos/8938358/pexels-photo-8938358.jpeg?fm=jpg'),
   },
   {
-    title: 'Development improves when standards arrive first.',
-    summary: 'Teams move faster when release rules, rollback plans, and code ownership are part of the workflow rather than an afterthought.',
-    quote: 'Good development is not speed alone; it is speed that survives production.',
+    title: 'Execution improves when standards arrive first.',
+    summary: 'Teams move faster when release rules, rollback plans, and ownership are designed into the operating model rather than added after pressure appears.',
+    quote: 'Operational speed matters only when it remains dependable in production.',
     author: 'ZAYA Development Desk',
     facts: [
       'Release checklists lower deployment risk by turning tribal knowledge into repeatable action.',
@@ -35,21 +35,21 @@ export const DEFAULT_LOGIN_SHOWCASES: ShowcasePreset[] = [
     image: pexelsImage('https://images.pexels.com/photos/10347163/pexels-photo-10347163.jpeg?fm=jpg'),
   },
   {
-    title: 'Strategy is visible when teams work from one source of truth.',
-    summary: 'Aligned teams execute better when planning, review, and decisions happen around the same operational picture.',
-    quote: 'Clear strategy becomes practical only when the team can see the same facts at the same time.',
+    title: 'Strategy becomes credible when one system anchors the discussion.',
+    summary: 'Leadership decisions move with more confidence when planning, review, and approvals are tied to a single operational picture.',
+    quote: 'Executive clarity begins when the same facts are visible to every decision-maker.',
     author: 'ZAYA Leadership Desk',
     facts: [
-      'Shared visibility reduces handoff errors between operations, recruitment, and leadership teams.',
-      'Good strategy meetings end with owners, timelines, and measurable next steps.',
-      'Teams trust systems more when the workflow reflects actual business priorities.',
+      'Decision quality improves when reporting, approvals, and action owners stay in one workflow.',
+      'Senior teams act faster when timelines and accountability are explicit from the start.',
+      'Enterprise systems earn trust when the interface reflects real priorities, not generic software patterns.',
     ],
     image: pexelsImage('https://images.pexels.com/photos/31709062/pexels-photo-31709062.jpeg?fm=jpg'),
   },
   {
-    title: 'Resilience is built before recovery is needed.',
-    summary: 'A resilient system keeps local capability, shared data sync, and operational continuity ready before network or service issues appear.',
-    quote: 'Recovery works when continuity is designed into normal operations, not added during failure.',
+    title: 'Resilience is designed before recovery is needed.',
+    summary: 'A resilient platform keeps local capability, shared sync, and continuity measures ready before network or service pressure appears.',
+    quote: 'Recovery succeeds when continuity is built into normal operations, not improvised during failure.',
     author: 'ZAYA Recovery Protocol',
     facts: [
       'Fallback capability matters because real operations cannot pause while waiting for perfect connectivity.',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserRole, Notification, ThemeMode, SystemConfig } from '../types';
+import { ZAYA_LOGO_SRC, isCustomLogoSource } from '../brand';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -152,8 +153,9 @@ const Layout: React.FC<LayoutProps> = ({
   };
 
   const renderSystemLogo = (sizeClass: string) => {
-    if (systemConfig.logoIcon?.startsWith('data:image')) {
-      return <img src={systemConfig.logoIcon} alt="System Logo" className={`${sizeClass} object-contain`} />;
+    const logoSource = isCustomLogoSource(systemConfig.logoIcon) ? systemConfig.logoIcon : ZAYA_LOGO_SRC;
+    if (logoSource) {
+      return <img src={logoSource} alt="Zaya Group logo" className={`${sizeClass} object-contain`} />;
     }
     return <i className={`fas ${systemConfig.logoIcon} text-gold text-lg`}></i>;
   };
