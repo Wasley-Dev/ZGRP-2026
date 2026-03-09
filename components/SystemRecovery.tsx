@@ -346,6 +346,12 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           </button>
         </div>
       </div>
+
+      <div className="rounded-3xl border border-slate-200/80 bg-white/90 px-6 py-4 text-center shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-blue-400/20 dark:bg-[linear-gradient(180deg,#132248_0%,#0b1431_100%)]">
+        <p className="text-[11px] font-black uppercase tracking-[0.34em] text-slate-500 dark:text-slate-300">
+          All rights and copies reserved @ WAS
+        </p>
+      </div>
     </div>
   );
 };

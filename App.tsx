@@ -412,7 +412,7 @@ const App: React.FC = () => {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-    const timer = setTimeout(() => setIsLoading(false), 6000);
+    const timer = setTimeout(() => setIsLoading(false), 4000);
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); clearTimeout(timer); };
   }, [accessToken]);
 

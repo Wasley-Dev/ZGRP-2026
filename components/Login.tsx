@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SystemConfig } from '../types';
 import { DEFAULT_LOGIN_SHOWCASES } from './loginShowcaseDefaults';
 import { ZAYA_LOGO_SRC, isCustomLogoSource } from '../brand';
@@ -30,6 +30,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const showcaseSummary = systemConfig.loginShowcaseSummary && !isLegacySummary ? systemConfig.loginShowcaseSummary : defaultShowcase.summary;
   const showcaseQuote = systemConfig.loginQuote && !isLegacyQuote ? systemConfig.loginQuote : defaultShowcase.quote;
   const showcaseAuthor = systemConfig.loginQuoteAuthor && !isLegacyAuthor ? systemConfig.loginQuoteAuthor : defaultShowcase.author;
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 18 }, (_, index) => ({
+        id: `particle-${index}`,
+        size: 6 + (index % 4) * 4,
+        left: 4 + ((index * 11) % 88),
+        top: 8 + ((index * 7) % 74),
+        delay: `${(index % 6) * 0.7}s`,
+        duration: `${9 + (index % 5) * 2}s`,
+        opacity: 0.18 + (index % 4) * 0.1,
+      })),
+    []
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,11 +76,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
         <div className="mx-auto flex min-h-[calc(var(--app-vh,1vh)*100-2rem)] max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-gold/20 bg-[#eef4fb] shadow-[0_42px_120px_rgba(1,12,27,0.42)] md:min-h-[640px] md:flex-row">
           <div className="relative flex w-full items-center justify-center bg-[linear-gradient(180deg,#f8fbff_0%,#edf3fb_100%)] p-5 md:w-[44%] md:p-8 lg:p-10">
             <div className="absolute inset-0 opacity-[0.04] pointer-events-none bg-enterprise-pattern"></div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-6">
-              <p className="select-none text-center text-[9px] font-black uppercase tracking-[0.34em] text-[#003366]/[0.09]">
-                All rights and copies reserved @ WAS
-              </p>
-            </div>
             <div className="relative z-10 flex w-full max-w-[26rem] flex-col justify-center">
               <div className="mb-6">
                 <div className="mb-5 flex items-center gap-3.5">
@@ -180,6 +188,23 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.16),transparent_22%),radial-gradient(circle_at_80%_18%,rgba(255,255,255,0.09),transparent_16%),linear-gradient(120deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:auto,auto,36px_36px] opacity-50"></div>
             <div className="absolute -bottom-16 -right-12 h-56 w-56 rounded-full border border-white/25 bg-white/10 blur-2xl"></div>
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              {particles.map((particle) => (
+                <span
+                  key={particle.id}
+                  className="absolute rounded-full bg-white/70 shadow-[0_0_18px_rgba(255,255,255,0.45)] animate-[login-particle-float_linear_infinite]"
+                  style={{
+                    width: `${particle.size}px`,
+                    height: `${particle.size}px`,
+                    left: `${particle.left}%`,
+                    top: `${particle.top}%`,
+                    opacity: particle.opacity,
+                    animationDelay: particle.delay,
+                    animationDuration: particle.duration,
+                  }}
+                />
+              ))}
+            </div>
 
             <div className="relative z-10 flex items-center gap-4">
               <div className="flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-white/95 p-2 shadow-lg ring-1 ring-white/40">
