@@ -3,7 +3,7 @@
   "description": "ZAYA Recruitment Portal desktop software",
   "author": "WIS & Asya",
   "private": true,
-  "version": "0.1.18",
+  "version": "0.1.17",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {

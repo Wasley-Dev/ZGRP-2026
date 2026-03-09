@@ -217,9 +217,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
             </div>
 
             <div className="relative z-10 max-w-xl space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/12 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/80 backdrop-blur">
-                <i className="fas fa-shield-alt text-gold"></i>
-                Powered and protected by WAS
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.28em] text-gold backdrop-blur">
+                <i className="fas fa-building-shield"></i>
+                Enterprise command environment
               </div>
               <div>
                 <h2 className="max-w-xl text-3xl font-black leading-tight text-white md:text-[3.2rem]">{showcaseTitle}</h2>
@@ -231,18 +231,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
               <p className="text-[11px] font-black uppercase tracking-[0.28em] text-gold">Executive Note</p>
               <p className="mt-4 max-w-3xl text-[1.55rem] font-semibold leading-[1.65] text-white md:text-[1.75rem]">"{showcaseQuote}"</p>
               <p className="mt-6 text-sm font-semibold uppercase tracking-[0.24em] text-white/70">{showcaseAuthor}</p>
-            </div>
-
-            <div className="relative z-10 max-w-[42rem] rounded-[1.5rem] border border-white/14 bg-black/20 px-5 py-5 backdrop-blur-md md:px-7">
-              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-gold">Corporate Fun Facts</p>
-              <div className="mt-4 grid gap-3">
-                {loginFacts.map((fact, index) => (
-                  <div key={`${fact}-${index}`} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/6 px-4 py-3">
-                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-gold"></span>
-                    <p className="text-sm leading-6 text-white/88">{fact}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
