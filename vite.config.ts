@@ -19,6 +19,27 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (!id.includes('node_modules')) {
+                return undefined;
+              }
+
+              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('xlsx')) {
+                return 'export-tools';
+              }
+
+              if (id.includes('recharts') || id.includes('d3-')) {
+                return 'charts';
+              }
+
+              return 'vendor';
+            },
+          },
+        },
+      },
     };
 });
