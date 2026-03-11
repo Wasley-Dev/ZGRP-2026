@@ -1,12 +1,13 @@
 
 import React, { useState, useRef } from 'react';
 import { SystemUser } from '../types';
+import { normalizeImageFile } from '../services/imageUtils';
 
 interface SettingsProps {
   theme: string;
   onThemeToggle: () => void;
   user: SystemUser;
-  setUser: (u: SystemUser) => void;
+  setUser: React.Dispatch<React.SetStateAction<SystemUser>>;
   backgroundImageUrl?: string;
   onBackgroundImageChange: (value?: string) => void;
 }
@@ -24,9 +25,10 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setUser({ ...user, avatar: ev.target?.result as string });
-      reader.readAsDataURL(e.target.files[0]);
+      const file = e.target.files[0];
+      normalizeImageFile(file, { maxDimension: 512, mimeType: 'image/jpeg', quality: 0.82 })
+        .then((avatar) => setUser((prev) => ({ ...prev, avatar })))
+        .catch((err) => console.error('Avatar upload failed:', err));
     }
   };
 
@@ -35,7 +37,7 @@ const Settings: React.FC<SettingsProps> = ({
 
   const handleSave = () => {
     if (newPassword) {
-      setUser({ ...user, password: newPassword });
+      setUser((prev) => ({ ...prev, password: newPassword }));
       setNewPassword('');
     }
     alert("SETTINGS SYNCED: Corporate profile updated.");
@@ -63,7 +65,7 @@ const Settings: React.FC<SettingsProps> = ({
                 <div className="flex-1 w-full grid grid-cols-2 gap-8">
                    <div className="col-span-2 md:col-span-1">
                       <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Display Identity</label>
-                      <input className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-white outline-none focus:ring-4 focus:ring-gold/10" value={user.name} onChange={e => setUser({...user, name: e.target.value})} />
+                      <input className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-white outline-none focus:ring-4 focus:ring-gold/10" value={user.name} onChange={e => setUser((prev) => ({ ...prev, name: e.target.value }))} />
                    </div>
                    <div className="col-span-2 md:col-span-1">
                       <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Work Department</label>
@@ -114,9 +116,10 @@ const Settings: React.FC<SettingsProps> = ({
                   className="hidden"
                   onChange={(e) => {
                     if (!e.target.files?.[0]) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => onBackgroundImageChange(ev.target?.result as string);
-                    reader.readAsDataURL(e.target.files[0]);
+                    const file = e.target.files[0];
+                    normalizeImageFile(file, { maxDimension: 1920, mimeType: 'image/jpeg', quality: 0.8 })
+                      .then((bg) => onBackgroundImageChange(bg))
+                      .catch((err) => console.error('Background image upload failed:', err));
                   }}
                 />
                 {backgroundImageUrl && (

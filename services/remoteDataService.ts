@@ -48,7 +48,19 @@ type ConfigRow = {
   backup_hour: number;
   updated_at: string;
 };
-type UserRow = SystemUser & { updated_at: string };
+type PortalUserRow = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  password: string;
+  has_completed_orientation: boolean;
+  role: string;
+  department: string;
+  avatar: string | null;
+  last_login: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
+};
 type BookingRow = {
   id: string;
   booker: string;
@@ -116,7 +128,10 @@ export const syncRemoteCandidates = async (candidates: Candidate[]): Promise<voi
     updated_at: nowIso(),
   }));
   const { error } = await supabase.from('portal_candidates').upsert(rows, { onConflict: 'id' });
-  if (error) console.error('Remote candidates upsert error:', error);
+  if (error) {
+    console.error('Remote candidates upsert error:', error);
+    throw error;
+  }
 };
 
 export const fetchRemoteSystemConfig = async (): Promise<SystemConfig | null> => {
@@ -166,14 +181,32 @@ export const syncRemoteSystemConfig = async (config: SystemConfig): Promise<void
     updated_at: nowIso(),
   };
   const { error } = await supabase.from('portal_system_config').upsert(row, { onConflict: 'id' });
-  if (error) console.error('Remote system config upsert error:', error);
+  if (error) {
+    console.error('Remote system config upsert error:', error);
+    throw error;
+  }
 };
 
 export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   if (!supabase) return;
-  const rows = users.map((u) => ({ ...u, updated_at: nowIso() } as UserRow));
+  const rows: PortalUserRow[] = users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone ?? null,
+    password: u.password,
+    has_completed_orientation: u.hasCompletedOrientation ?? false,
+    role: u.role,
+    department: u.department,
+    avatar: u.avatar ?? null,
+    last_login: u.lastLogin,
+    status: u.status,
+  }));
   const { error } = await supabase.from('portal_users').upsert(rows, { onConflict: 'id' });
-  if (error) console.error('Remote users upsert error:', error);
+  if (error) {
+    console.error('Remote users upsert error:', error);
+    throw error;
+  }
 };
 
 export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
@@ -209,5 +242,8 @@ export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void
     updated_at: nowIso(),
   }));
   const { error } = await supabase.from('portal_bookings').upsert(rows, { onConflict: 'id' });
-  if (error) console.error('Remote bookings upsert error:', error);
+  if (error) {
+    console.error('Remote bookings upsert error:', error);
+    throw error;
+  }
 };

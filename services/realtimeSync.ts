@@ -53,7 +53,11 @@ export const loadSharedState = (fallback: Omit<SharedStateSnapshot, 'updatedAt' 
   const existing = parseSnapshot(window.localStorage.getItem(STORAGE_KEY));
   if (existing) return existing;
   const initial = { ...fallback, updatedAt: Date.now(), updatedBy: 'bootstrap' };
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+  } catch (err) {
+    console.warn('Shared state persistence unavailable (localStorage).', err);
+  }
   return initial;
 };
 
@@ -133,7 +137,11 @@ export class RealtimeSyncClient {
   publish(snapshot: SharedStateSnapshot) {
     if (typeof window === 'undefined') return;
     this.lastSeenUpdate = Math.max(this.lastSeenUpdate, snapshot.updatedAt);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    } catch (err) {
+      console.warn('Shared state persistence failed; continuing realtime broadcast.', err);
+    }
     this.broadcastChannel?.postMessage(snapshot);
     if (this.supabaseChannel) {
       this.supabaseChannel.send({
