@@ -116,6 +116,7 @@ const Layout: React.FC<LayoutProps> = ({
 
     // Existing modules (kept from previous system)
     { id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' },
+    { id: 'candidates', label: 'Candidates', icon: 'fa-database' },
     { id: 'database', label: 'Candidates Registry', icon: 'fa-users' },
     { id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' },
     { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
