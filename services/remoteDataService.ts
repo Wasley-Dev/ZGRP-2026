@@ -57,6 +57,7 @@ type PortalUserRow = {
   has_completed_orientation: boolean;
   role: string;
   department: string;
+  job_title?: string | null;
   avatar: string | null;
   last_login: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
@@ -198,14 +199,24 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
     has_completed_orientation: u.hasCompletedOrientation ?? false,
     role: u.role,
     department: u.department,
+    job_title: u.jobTitle || null,
     avatar: u.avatar ?? null,
     last_login: u.lastLogin,
     status: u.status,
   }));
-  const { error } = await supabase.from('portal_users').upsert(rows, { onConflict: 'id' });
-  if (error) {
-    console.error('Remote users upsert error:', error);
-    throw error;
+  const attempt = await supabase.from('portal_users').upsert(rows, { onConflict: 'id' });
+  if (!attempt.error) return;
+
+  const message = String(attempt.error?.message || '');
+  if (!/job_title/i.test(message)) {
+    console.error('Remote users upsert error:', attempt.error);
+    throw attempt.error;
+  }
+  const legacyRows = rows.map(({ job_title, ...rest }) => rest);
+  const retry = await supabase.from('portal_users').upsert(legacyRows as any, { onConflict: 'id' });
+  if (retry.error) {
+    console.error('Remote users upsert error (legacy retry):', retry.error);
+    throw retry.error;
   }
 };
 

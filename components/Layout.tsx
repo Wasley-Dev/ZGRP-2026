@@ -186,7 +186,7 @@ const Layout: React.FC<LayoutProps> = ({
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 overflow-y-auto p-2 pb-24 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto p-2 pb-24 space-y-1">
         {navItems.map((item) => (
           <button
             key={item.id}
@@ -420,7 +420,7 @@ const Layout: React.FC<LayoutProps> = ({
               />
               <div className="hidden md:block text-left">
                 <p className={`text-[10px] font-black truncate uppercase max-w-[100px] ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{user.name}</p>
-                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase max-w-[100px]">{user.role}</p>
+                <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase max-w-[100px]">{(user.jobTitle || user.role)}</p>
               </div>
             </button>
           </div>

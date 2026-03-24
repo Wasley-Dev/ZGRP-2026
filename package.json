@@ -3,7 +3,7 @@
   "description": "Employee Reporting & Performance Management System desktop software",
   "author": "WIS & Asya",
   "private": true,
-  "version": "0.1.24",
+  "version": "0.1.25",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {

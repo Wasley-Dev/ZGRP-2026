@@ -109,7 +109,7 @@ const TasksModule: React.FC<TasksModuleProps> = ({ user, users }) => {
                 className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
               >
                 {displayUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                  <option key={u.id} value={u.id}>{u.name}{u.jobTitle ? ` — ${u.jobTitle}` : ''}</option>
                 ))}
               </select>
               <input

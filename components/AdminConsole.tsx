@@ -34,6 +34,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   const [invitePhone, setInvitePhone] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
   const [inviteDepartment, setInviteDepartment] = useState('');
+  const [inviteJobTitle, setInviteJobTitle] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>(UserRole.USER);
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({});
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -42,17 +43,14 @@ const AdminConsole: React.FC<AdminProps> = ({
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
   const canManageLoginExperience = isSuperAdmin(currentUser);
 
-  const getDisplayUser = (user: SystemUser): SystemUser => {
-    if (!isSuperAdmin(user)) return user;
-    return {
-      ...user,
-      name: 'Anonymous User',
-      role: UserRole.USER,
-      avatar: ZAYA_LOGO_SRC,
-      email: '',
-      phone: undefined,
-      department: 'General',
-    };
+  const getDisplayUser = (target: SystemUser): SystemUser => {
+    if (!isSuperAdmin(target)) return target;
+
+    // Super admin sees protected accounts normally.
+    if (isSuperAdmin(currentUser)) return target;
+
+    // Everyone else sees super admin as a normal employee (not anonymous).
+    return { ...target, role: UserRole.USER };
   };
 
   useEffect(() => {
@@ -211,6 +209,7 @@ const AdminConsole: React.FC<AdminProps> = ({
       password: invitePassword.trim(),
       hasCompletedOrientation: false,
       department: inviteDepartment.trim() || 'General',
+      jobTitle: inviteJobTitle.trim() || undefined,
       role: inviteRole,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(inviteName.trim())}`,
       lastLogin: 'Never',
@@ -223,6 +222,7 @@ const AdminConsole: React.FC<AdminProps> = ({
     setInvitePhone('');
     setInvitePassword('');
     setInviteDepartment('');
+    setInviteJobTitle('');
     setInviteRole(UserRole.USER);
     setShowAddUserModal(false);
     alert('User added. Share credentials with the user to sign in.');
@@ -234,7 +234,7 @@ const AdminConsole: React.FC<AdminProps> = ({
       return;
     }
     const message =
-      `ZAYA Portal Credentials\n` +
+      `System Credentials\n` +
       `Email: ${targetUser.email}\n` +
       `Password: ${targetUser.password}\n` +
       `Login: https://zgrp-portal-2026.vercel.app`;
@@ -270,6 +270,8 @@ const AdminConsole: React.FC<AdminProps> = ({
               const locked = isSuperAdmin(u) || u.id === currentUser.id;
               const display = getDisplayUser(u);
               const protectedAccount = isSuperAdmin(u);
+              const showProtectedLabel = protectedAccount && isSuperAdmin(currentUser);
+              const hideProtectedContact = protectedAccount && !isSuperAdmin(currentUser);
               return (
                 <div
                   key={u.id}
@@ -280,14 +282,14 @@ const AdminConsole: React.FC<AdminProps> = ({
                     <div className="flex-1">
                       <p className="text-sm font-black dark:text-white uppercase leading-tight">{display.name}</p>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                        {display.role} • {display.department} • {display.status}{protectedAccount ? ' • PROTECTED' : ''}
+                        {display.role} • {display.department}{display.jobTitle ? ` • ${display.jobTitle}` : ''} • {display.status}{showProtectedLabel ? ' • PROTECTED' : ''}
                       </p>
-                      {!protectedAccount && (
+                      {!hideProtectedContact && (
                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
                           {u.email}
                         </p>
                       )}
-                      {!protectedAccount && u.phone && (
+                      {!hideProtectedContact && u.phone && (
                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
                           {u.phone}
                         </p>
@@ -605,6 +607,12 @@ const AdminConsole: React.FC<AdminProps> = ({
                 placeholder="Department"
                 value={inviteDepartment}
                 onChange={(e) => setInviteDepartment(e.target.value)}
+                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+              />
+              <input
+                placeholder="Job Title (e.g. Head of Department)"
+                value={inviteJobTitle}
+                onChange={(e) => setInviteJobTitle(e.target.value)}
                 className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
               />
               <select

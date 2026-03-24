@@ -15,6 +15,38 @@ const nowIso = () => new Date().toISOString();
 
 const toDateOnly = (iso: string) => iso.slice(0, 10);
 
+const normalizeSegments = (value: unknown): AttendanceLog['segments'] => {
+  if (!value) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        const inTime = (item as any)?.in;
+        const outTime = (item as any)?.out;
+        if (!inTime) return null;
+        return { in: String(inTime), out: outTime ? String(outTime) : undefined };
+      })
+      .filter(Boolean) as AttendanceLog['segments'];
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return normalizeSegments(parsed);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+const isCheckedIn = (attendance: AttendanceLog): boolean => {
+  const segments = attendance.segments || [];
+  const last = segments[segments.length - 1];
+  if (last?.in && !last?.out) return true;
+  // Backwards compatibility: if no segments stored, infer from checkOut.
+  if (!attendance.segments && attendance.checkIn && !attendance.checkOut) return true;
+  return false;
+};
+
 const resolveApiBaseUrl = (): string => {
   if (typeof window === 'undefined') return API_BASE_URL || '';
   const origin = window.location?.origin || '';
@@ -83,6 +115,7 @@ export const fetchAttendanceLogs = async (user: SystemUser, isAdmin: boolean): P
     date: String(row.date),
     checkIn: String(row.check_in),
     checkOut: row.check_out ? String(row.check_out) : undefined,
+    segments: normalizeSegments(row.segments),
   }));
 };
 
@@ -106,25 +139,81 @@ export const fetchTodayAttendance = async (user: SystemUser): Promise<Attendance
     date: String((data as any).date),
     checkIn: String((data as any).check_in),
     checkOut: (data as any).check_out ? String((data as any).check_out) : undefined,
+    segments: normalizeSegments((data as any).segments),
   };
 };
 
 export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
   const today = toDateOnly(nowIso());
   if (!supabase) {
-    return { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: nowIso() };
+    const local: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: nowIso() };
+    local.segments = [{ in: local.checkIn }];
+    return local;
   }
   const existing = await fetchTodayAttendance(user);
-  if (existing?.checkIn) throw new Error('You already checked in today.');
-  const payload = { user_id: user.id, date: today, check_in: nowIso(), check_out: null };
-  const { data, error } = await supabase.from('attendance').insert(payload).select('*').single();
+  const now = nowIso();
+
+  // First check-in of the day creates the row.
+  if (!existing) {
+    const payload = { user_id: user.id, date: today, check_in: now, check_out: null, segments: [{ in: now }] };
+    const attempt = await supabase.from('attendance').insert(payload as any).select('*').single();
+    if (attempt.error && /segments/i.test(String(attempt.error.message || ''))) {
+      const legacyAttempt = await supabase
+        .from('attendance')
+        .insert({ user_id: user.id, date: today, check_in: now, check_out: null })
+        .select('*')
+        .single();
+      if (legacyAttempt.error || !legacyAttempt.data) throw legacyAttempt.error || new Error('Clock in failed');
+      const data = legacyAttempt.data as any;
+      return {
+        id: String(data.id),
+        userId: String(data.user_id),
+        date: String(data.date),
+        checkIn: String(data.check_in),
+        checkOut: undefined,
+      };
+    }
+    if (attempt.error || !attempt.data) throw attempt.error || new Error('Clock in failed');
+    const data = attempt.data as any;
+    return {
+      id: String(data.id),
+      userId: String(data.user_id),
+      date: String(data.date),
+      checkIn: String(data.check_in),
+      checkOut: undefined,
+      segments: normalizeSegments(data.segments) || [{ in: now }],
+    };
+  }
+
+  // If already finalized for the day, block.
+  if (existing.checkOut) throw new Error('You already completed attendance for today.');
+
+  // If currently checked in (open segment), block.
+  const segments = (existing.segments || []).slice();
+  const last = segments[segments.length - 1];
+  if (last?.in && !last?.out) throw new Error('You are already checked in.');
+
+  // Allow one mid-day return check-in (max 2 segments per day).
+  if (segments.length >= 2) throw new Error('Mid-day return already used for today.');
+  segments.push({ in: now });
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .update({ segments })
+    .eq('id', existing.id)
+    .select('*')
+    .single();
+  if (error && /segments/i.test(String(error.message || ''))) {
+    throw new Error('Mid-day return requires an attendance schema update (segments column). Apply the latest Supabase migration.');
+  }
   if (error || !data) throw error || new Error('Clock in failed');
   return {
     id: String((data as any).id),
     userId: String((data as any).user_id),
     date: String((data as any).date),
     checkIn: String((data as any).check_in),
-    checkOut: undefined,
+    checkOut: (data as any).check_out ? String((data as any).check_out) : undefined,
+    segments: normalizeSegments((data as any).segments) || segments,
   };
 };
 
@@ -163,9 +252,10 @@ export const requestClockOutApproval = async (user: SystemUser, attendance: Atte
   });
 };
 
-export const clockOut = async (user: SystemUser, attendance: AttendanceLog, approvalCode: string): Promise<AttendanceLog> => {
+export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog, approvalCode: string): Promise<AttendanceLog> => {
   if (!attendance.checkIn) throw new Error('You must clock in first.');
-  if (attendance.checkOut) throw new Error('You already checked out for this check-in.');
+  if (attendance.checkOut) throw new Error('You already completed attendance for today.');
+  if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
   const expectedKey = `${CHECKOUT_TOKEN_KEY_PREFIX}${user.id}:${attendance.date}`;
   const expected = typeof window !== 'undefined' ? window.localStorage.getItem(expectedKey) : null;
   if (!expected || expected.trim().toUpperCase() !== approvalCode.trim().toUpperCase()) {
@@ -173,14 +263,24 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog, appr
   }
 
   if (!supabase) {
-    return { ...attendance, checkOut: nowIso() };
+    const now = nowIso();
+    const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
+    const last = segments[segments.length - 1];
+    if (!last?.in || last?.out) throw new Error('Mid-day checkout not available.');
+    last.out = now;
+    return { ...attendance, segments };
   }
-  const { data, error } = await supabase
-    .from('attendance')
-    .update({ check_out: nowIso() })
-    .eq('id', attendance.id)
-    .select('*')
-    .single();
+
+  const now = nowIso();
+  const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
+  const last = segments[segments.length - 1];
+  if (!last?.in || last?.out) throw new Error('Mid-day checkout not available.');
+  last.out = now;
+
+  const { data, error } = await supabase.from('attendance').update({ segments }).eq('id', attendance.id).select('*').single();
+  if (error && /segments/i.test(String(error.message || ''))) {
+    throw new Error('Mid-day checkout requires an attendance schema update (segments column). Apply the latest Supabase migration.');
+  }
   if (error || !data) throw error || new Error('Clock out failed');
   try {
     if (typeof window !== 'undefined') window.localStorage.removeItem(expectedKey);
@@ -193,6 +293,57 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog, appr
     date: String((data as any).date),
     checkIn: String((data as any).check_in),
     checkOut: (data as any).check_out ? String((data as any).check_out) : undefined,
+    segments: normalizeSegments((data as any).segments) || segments,
+  };
+};
+
+export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
+  if (!attendance.checkIn) throw new Error('You must clock in first.');
+  if (attendance.checkOut) throw new Error('You already completed attendance for today.');
+  if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
+
+  const now = nowIso();
+  const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
+  const last = segments[segments.length - 1];
+  if (!last?.in || last?.out) throw new Error('Clock out not available.');
+  last.out = now;
+
+  if (!supabase) {
+    return { ...attendance, checkOut: now, segments };
+  }
+
+  const attempt = await supabase
+    .from('attendance')
+    .update({ check_out: now, segments } as any)
+    .eq('id', attendance.id)
+    .select('*')
+    .single();
+  if (attempt.error && /segments/i.test(String(attempt.error.message || ''))) {
+    const legacyAttempt = await supabase
+      .from('attendance')
+      .update({ check_out: now })
+      .eq('id', attendance.id)
+      .select('*')
+      .single();
+    if (legacyAttempt.error || !legacyAttempt.data) throw legacyAttempt.error || new Error('Clock out failed');
+    const data = legacyAttempt.data as any;
+    return {
+      id: String(data.id),
+      userId: String(data.user_id),
+      date: String(data.date),
+      checkIn: String(data.check_in),
+      checkOut: data.check_out ? String(data.check_out) : undefined,
+    };
+  }
+  if (attempt.error || !attempt.data) throw attempt.error || new Error('Clock out failed');
+  const data = attempt.data as any;
+  return {
+    id: String(data.id),
+    userId: String(data.user_id),
+    date: String(data.date),
+    checkIn: String(data.check_in),
+    checkOut: data.check_out ? String(data.check_out) : undefined,
+    segments: normalizeSegments(data.segments) || segments,
   };
 };
 

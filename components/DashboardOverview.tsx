@@ -18,7 +18,7 @@ import {
 
 import { BookingEntry, Candidate, RecruitmentStatus, SystemUser, UserRole } from '../types';
 import { getTodayIsoInEAT } from '../services/dateTime';
-import { clockIn, clockOut, fetchDailyReports, fetchTodayAttendance, requestClockOutApproval } from '../services/employeeSystemService';
+import { clockIn, clockOut, fetchDailyReports, fetchTodayAttendance, midDayClockOut, requestClockOutApproval } from '../services/employeeSystemService';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -35,6 +35,21 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
   const [approvalCode, setApprovalCode] = React.useState('');
   const [checkoutReason, setCheckoutReason] = React.useState('');
+
+  const isCurrentlyCheckedIn = React.useMemo(() => {
+    if (!todayAttendance?.checkIn) return false;
+    if (todayAttendance?.checkOut) return false;
+    const segments = Array.isArray(todayAttendance?.segments) ? todayAttendance.segments : [];
+    if (segments.length === 0) return true;
+    const last = segments[segments.length - 1];
+    return Boolean(last?.in && !last?.out);
+  }, [todayAttendance]);
+
+  const statusLabel = React.useMemo(() => {
+    if (!todayAttendance?.checkIn) return 'Not Checked In';
+    if (todayAttendance?.checkOut) return 'Checked Out';
+    return isCurrentlyCheckedIn ? 'Checked In' : 'Mid-day Checked Out';
+  }, [todayAttendance, isCurrentlyCheckedIn]);
   const panelClass =
     'rounded-3xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#121c46_0%,#0b1431_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur';
   const tileClass =
@@ -123,18 +138,31 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const handleRequestCheckout = async () => {
     if (!todayAttendance?.checkIn || !todayAttendance?.id) { alert('Clock in first.'); return; }
     if (todayAttendance.checkOut) { alert('You already checked out today.'); return; }
+    if (!isCurrentlyCheckedIn) { alert('You must be checked in to request a mid-day checkout.'); return; }
     try {
       await requestClockOutApproval(user, todayAttendance, checkoutReason.trim());
-      alert('Approval request sent to gm@zayagroupltd.com. Enter approval code to clock out.');
+      alert('Approval request sent to gm@zayagroupltd.com. Enter the approval code to mid-day checkout.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unable to send approval email.');
+    }
+  };
+
+  const handleMidDayCheckout = async () => {
+    if (!todayAttendance?.checkIn || !todayAttendance?.id) { alert('Clock in first.'); return; }
+    try {
+      const next = await midDayClockOut(user, todayAttendance, approvalCode);
+      setTodayAttendance(next);
+      setApprovalCode('');
+      setCheckoutReason('');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Mid-day checkout failed.');
     }
   };
 
   const handleClockOut = async () => {
     if (!todayAttendance?.checkIn || !todayAttendance?.id) { alert('Clock in first.'); return; }
     try {
-      const next = await clockOut(user, todayAttendance, approvalCode);
+      const next = await clockOut(user, todayAttendance);
       setTodayAttendance(next);
       setApprovalCode('');
       setCheckoutReason('');
@@ -278,17 +306,20 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-6">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
-            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Clock out requires GM email authorization.</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Mid-day checkout requires GM email approval. End-of-day clock out does not.</p>
             <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-blue-200">
-              <p>Status: <span className="font-black text-slate-900 dark:text-white">{todayAttendance?.checkIn ? (todayAttendance.checkOut ? 'Checked Out' : 'Checked In') : 'Not Checked In'}</span></p>
+              <p>Status: <span className="font-black text-slate-900 dark:text-white">{statusLabel}</span></p>
               {todayAttendance?.checkIn && <p>Check-in: <span className="font-mono">{new Date(todayAttendance.checkIn).toLocaleTimeString('en-GB')}</span></p>}
               {todayAttendance?.checkOut && <p>Check-out: <span className="font-mono">{new Date(todayAttendance.checkOut).toLocaleTimeString('en-GB')}</span></p>}
+              {!todayAttendance?.checkOut && Array.isArray(todayAttendance?.segments) && todayAttendance.segments?.[todayAttendance.segments.length - 1]?.out && (
+                <p>Mid-day out: <span className="font-mono">{new Date(todayAttendance.segments[todayAttendance.segments.length - 1].out).toLocaleTimeString('en-GB')}</span></p>
+              )}
             </div>
 
             <div className="mt-5 space-y-2">
               <button
                 onClick={handleClockIn}
-                disabled={!!todayAttendance?.checkIn}
+                disabled={!!todayAttendance?.checkOut || isCurrentlyCheckedIn}
                 className="w-full py-3 rounded-xl bg-enterprise-blue text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
               >
                 Clock In
@@ -301,10 +332,10 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
               />
               <button
                 onClick={handleRequestCheckout}
-                disabled={!todayAttendance?.checkIn || !!todayAttendance?.checkOut}
+                disabled={!isCurrentlyCheckedIn}
                 className="w-full py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
               >
-                Request GM Approval
+                Request Mid-day Approval
               </button>
               <input
                 value={approvalCode}
@@ -313,11 +344,18 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
                 placeholder="Approval code"
               />
               <button
+                onClick={handleMidDayCheckout}
+                disabled={!isCurrentlyCheckedIn}
+                className="w-full py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+              >
+                Mid-day Checkout
+              </button>
+              <button
                 onClick={handleClockOut}
-                disabled={!todayAttendance?.checkIn || !!todayAttendance?.checkOut}
+                disabled={!isCurrentlyCheckedIn}
                 className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
               >
-                Clock Out
+                Clock Out (End of Day)
               </button>
             </div>
           </div>

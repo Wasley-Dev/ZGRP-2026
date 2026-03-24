@@ -78,6 +78,7 @@ export interface SystemUser {
   hasCompletedOrientation: boolean;
   role: UserRole;
   department: string;
+  jobTitle?: string;
   lastLogin: string;
   avatar?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
@@ -101,6 +102,7 @@ export interface AttendanceLog {
   date: string; // YYYY-MM-DD
   checkIn: string;
   checkOut?: string;
+  segments?: Array<{ in: string; out?: string }>;
 }
 
 export interface TeamMessage {

@@ -14,6 +14,7 @@ type PortalUserRow = {
   has_completed_orientation: boolean;
   role: string;
   department: string;
+  job_title?: string | null;
   avatar: string | null;
   last_login: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
@@ -31,6 +32,7 @@ const toUser = (row: PortalUserRow): SystemUser => ({
   hasCompletedOrientation: row.has_completed_orientation,
   role: row.role as SystemUser['role'],
   department: row.department,
+  jobTitle: row.job_title || undefined,
   avatar: row.avatar || undefined,
   lastLogin: row.last_login,
   status: row.status,
@@ -45,6 +47,7 @@ const toRow = (user: SystemUser): PortalUserRow => ({
   has_completed_orientation: user.hasCompletedOrientation ?? false,
   role: user.role,
   department: user.department,
+  job_title: user.jobTitle || null,
   avatar: user.avatar || null,
   last_login: user.lastLogin,
   status: user.status,
@@ -66,10 +69,18 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   if (!supabase) return;
 
   const rows = users.map(toRow);
-  const { error: upsertError } = await supabase.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
-  if (upsertError) {
-    console.error('Remote user upsert error:', upsertError);
+  const attempt = await supabase.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
+  if (!attempt.error) return;
+
+  // Backward compatibility: if the remote table doesn't have `job_title` yet, retry without it.
+  const message = String(attempt.error?.message || '');
+  if (!/job_title/i.test(message)) {
+    console.error('Remote user upsert error:', attempt.error);
+    return;
   }
+  const legacyRows = rows.map(({ job_title, ...rest }) => rest);
+  const retry = await supabase.from(TABLE_NAME).upsert(legacyRows as any, { onConflict: 'id' });
+  if (retry.error) console.error('Remote user upsert error (legacy retry):', retry.error);
 };
 
 export const removeRemoteUsers = async (ids: string[]): Promise<void> => {

@@ -90,6 +90,15 @@ const Settings: React.FC<SettingsProps> = ({
                       <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Work Department</label>
                       <input className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-blue-300/70 uppercase text-xs" disabled value={user.department} />
                    </div>
+                   <div className="col-span-2 md:col-span-1">
+                      <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Job Title</label>
+                      <input
+                        placeholder="e.g. Head of Department"
+                        className="w-full p-5 rounded-2xl border border-[#1e3a5f] bg-[#0a1628] font-bold text-white outline-none focus:ring-4 focus:ring-gold/10"
+                        value={user.jobTitle || ''}
+                        onChange={e => setUser((prev) => ({ ...prev, jobTitle: e.target.value }))}
+                      />
+                   </div>
                    <div className="col-span-2">
                       <label className="block text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">New Password (Optional)</label>
                       <input 

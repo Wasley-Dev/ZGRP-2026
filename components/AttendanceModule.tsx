@@ -7,6 +7,7 @@ import {
   requestClockOutApproval,
   clockIn,
   clockOut,
+  midDayClockOut,
   requestLeaveByEmail,
 } from '../services/employeeSystemService';
 import { hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
@@ -28,6 +29,21 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
   const [leaveEnd, setLeaveEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+
+  const isCurrentlyCheckedIn = useMemo(() => {
+    if (!today?.checkIn) return false;
+    if (today?.checkOut) return false;
+    const segments = Array.isArray(today?.segments) ? today.segments : [];
+    if (segments.length === 0) return true;
+    const last = segments[segments.length - 1];
+    return Boolean(last?.in && !last?.out);
+  }, [today]);
+
+  const statusLabel = useMemo(() => {
+    if (!today?.checkIn) return 'Not Checked In';
+    if (today?.checkOut) return 'Checked Out';
+    return isCurrentlyCheckedIn ? 'Checked In' : 'Mid-day Checked Out';
+  }, [today, isCurrentlyCheckedIn]);
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -137,18 +153,32 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
   const handleRequestCheckout = async () => {
     if (!today) { alert('Clock in first.'); return; }
     if (today.checkOut) { alert('You already checked out today.'); return; }
+    if (!isCurrentlyCheckedIn) { alert('You must be checked in to request a mid-day checkout.'); return; }
     try {
       await requestClockOutApproval(user, today, checkoutReason.trim());
-      alert('Authorization email sent to gm@zayagroupltd.com. Enter the approval code to clock out.');
+      alert('Authorization email sent to gm@zayagroupltd.com. Enter the approval code to mid-day checkout.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unable to send approval email.');
+    }
+  };
+
+  const handleMidDayCheckout = async () => {
+    if (!today) { alert('Clock in first.'); return; }
+    try {
+      const next = await midDayClockOut(user, today, approvalCode);
+      setToday(next);
+      setLogs((prev) => prev.map((l) => (l.id === next.id ? next : l)));
+      setApprovalCode('');
+      setCheckoutReason('');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Mid-day checkout failed.');
     }
   };
 
   const handleClockOut = async () => {
     if (!today) { alert('Clock in first.'); return; }
     try {
-      const next = await clockOut(user, today, approvalCode);
+      const next = await clockOut(user, today);
       setToday(next);
       setLogs((prev) => prev.map((l) => (l.id === next.id ? next : l)));
       setApprovalCode('');
@@ -182,7 +212,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance</h2>
-            <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Clock in once per day. Clock out once per check-in (requires GM approval).</p>
+            <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Clock in once per day. Mid-day checkout requires GM approval. End-of-day clock out does not.</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -221,7 +251,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
               <p className="text-slate-600 dark:text-blue-200">
                 Status:{' '}
                 <span className="font-black text-slate-900 dark:text-white">
-                  {today?.checkIn ? (today.checkOut ? 'Checked Out' : 'Checked In') : 'Not Checked In'}
+                  {statusLabel}
                 </span>
               </p>
               {today?.checkIn && (
@@ -234,12 +264,17 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
                   Check-out: <span className="font-mono">{new Date(today.checkOut).toLocaleTimeString('en-GB')}</span>
                 </p>
               )}
+              {!today?.checkOut && Array.isArray(today?.segments) && today.segments?.[today.segments.length - 1]?.out && (
+                <p className="text-slate-600 dark:text-blue-200">
+                  Mid-day out: <span className="font-mono">{new Date(today.segments[today.segments.length - 1].out).toLocaleTimeString('en-GB')}</span>
+                </p>
+              )}
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-2">
               <button
                 onClick={handleClockIn}
-                disabled={!!today?.checkIn}
+                disabled={!!today?.checkOut || isCurrentlyCheckedIn}
                 className="w-full py-3 rounded-xl bg-enterprise-blue text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
               >
                 Clock In
@@ -255,10 +290,10 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
                 />
                 <button
                   onClick={handleRequestCheckout}
-                  disabled={!today?.checkIn || !!today?.checkOut}
+                  disabled={!isCurrentlyCheckedIn}
                   className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                 >
-                  Request GM Approval (Email)
+                  Request Mid-day Approval (Email)
                 </button>
 
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60 mt-4 mb-2">Approval code</label>
@@ -269,11 +304,18 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
                   placeholder="Enter code from GM email"
                 />
                 <button
+                  onClick={handleMidDayCheckout}
+                  disabled={!isCurrentlyCheckedIn}
+                  className="w-full mt-3 py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                >
+                  Mid-day Checkout
+                </button>
+                <button
                   onClick={handleClockOut}
-                  disabled={!today?.checkIn || !!today?.checkOut}
+                  disabled={!isCurrentlyCheckedIn}
                   className="w-full mt-3 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                 >
-                  Clock Out
+                  Clock Out (End of Day)
                 </button>
               </div>
             </div>
