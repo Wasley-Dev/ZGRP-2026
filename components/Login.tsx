@@ -85,7 +85,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const renderLogo = (sizeClass: string) => {
     const logoSource = isCustomLogoSource(systemConfig.logoIcon) ? systemConfig.logoIcon : ZAYA_LOGO_SRC;
     if (logoSource) {
-      return <img src={logoSource} alt="Zaya Group logo" loading="eager" decoding="async" className={`${sizeClass} object-contain`} />;
+      return <img src={logoSource} alt="System logo" loading="eager" decoding="async" className={`${sizeClass} object-contain`} />;
     }
     return <i className={`fas ${systemConfig.logoIcon} text-gold ${sizeClass.includes('text-') ? sizeClass : 'text-4xl'}`}></i>;
   };
@@ -110,19 +110,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                     {renderLogo('h-10 w-10')}
                   </div>
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.35em] text-[#003366]">Executive Access</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.35em] text-[#003366]">Employee Access</p>
                     <p className="mt-1 text-sm font-black tracking-tight text-[#003366] md:text-base">{systemConfig.systemName}</p>
                   </div>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#003366]/10 bg-white/80 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-[#8a6a12] shadow-sm">
                   <i className="fas fa-landmark"></i>
-                  Boardroom-grade workspace
+                  Secure workspace
                 </div>
                 <h2 className="mt-4 max-w-md text-[2rem] font-black leading-[1.05] tracking-tight text-[#003366] md:text-[2.65rem]">
-                  Secure access for executive operations.
+                  Secure access for daily operations.
                 </h2>
                 <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600 md:text-[15px]">
-                  Sign in to manage recruitment, travel, training, and business operations from one controlled environment.
+                  Sign in to submit daily reports, manage attendance, collaborate in chat, and track performance in one secure system.
                 </p>
               </div>
 

@@ -107,7 +107,46 @@ const shouldQuickDismiss = (n: Notification): boolean => {
 };
 
 const App: React.FC = () => {
-  const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
+  const fnv1a = (hash: number, value: string) => {
+    let h = hash;
+    for (let i = 0; i < value.length; i += 1) {
+      h ^= value.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+
+  const hashList = <T extends Record<string, unknown>>(items: T[], keys: (keyof T)[]) => {
+    let h = 2166136261;
+    for (const item of items) {
+      for (const key of keys) {
+        const v = item[key];
+        h = fnv1a(h, v === null || v === undefined ? '' : String(v));
+        h = fnv1a(h, '|');
+      }
+      h = fnv1a(h, '∎');
+    }
+    return h >>> 0;
+  };
+
+  const hashBookings = (items: BookingEntry[]) =>
+    hashList(items as unknown as Record<string, unknown>[], ['id', 'date', 'time', 'purpose', 'createdAt'] as any);
+  const hashCandidates = (items: Candidate[]) =>
+    hashList(items as unknown as Record<string, unknown>[], ['id', 'status', 'createdAt'] as any);
+  const hashUsers = (items: SystemUser[]) =>
+    hashList(items as unknown as Record<string, unknown>[], ['id', 'email', 'role', 'status', 'lastLogin'] as any);
+  const hashSessions = (items: MachineSession[]) =>
+    hashList(items as unknown as Record<string, unknown>[], ['id', 'userId', 'status', 'isOnline', 'lastSeenAt'] as any);
+  const hashConfig = (value: SystemConfig | null | undefined) => {
+    if (!value) return 0;
+    let h = 2166136261;
+    h = fnv1a(h, String(value.systemName || ''));
+    h = fnv1a(h, String(value.logoIcon || ''));
+    h = fnv1a(h, String(value.maintenanceMode ? '1' : '0'));
+    h = fnv1a(h, String(value.maintenanceMessage || ''));
+    h = fnv1a(h, String(value.backupHour ?? ''));
+    return h >>> 0;
+  };
   const rememberAttemptedRef = useRef(false);
 
   const sha256Hex = async (value: string): Promise<string> => {
@@ -227,6 +266,11 @@ const App: React.FC = () => {
   const isRevokedRef = useRef(false);
   const maintenanceNotifiedRef = useRef(false);
   const sessionDigestRef = useRef<Record<string, { status: string; isOnline: boolean; userName: string }>>({});
+  const bookingsHashRef = useRef(0);
+  const candidatesHashRef = useRef(0);
+  const usersHashRef = useRef(0);
+  const configHashRef = useRef(0);
+  const sessionsHashRef = useRef(0);
   // Track notification auto-dismiss timers so we can cancel them if manually dismissed
   const dismissTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const initialUsers = useMemo(() => normalizeUsers(initialSharedState.users), [initialSharedState.users]);
@@ -506,6 +550,11 @@ const App: React.FC = () => {
   useEffect(() => {
     bookingsRef.current = bookings; candidatesRef.current = candidates;
     usersRef.current = allUsers; configRef.current = systemConfig; sessionsRef.current = activeSessions;
+    bookingsHashRef.current = hashBookings(bookings);
+    candidatesHashRef.current = hashCandidates(candidates);
+    usersHashRef.current = hashUsers(allUsers);
+    configHashRef.current = hashConfig(systemConfig);
+    sessionsHashRef.current = hashSessions(activeSessions);
   }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
 
   useEffect(() => {
@@ -563,9 +612,12 @@ const App: React.FC = () => {
     const hydrateRemoteData = async () => {
       const [remoteBookings, remoteCandidates, remoteConfig] = await Promise.all([fetchRemoteBookings(), fetchRemoteCandidates(), fetchRemoteSystemConfig()]);
       if (cancelled) return;
-      setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
-      setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
-      if (remoteConfig) setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
+      const remoteBookingsHash = hashBookings(remoteBookings);
+      const remoteCandidatesHash = hashCandidates(remoteCandidates);
+      const remoteConfigHash = hashConfig(remoteConfig);
+      if (remoteBookingsHash !== bookingsHashRef.current) setBookings(remoteBookings);
+      if (remoteCandidatesHash !== candidatesHashRef.current) setCandidates(remoteCandidates);
+      if (remoteConfig && remoteConfigHash !== configHashRef.current) setSystemConfig(remoteConfig);
     };
     hydrateRemoteData();
     return () => { cancelled = true; };
@@ -581,28 +633,37 @@ const App: React.FC = () => {
         hasRemoteSessionStore() ? fetchActiveSessions() : Promise.resolve([]),
       ]);
       if (stopped) return;
-      const hadBookingChange = !isSame(bookingsRef.current, remoteBookings);
-      const hadCandidateChange = !isSame(candidatesRef.current, remoteCandidates);
-      setBookings((prev) => (isSame(prev, remoteBookings) ? prev : remoteBookings));
-      setCandidates((prev) => (isSame(prev, remoteCandidates) ? prev : remoteCandidates));
-      if (hadBookingChange) pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${remoteBookings.length} entries).`, 'INFO', 'booking', 60000);
-      if (hadCandidateChange) pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${remoteCandidates.length} records).`, 'INFO', 'database', 120000);
+      const remoteBookingsHash = hashBookings(remoteBookings);
+      const remoteCandidatesHash = hashCandidates(remoteCandidates);
+      const hadBookingChange = remoteBookingsHash !== bookingsHashRef.current;
+      const hadCandidateChange = remoteCandidatesHash !== candidatesHashRef.current;
+      if (hadBookingChange) { setBookings(remoteBookings); pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${remoteBookings.length} entries).`, 'INFO', 'booking', 60000); }
+      if (hadCandidateChange) { setCandidates(remoteCandidates); pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${remoteCandidates.length} records).`, 'INFO', 'database', 120000); }
       if (remoteUsers.length > 0) {
         const normalized = normalizeUsers(remoteUsers);
-        const hadUserChange = !isSame(usersRef.current, normalized);
-        setAllUsers((prev) => (isSame(prev, normalized) ? prev : normalized));
-        setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
-        if (hadUserChange) pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
+        const remoteUsersHash = hashUsers(normalized);
+        const hadUserChange = remoteUsersHash !== usersHashRef.current;
+        if (hadUserChange) {
+          setAllUsers(normalized);
+          setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
+          pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
+        }
       }
       if (remoteConfig) {
-        const hadConfigChange = !isSame(configRef.current, remoteConfig);
-        setSystemConfig((prev) => (isSame(prev, remoteConfig) ? prev : remoteConfig));
-        if (hadConfigChange) pushNotificationDeduped('sync-config', 'System Policy Sync', 'Maintenance or recovery settings changed and were synced.', 'WARNING', 'recovery', 120000);
+        const remoteConfigHash = hashConfig(remoteConfig);
+        const hadConfigChange = remoteConfigHash !== configHashRef.current;
+        if (hadConfigChange) {
+          setSystemConfig(remoteConfig);
+          pushNotificationDeduped('sync-config', 'System Policy Sync', 'Maintenance or recovery settings changed and were synced.', 'WARNING', 'recovery', 120000);
+        }
       }
       if (sessions.length) {
-        const hadSessionChange = !isSame(sessionsRef.current, sessions);
-        setActiveSessions((prev) => (isSame(prev, sessions) ? prev : sessions));
-        if (hadSessionChange) pushNotificationDeduped('sync-sessions', 'Machine Presence Updated', 'Active machine/session list changed in real time.', 'INFO', 'machines', 60000);
+        const remoteSessionsHash = hashSessions(sessions);
+        const hadSessionChange = remoteSessionsHash !== sessionsHashRef.current;
+        if (hadSessionChange) {
+          setActiveSessions(sessions);
+          pushNotificationDeduped('sync-sessions', 'Machine Presence Updated', 'Active machine/session list changed in real time.', 'INFO', 'machines', 60000);
+        }
       }
     };
     syncFromRemote();
@@ -960,7 +1021,7 @@ const App: React.FC = () => {
         <div className="mb-10 flex h-44 w-44 items-center justify-center rounded-[2rem] bg-white/96 p-4 shadow-[0_28px_80px_rgba(0,0,0,0.35)] ring-1 ring-white/30 backdrop-blur-sm">
           <img
             src={ZAYA_LOGO_SRC}
-            alt="Zaya Group logo"
+            alt="System logo"
             className="h-full w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
           />
         </div>
@@ -1175,7 +1236,7 @@ const App: React.FC = () => {
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="flex w-full max-w-md flex-col items-center rounded-[2rem] border border-gold/20 bg-white/80 p-8 text-center shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-blue-400/20 dark:bg-[#0f1a2e]/90">
         <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-[1.5rem] bg-white p-3 shadow-lg dark:bg-[#081024]">
-          <img src={ZAYA_LOGO_SRC} alt="Zaya Group logo" className="h-full w-full object-contain" />
+          <img src={ZAYA_LOGO_SRC} alt="System logo" className="h-full w-full object-contain" />
         </div>
         <p className="text-[11px] font-black uppercase tracking-[0.34em] text-gold">Loading Module</p>
         <p className="mt-3 text-sm font-medium text-slate-600 dark:text-blue-100/75">Preparing the workspace without blocking the rest of the portal.</p>
@@ -1215,8 +1276,8 @@ const App: React.FC = () => {
               if (action.type === 'PRINT_PAGE') { window.print(); return; }
               if (action.type === 'SHARE') {
                 const url = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
-                const shareText = `ZAYA Recruitment Portal: ${url}`;
-                if (navigator.share) { navigator.share({ title: 'ZAYA Recruitment Portal', text: shareText, url }).catch(() => { navigator.clipboard?.writeText(shareText); }); }
+                const shareText = `${systemConfig.systemName}: ${url}`;
+                if (navigator.share) { navigator.share({ title: systemConfig.systemName, text: shareText, url }).catch(() => { navigator.clipboard?.writeText(shareText); }); }
                 else { navigator.clipboard?.writeText(shareText); }
                 pushNotification('AI Share Action', 'Portal link prepared for sharing.', 'SUCCESS', 'dashboard');
                 return;

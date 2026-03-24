@@ -1,6 +1,6 @@
 {
-  "name": "Remix: ZAYA Group Recruitment Portal 2026 (ZGRP)",
-  "description": "2026 Enterprise-grade recruitment ERP platform featuring modular architecture, machine authorization, AI orientation, and advanced analytics.",
+  "name": "Employee Reporting & Performance Management System (ZGRP)",
+  "description": "Employee reporting and performance management system featuring attendance tracking, team chat, notices, tasks, payroll, machine authorization, and AI orientation.",
   "requestFramePermissions": [
     "camera"
   ]

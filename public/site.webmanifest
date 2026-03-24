@@ -1,7 +1,7 @@
 {
-  "name": "ZAYA Group Recruitment Portal",
-  "short_name": "ZAYA Portal",
-  "description": "ZAYA Recruitment and operations portal.",
+  "name": "Employee Reporting & Performance Management System",
+  "short_name": "ERPM System",
+  "description": "Employee reporting, attendance, performance management, and payroll workspace.",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

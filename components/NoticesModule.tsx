@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { Notice, SystemUser, UserRole } from '../types';
+import { UserRole, type Notice, type SystemUser } from '../types';
 import { createNotice, fetchNotices, hasEmployeeSupabase, subscribeToTableInserts } from '../services/employeeSystemService';
 
 interface NoticesModuleProps {
@@ -121,4 +121,3 @@ const NoticesModule: React.FC<NoticesModuleProps> = ({ user }) => {
 };
 
 export default NoticesModule;
-

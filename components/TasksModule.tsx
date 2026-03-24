@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { SystemUser, TaskItem, UserRole } from '../types';
+import { UserRole, type SystemUser, type TaskItem } from '../types';
 import { createTask, fetchTasks, hasEmployeeSupabase, setTaskStatus, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface TasksModuleProps {

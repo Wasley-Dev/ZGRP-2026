@@ -36,15 +36,15 @@ const OrientationAI: React.FC<{
   }, []);
 
   const steps = [
-    { title: "Dashboard Overview", icon: "fa-chart-line", content: "Your command center. Real-time KPIs for Total Candidates, Training, and Deployment live here. Click any KPI to navigate instantly." },
-    { title: "Candidates Registry", icon: "fa-users", content: "Manage the database. Use the 'Add Candidate' button to start. Import/Export CSV, generate dossiers, and track document compliance." },
-    { title: "Recruitment Hub", icon: "fa-briefcase", content: "Visualize your hiring funnel. Identify bottlenecks in the recruitment stages using deep analytics and forecasting." },
-    { title: "Security & Machine Auth", icon: "fa-shield-alt", content: "Control every device. Monitor authorized IPs and revoke access instantly if suspicious activity is detected." }
+    { title: "Dashboard Overview", icon: "fa-chart-line", content: "Your command center. See quick stats for reports, attendance, and reviews. Use Quick Actions to jump to key workflows." },
+    { title: "Daily Reports", icon: "fa-pen-nib", content: "Create write-once daily reports for audit-friendly tracking. Reports cannot be edited after submission." },
+    { title: "Attendance", icon: "fa-clock", content: "Clock in/out and review attendance logs. Midday checkout requires email approval to management." },
+    { title: "Security & Machine Auth", icon: "fa-shield-alt", content: "Control every device. Monitor machine presence and session activity across devices." }
   ];
 
   useEffect(() => {
     if (messages.length === 0) {
-      const greeting = `Salutations, ${user.name}. I am Zaya AI, your enterprise recruitment assistant. I've detected this is your first session today. How may I help you navigate the portal?`;
+      const greeting = `Salutations, ${user.name}. I am Zaya AI, your enterprise assistant. I've detected this is your first session today. How may I help you navigate the system?`;
       setMessages([{ role: 'ai', text: greeting }]);
     }
   }, [user]);

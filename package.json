@@ -1,9 +1,9 @@
 {
   "name": "zaya-group-recruitment-portal-2026",
-  "description": "ZAYA Recruitment Portal desktop software",
+  "description": "Employee Reporting & Performance Management System desktop software",
   "author": "WIS & Asya",
   "private": true,
-  "version": "0.1.21",
+  "version": "0.1.22",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -42,7 +42,7 @@
   },
   "build": {
     "appId": "com.zayagroup.recruitmentportal",
-    "productName": "ZAYA Recruitment Portal",
+    "productName": "Employee Reporting & Performance Management System",
     "asar": true,
     "icon": "assets/app-icon.png",
     "extraMetadata": {
@@ -75,21 +75,21 @@
         "nsis"
       ],
       "signAndEditExecutable": false,
-      "artifactName": "ZAYA-Recruitment-Portal-Setup-${version}.${ext}"
+      "artifactName": "Employee-Reporting-Performance-Management-System-Setup-${version}.${ext}"
     },
     "mac": {
       "icon": "assets/macos-setup.png",
       "target": [
         "dmg"
       ],
-      "artifactName": "ZAYA-Recruitment-Portal-${version}-mac.${ext}"
+      "artifactName": "Employee-Reporting-Performance-Management-System-${version}-mac.${ext}"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "artifactName": "ZAYA-Recruitment-Portal-${version}-linux.${ext}"
+      "artifactName": "Employee-Reporting-Performance-Management-System-${version}-linux.${ext}"
     },
     "nsis": {
       "include": "build/nsis-installer.nsh",

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { PayrollRecord, PayslipRecord, SystemUser, UserRole } from '../types';
+import { UserRole, type PayrollRecord, type PayslipRecord, type SystemUser } from '../types';
 import { fetchPayrollDashboard, fetchPayslipByPayrollId, hasEmployeeSupabase, processPayroll, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface PayrollModuleProps {

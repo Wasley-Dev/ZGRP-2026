@@ -153,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({
   const renderSystemLogo = (sizeClass: string) => {
     const logoSource = isCustomLogoSource(systemConfig.logoIcon) ? systemConfig.logoIcon : ZAYA_LOGO_SRC;
     if (logoSource) {
-      return <img src={logoSource} alt="Zaya Group logo" className={`${sizeClass} object-contain`} />;
+      return <img src={logoSource} alt="System logo" className={`${sizeClass} object-contain`} />;
     }
     return <i className={`fas ${systemConfig.logoIcon} text-gold text-lg`}></i>;
   };
