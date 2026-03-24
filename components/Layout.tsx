@@ -105,12 +105,22 @@ const Layout: React.FC<LayoutProps> = ({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
+
+    // Employee reporting & performance
     { id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' },
     { id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' },
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
     { id: 'notices', label: 'Notices', icon: 'fa-bell' },
     { id: 'tasks', label: 'Tasks', icon: 'fa-list' },
     { id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' },
+
+    // Existing modules (kept from previous system)
+    { id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' },
+    { id: 'database', label: 'Candidates Registry', icon: 'fa-users' },
+    { id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' },
+    { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
+    { id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' },
+
     { id: 'settings', label: 'Settings', icon: 'fa-cog' },
   ];
 
