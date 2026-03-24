@@ -1,16 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { SystemConfig } from '../types';
 import { DEFAULT_LOGIN_SHOWCASES } from './loginShowcaseDefaults';
 import { ZAYA_LOGO_SRC, isCustomLogoSource } from '../brand';
 
 interface LoginProps {
-  onLogin: (email: string, password: string) => Promise<string | null>;
+  onLogin: (email: string, password: string, rememberMe: boolean) => Promise<string | null>;
   systemConfig: SystemConfig;
 }
+
+const REMEMBER_ENABLED_KEY = 'zaya_remember_me_enabled_v1';
+const REMEMBER_EMAIL_KEY = 'zaya_remember_me_email_v1';
+const REMEMBER_AUTH_KEY = 'zaya_remembered_auth_v1';
 
 const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -44,12 +49,34 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
     []
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const rememberedEmail = window.localStorage.getItem(REMEMBER_EMAIL_KEY);
+      const enabled = window.localStorage.getItem(REMEMBER_ENABLED_KEY) === '1';
+      if (rememberedEmail && !email) setEmail(rememberedEmail);
+      setRememberMe(enabled);
+    } catch {
+      // Ignore storage failures (private mode / restricted storage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
     setTimeout(async () => {
-      const loginError = await onLogin(email, password);
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
+          window.localStorage.setItem(REMEMBER_ENABLED_KEY, rememberMe ? '1' : '0');
+          if (!rememberMe) window.localStorage.removeItem(REMEMBER_AUTH_KEY);
+        }
+      } catch {
+        // Ignore storage failures
+      }
+      const loginError = await onLogin(email, password, rememberMe);
       if (loginError) setError(loginError);
       setIsLoading(false);
     }, 250);
@@ -137,7 +164,23 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
 
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <label className="flex items-center gap-2 text-[#003366]/75">
-                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-[#003366] focus:ring-[#003366]" />
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setRememberMe(next);
+                        try {
+                          if (typeof window !== 'undefined') {
+                            window.localStorage.setItem(REMEMBER_ENABLED_KEY, next ? '1' : '0');
+                            if (!next) window.localStorage.removeItem(REMEMBER_AUTH_KEY);
+                          }
+                        } catch {
+                          // Ignore storage failures
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-[#003366] focus:ring-[#003366]"
+                    />
                     <span>Remember me</span>
                   </label>
                   <span className="font-semibold text-gold">Password support</span>

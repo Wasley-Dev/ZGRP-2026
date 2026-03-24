@@ -43,12 +43,26 @@ const OrientationAI = React.lazy(() => import('./components/OrientationAI'));
 const MachineAuth = React.lazy(() => import('./components/MachineAuth'));
 const Settings = React.lazy(() => import('./components/Settings'));
 const AdminConsole = React.lazy(() => import('./components/AdminConsole'));
+const DailyReports = React.lazy(() => import('./components/DailyReports'));
+const AttendanceModule = React.lazy(() => import('./components/AttendanceModule'));
+const TeamChat = React.lazy(() => import('./components/TeamChat'));
+const NoticesModule = React.lazy(() => import('./components/NoticesModule'));
+const TasksModule = React.lazy(() => import('./components/TasksModule'));
+const PayrollModule = React.lazy(() => import('./components/PayrollModule'));
 const RecruitmentHub = React.lazy(() => import('./components/RecruitmentHub'));
 const BookingModule = React.lazy(() => import('./components/BookingModule'));
 const BroadcastModule = React.lazy(() => import('./components/BroadcastModule'));
 const SystemRecovery = React.lazy(() => import('./components/SystemRecovery'));
 
 const INSTALL_ORIENTATION_KEY = 'zaya_install_orientation_seen_v1';
+const REMEMBER_AUTH_KEY = 'zaya_remembered_auth_v1';
+
+type RememberedAuth = {
+  userId: string;
+  email: string;
+  passwordDigest: string;
+  savedAt: number;
+};
 const GENERATED_NAME_POOL = [
   'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
   'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
@@ -94,6 +108,37 @@ const shouldQuickDismiss = (n: Notification): boolean => {
 
 const App: React.FC = () => {
   const isSame = <T,>(left: T, right: T) => JSON.stringify(left) === JSON.stringify(right);
+  const rememberAttemptedRef = useRef(false);
+
+  const sha256Hex = async (value: string): Promise<string> => {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return value;
+    const bytes = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const readRememberedAuth = (): RememberedAuth | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(REMEMBER_AUTH_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<RememberedAuth>;
+      if (!parsed || typeof parsed !== 'object') return null;
+      if (!parsed.userId || !parsed.email || !parsed.passwordDigest || typeof parsed.savedAt !== 'number') return null;
+      return parsed as RememberedAuth;
+    } catch {
+      return null;
+    }
+  };
+
+  const clearRememberedAuth = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.removeItem(REMEMBER_AUTH_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   const buildGeneratedCandidate = (index: number): Candidate => {
     const id = `ZGL-CN-2026-${String(index + 1).padStart(5, '0')}`;
@@ -158,7 +203,7 @@ const App: React.FC = () => {
     () => loadSharedState({
       bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
       systemConfig: {
-        systemName: 'ZAYA Group Recruitment Portal',
+        systemName: 'Employee Reporting & Performance Management System',
         logoIcon: 'fa-z',
         loginHeroImages: [],
         maintenanceMode: false,
@@ -380,7 +425,7 @@ const App: React.FC = () => {
   };
 
   const validModules = useMemo(
-    () => new Set(['dashboard', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
+    () => new Set(['dashboard', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
     []
   );
 
@@ -423,7 +468,7 @@ const App: React.FC = () => {
   }, [backgroundImageUrl]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => { if (hasRemoteSessionStore() && isLoggedIn) markSessionOffline(sessionIdRef.current); };
+    const handleBeforeUnload = () => { if (isLoggedIn) markSessionOffline(sessionIdRef.current); };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isLoggedIn]);
@@ -565,7 +610,68 @@ const App: React.FC = () => {
     return () => { stopped = true; window.clearInterval(id); };
   }, [isLoggedIn, isOnline]);
 
-  useEffect(() => { setIsLoggedIn(false); }, []);
+  useEffect(() => {
+    if (rememberAttemptedRef.current) return;
+    if (isLoggedIn) { rememberAttemptedRef.current = true; return; }
+    const remembered = readRememberedAuth();
+    if (!remembered) { rememberAttemptedRef.current = true; return; }
+    rememberAttemptedRef.current = true;
+
+    const restore = async () => {
+      const normalizedEmail = remembered.email.trim().toLowerCase();
+      let userDirectory = allUsers;
+      let matched =
+        userDirectory.find((u) => u.id === remembered.userId) ||
+        userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
+
+      if (!matched && hasRemoteUserDirectory()) {
+        const remoteUsers = normalizeUsers(await fetchRemoteUsers());
+        if (remoteUsers.length > 0) {
+          userDirectory = remoteUsers;
+          setAllUsers(remoteUsers);
+          matched =
+            remoteUsers.find((u) => u.id === remembered.userId) ||
+            remoteUsers.find((u) => u.email.toLowerCase() === normalizedEmail);
+        }
+      }
+
+      if (!matched) { clearRememberedAuth(); return; }
+      if (matched.status === 'BANNED') { clearRememberedAuth(); return; }
+
+      try {
+        const digest = await sha256Hex(matched.password);
+        if (digest !== remembered.passwordDigest) { clearRememberedAuth(); return; }
+      } catch {
+        clearRememberedAuth();
+        return;
+      }
+
+      const systemMode = getSystemMode(systemConfig);
+      if (systemMode === 'SAFE' && matched.role === UserRole.USER) { clearRememberedAuth(); return; }
+      if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) { clearRememberedAuth(); return; }
+
+      const updatedUser = { ...matched, lastLogin: new Date().toISOString() };
+      setAllUsers(userDirectory.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+      setCurrentUser(updatedUser);
+      isRevokedRef.current = false;
+      setIsLoggedIn(true);
+      setActiveModule('dashboard');
+      const installSeenNow = typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
+      setHasSeenInstallOrientation(installSeenNow);
+      const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
+      setShowOrientation(shouldShowOrientation);
+
+      pushNotification('Session Restored', `${updatedUser.name} was remembered on this machine.`, 'SUCCESS', 'machines-login');
+      try {
+        await upsertSessionHeartbeat(sessionIdRef.current, updatedUser);
+        await enforceSingleSessionPerUser(updatedUser.id, sessionIdRef.current);
+      } catch (err) {
+        console.warn('Session heartbeat sync failed; continuing in local mode.', err);
+      }
+    };
+
+    void restore();
+  }, [allUsers, isLoggedIn, systemConfig]);
 
   useEffect(() => {
     const syncClient = new RealtimeSyncClient({
@@ -623,7 +729,7 @@ const App: React.FC = () => {
   }, [isOnline, bookings, candidates, allUsers, systemConfig]);
 
   useEffect(() => {
-    if (!isLoggedIn || !hasRemoteSessionStore()) return;
+    if (!isLoggedIn) return;
     let stopped = false;
     const heartbeat = async () => {
       if (stopped) return;
@@ -690,7 +796,7 @@ const App: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [isLoggedIn, systemConfig.backupHour]);
 
-  const handleLogin = async (email: string, password: string): Promise<string | null> => {
+  const handleLogin = async (email: string, password: string, rememberMe: boolean): Promise<string | null> => {
     const normalizedEmail = email.trim().toLowerCase();
     let userDirectory = allUsers;
     let matched = userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
@@ -716,9 +822,29 @@ const App: React.FC = () => {
     setShowOrientation(shouldShowOrientation);
     // Login notification uses 'machines-login' origin → auto-dismissed in 3s
     pushNotification('Login Success', `${updatedUser.name} signed in from this machine.`, 'SUCCESS', 'machines-login');
-    if (hasRemoteSessionStore()) {
+    try {
       await upsertSessionHeartbeat(sessionIdRef.current, updatedUser);
       await enforceSingleSessionPerUser(updatedUser.id, sessionIdRef.current);
+    } catch (err) {
+      console.warn('Session heartbeat sync failed; continuing in local mode.', err);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        if (rememberMe) {
+          const passwordDigest = await sha256Hex(password);
+          const payload: RememberedAuth = {
+            userId: updatedUser.id,
+            email: updatedUser.email,
+            passwordDigest,
+            savedAt: Date.now(),
+          };
+          window.localStorage.setItem(REMEMBER_AUTH_KEY, JSON.stringify(payload));
+        } else {
+          clearRememberedAuth();
+        }
+      } catch {
+        // Ignore storage/digest failures; login still succeeds.
+      }
     }
     return null;
   };
@@ -729,7 +855,8 @@ const App: React.FC = () => {
     setIsLoggedIn(false);
     isRevokedRef.current = false;
     setChatMessages([]);
-    if (hasRemoteSessionStore()) markSessionOffline(sessionIdRef.current);
+    clearRememberedAuth();
+    markSessionOffline(sessionIdRef.current);
   };
 
   const toggleTheme = () => {
@@ -874,6 +1001,18 @@ const App: React.FC = () => {
     switch (activeModule) {
       case 'dashboard':
         return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
+      case 'dailyReports':
+        return <DailyReports user={currentUser} isAdmin={currentUser.role !== UserRole.USER} users={allUsers} />;
+      case 'attendance':
+        return <AttendanceModule user={currentUser} isAdmin={currentUser.role !== UserRole.USER} users={allUsers} onNavigate={setActiveModule} />;
+      case 'chat':
+        return <TeamChat user={currentUser} users={allUsers} />;
+      case 'notices':
+        return <NoticesModule user={currentUser} />;
+      case 'tasks':
+        return <TasksModule user={currentUser} users={allUsers} />;
+      case 'payroll':
+        return <PayrollModule user={currentUser} users={allUsers} />;
       case 'candidates':
       case 'database':
         return <CandidateRegistry candidates={candidates} onAdd={addCandidate} onDelete={deleteCandidate} onUpdate={updateCandidate} mode={activeModule as any} />;

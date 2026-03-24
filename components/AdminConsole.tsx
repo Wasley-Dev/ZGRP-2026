@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SystemUser, UserRole, SystemConfig } from '../types';
+import { ZAYA_LOGO_SRC } from '../brand';
 
 interface AdminProps {
   users: SystemUser[];
@@ -40,6 +41,19 @@ const AdminConsole: React.FC<AdminProps> = ({
   const isSuperAdmin = (user: SystemUser) =>
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
   const canManageLoginExperience = isSuperAdmin(currentUser);
+
+  const getDisplayUser = (user: SystemUser): SystemUser => {
+    if (!isSuperAdmin(user)) return user;
+    return {
+      ...user,
+      name: 'Anonymous User',
+      role: UserRole.USER,
+      avatar: ZAYA_LOGO_SRC,
+      email: '',
+      phone: undefined,
+      department: 'General',
+    };
+  };
 
   useEffect(() => {
     setLocalSystemName(systemConfig.systemName);
@@ -254,22 +268,26 @@ const AdminConsole: React.FC<AdminProps> = ({
           <div className="p-8 space-y-4">
             {users.map((u) => {
               const locked = isSuperAdmin(u) || u.id === currentUser.id;
+              const display = getDisplayUser(u);
+              const protectedAccount = isSuperAdmin(u);
               return (
                 <div
                   key={u.id}
                   className="p-5 bg-slate-50 dark:bg-slate-900/50 border dark:border-slate-700 rounded-2xl space-y-4"
                 >
                   <div className="flex items-center gap-5">
-                    <img src={u.avatar} className="w-12 h-12 rounded-full border-2 border-gold shadow-md" alt="" />
+                    <img src={display.avatar || ZAYA_LOGO_SRC} className="w-12 h-12 rounded-full border-2 border-gold shadow-md object-cover" alt="" />
                     <div className="flex-1">
-                      <p className="text-sm font-black dark:text-white uppercase leading-tight">{u.name}</p>
+                      <p className="text-sm font-black dark:text-white uppercase leading-tight">{display.name}</p>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                        {u.role} • {u.department} • {u.status}
+                        {display.role} • {display.department} • {display.status}{protectedAccount ? ' • PROTECTED' : ''}
                       </p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                        {u.email}
-                      </p>
-                      {u.phone && (
+                      {!protectedAccount && (
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                          {u.email}
+                        </p>
+                      )}
+                      {!protectedAccount && u.phone && (
                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1">
                           {u.phone}
                         </p>
@@ -300,8 +318,9 @@ const AdminConsole: React.FC<AdminProps> = ({
                       Delete User
                     </button>
                     <button
+                      disabled={locked}
                       onClick={() => sendCredentialSms(u)}
-                      className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-300 text-emerald-600"
+                      className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border border-emerald-300 text-emerald-600 disabled:opacity-40"
                     >
                       Send Credentials SMS
                     </button>

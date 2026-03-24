@@ -4,9 +4,13 @@ import { MachineSession, SystemUser } from '../types';
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 const TABLE_NAME = 'portal_sessions';
+const LOCAL_SESSIONS_KEY = 'zaya_local_sessions_v1';
 
 const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+const useLocalSessionStore = () =>
+  !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false);
 
 type SessionRow = {
   id: string;
@@ -64,6 +68,27 @@ const toRow = (session: MachineSession): SessionRow => ({
 
 const nowIso = () => new Date().toISOString();
 
+const readLocalSessions = (): SessionRow[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_SESSIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SessionRow[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeLocalSessions = (sessions: SessionRow[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(sessions));
+  } catch {
+    // ignore
+  }
+};
+
 const getMachineName = () => {
   const host = typeof window !== 'undefined' ? window.location.hostname : '';
   const platform = typeof navigator !== 'undefined' ? navigator.platform : 'Unknown OS';
@@ -82,6 +107,7 @@ const getOsName = () => {
 
 const fetchPublicIp = async (): Promise<string> => {
   try {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'Offline';
     const response = await fetch('https://api.ipify.org?format=json');
     if (!response.ok) return 'Unavailable';
     const payload = (await response.json()) as { ip?: string };
@@ -93,6 +119,7 @@ const fetchPublicIp = async (): Promise<string> => {
 
 const fetchGeoFromIp = async (): Promise<{ latitude?: number; longitude?: number; locationLabel?: string }> => {
   try {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return {};
     const response = await fetch('https://ipapi.co/json/');
     if (!response.ok) return {};
     const payload = (await response.json()) as {
@@ -148,7 +175,27 @@ export const upsertSessionHeartbeat = async (
   user: SystemUser,
   forceStatus?: MachineSession['status']
 ) => {
-  if (!supabase) return;
+  if (useLocalSessionStore()) {
+    const session: MachineSession = {
+      id: sessionId,
+      userId: user.id,
+      userName: user.name,
+      email: user.email,
+      machineName: getMachineName(),
+      os: getOsName(),
+      ip: typeof navigator !== 'undefined' && navigator.onLine === false ? 'Offline' : 'Unavailable',
+      lastSeenAt: nowIso(),
+      isOnline: (forceStatus || 'ACTIVE') === 'ACTIVE',
+      status: forceStatus || 'ACTIVE',
+      forceLogoutReason: undefined,
+      forcedOutAt: undefined,
+    };
+    const rows = readLocalSessions();
+    const next = rows.filter((r) => r.id !== sessionId);
+    next.unshift(toRow(session));
+    writeLocalSessions(next.slice(0, 100));
+    return;
+  }
   const [ip, browserGeo, ipGeo] = await Promise.all([fetchPublicIp(), fetchBrowserGeo(), fetchGeoFromIp()]);
   const { data: existing } = await supabase
     .from(TABLE_NAME)
@@ -179,7 +226,14 @@ export const upsertSessionHeartbeat = async (
 };
 
 export const markSessionOffline = async (sessionId: string) => {
-  if (!supabase) return;
+  if (useLocalSessionStore()) {
+    const rows = readLocalSessions();
+    const next = rows.map((r) =>
+      r.id === sessionId ? { ...r, is_online: false, last_seen_at: nowIso() } : r
+    );
+    writeLocalSessions(next);
+    return;
+  }
   await supabase
     .from(TABLE_NAME)
     .update({ is_online: false, last_seen_at: nowIso() })
@@ -187,7 +241,11 @@ export const markSessionOffline = async (sessionId: string) => {
 };
 
 export const fetchActiveSessions = async (): Promise<MachineSession[]> => {
-  if (!supabase) return [];
+  if (useLocalSessionStore()) {
+    return readLocalSessions()
+      .sort((a, b) => String(b.last_seen_at).localeCompare(String(a.last_seen_at)))
+      .map(toSession);
+  }
   const { data, error } = await supabase.from(TABLE_NAME).select('*').order('last_seen_at', { ascending: false });
   if (error || !data) {
     console.error('Session fetch error:', error);
@@ -201,7 +259,19 @@ export const updateSessionStatus = async (
   status: MachineSession['status'],
   reason?: string
 ): Promise<void> => {
-  if (!supabase) return;
+  if (useLocalSessionStore()) {
+    const rows = readLocalSessions();
+    const payload: Partial<SessionRow> = {
+      status,
+      last_seen_at: nowIso(),
+      is_online: status === 'ACTIVE',
+      force_logout_reason: status === 'FORCED_OUT' ? (reason || 'This machine was signed out because a newer login became active.') : null,
+      forced_out_at: status === 'FORCED_OUT' ? nowIso() : null,
+    };
+    const next = rows.map((r) => (r.id === sessionId ? { ...r, ...payload } as SessionRow : r));
+    writeLocalSessions(next);
+    return;
+  }
   const payload: Record<string, unknown> = {
     status,
     last_seen_at: nowIso(),
@@ -218,7 +288,11 @@ export const updateSessionStatus = async (
 };
 
 export const deleteSession = async (sessionId: string): Promise<void> => {
-  if (!supabase) return;
+  if (useLocalSessionStore()) {
+    const rows = readLocalSessions();
+    writeLocalSessions(rows.filter((r) => r.id !== sessionId));
+    return;
+  }
   await supabase.from(TABLE_NAME).delete().eq('id', sessionId);
 };
 
@@ -226,7 +300,25 @@ export const enforceSingleSessionPerUser = async (
   userId: string,
   keepSessionId: string
 ): Promise<void> => {
-  if (!supabase) return;
+  if (useLocalSessionStore()) {
+    const reason = 'You were signed out because your account logged in on another machine. Only the latest login stays online.';
+    const rows = readLocalSessions();
+    const next = rows.map((r) => {
+      if (r.user_id !== userId) return r;
+      if (r.id === keepSessionId) return r;
+      if (r.status !== 'ACTIVE') return r;
+      return {
+        ...r,
+        status: 'FORCED_OUT',
+        is_online: false,
+        last_seen_at: nowIso(),
+        force_logout_reason: reason,
+        forced_out_at: nowIso(),
+      };
+    });
+    writeLocalSessions(next);
+    return;
+  }
   const reason = 'You were signed out because your account logged in on another machine. Only the latest login stays online.';
   await supabase
     .from(TABLE_NAME)

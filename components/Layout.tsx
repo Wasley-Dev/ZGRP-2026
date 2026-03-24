@@ -105,12 +105,12 @@ const Layout: React.FC<LayoutProps> = ({
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
-    { id: 'candidates', label: 'Candidates Registry', icon: 'fa-users' },
-    { id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' },
-    { id: 'booking', label: 'Booking & Scheduling', icon: 'fa-calendar-alt' },
-    { id: 'broadcast', label: 'Broadcast & Comms', icon: 'fa-bullhorn' },
-    { id: 'reports', label: 'Reports & Analytics', icon: 'fa-file-contract' },
-    { id: 'database', label: 'Database Management', icon: 'fa-database' },
+    { id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' },
+    { id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' },
+    { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
+    { id: 'notices', label: 'Notices', icon: 'fa-bell' },
+    { id: 'tasks', label: 'Tasks', icon: 'fa-list' },
+    { id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' },
     { id: 'settings', label: 'Settings', icon: 'fa-cog' },
   ];
 
@@ -125,23 +125,21 @@ const Layout: React.FC<LayoutProps> = ({
   const isDark = theme === 'dark';
   const shellThemeClass = isDark ? 'dark theme-dark' : 'theme-light';
   const sidebarThemeClass = isDark
-    ? 'enterprise-blue text-white'
-    : 'bg-[#f8fbff] text-[#0f172a] border-r border-[#d8e4ff]';
+    ? 'liquid-surface liquid-tint-blue text-white border-r border-white/10'
+    : 'liquid-surface text-[#0f172a] border-r border-slate-200';
   const headerThemeClass = isDark
-    ? 'bg-[#0f1b40]/95 border-blue-400/20'
-    : 'bg-white/95 border-slate-200';
+    ? 'liquid-bar border-blue-400/20'
+    : 'liquid-bar border-slate-200';
   const mainThemeClass = backgroundImageUrl
     ? ''
     : isDark
     ? 'bg-[radial-gradient(circle_at_15%_10%,#1a2a5a_0%,#0b1431_35%,#081024_100%)] text-slate-100'
     : 'bg-[radial-gradient(circle_at_15%_10%,#f7fbff_0%,#edf3ff_40%,#e8effc_100%)] text-slate-900';
-  const panelThemeClass = isDark
-    ? 'bg-[#0f1a2e] border-[#1e3a5f]'
-    : 'bg-white border-slate-200';
+  const panelThemeClass = 'liquid-panel';
 
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
-    const validModules = new Set(['dashboard','candidates','database','recruitment','booking','broadcast','settings','admin','machines','recovery','reports']);
+    const validModules = new Set(['dashboard','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','machines','recovery','reports']);
     if (n.origin && validModules.has(n.origin)) onModuleChange(n.origin);
     setIsNotifOpen(false);
   };
@@ -285,7 +283,7 @@ const Layout: React.FC<LayoutProps> = ({
         }
       >
         {/* Header */}
-        <header className={`h-14 md:h-16 border-b flex items-center justify-between px-3 md:px-6 shrink-0 z-20 shadow-sm backdrop-blur ${headerThemeClass}`}>
+        <header className={`h-14 md:h-16 border-b flex items-center justify-between px-3 md:px-6 shrink-0 z-20 shadow-sm ${headerThemeClass}`}>
           <div className="flex items-center gap-2 md:gap-4">
             {/* Mobile hamburger */}
             <button
@@ -344,7 +342,7 @@ const Layout: React.FC<LayoutProps> = ({
 
               {/* Notification panel — blue-hue theme */}
               {isNotifOpen && (
-                <div className={`absolute right-0 mt-2 w-72 md:w-80 rounded-2xl shadow-2xl z-50 overflow-hidden border ${panelThemeClass}`}>
+                <div className={`absolute right-0 mt-2 w-72 md:w-80 rounded-2xl shadow-2xl z-50 overflow-hidden ${panelThemeClass}`}>
                   <div className={`p-4 border-b flex justify-between items-center ${isDark ? 'border-[#1e3a5f] bg-[#0a1628]' : 'border-slate-200 bg-slate-50'}`}>
                     <h3 className={`font-black text-sm uppercase tracking-widest ${isDark ? 'text-blue-400' : 'text-[#003366]'}`}>Notifications</h3>
                     <div className="flex items-center gap-3">
@@ -423,12 +421,12 @@ const Layout: React.FC<LayoutProps> = ({
         </div>
 
         {/* Mobile bottom nav bar */}
-        <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 ${isDark ? 'bg-[#0f1b40] border-blue-400/20' : 'bg-white border-slate-200'}`}>
+        <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 liquid-bar ${isDark ? 'border-blue-400/20' : 'border-slate-200'}`}>
           {[
             { id: 'dashboard', icon: 'fa-chart-line' },
-            { id: 'candidates', icon: 'fa-users' },
-            { id: 'booking', icon: 'fa-calendar-alt' },
-            { id: 'recruitment', icon: 'fa-briefcase' },
+            { id: 'attendance', icon: 'fa-user-clock' },
+            { id: 'dailyReports', icon: 'fa-clipboard-list' },
+            { id: 'chat', icon: 'fa-comments' },
           ].map((item) => (
             <button
               key={item.id}
@@ -458,7 +456,7 @@ const Layout: React.FC<LayoutProps> = ({
           return (
             <div
               key={`toast-${n.id}`}
-              className={`pointer-events-auto rounded-xl shadow-2xl p-3 animate-in slide-in-from-right-6 duration-300 border ${panelThemeClass}`}
+              className={`pointer-events-auto rounded-xl shadow-2xl p-3 animate-in slide-in-from-right-6 duration-300 ${panelThemeClass}`}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${style.bg}`}>

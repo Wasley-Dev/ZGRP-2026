@@ -1,7 +1,8 @@
 
 import React, { useState, useRef } from 'react';
 import { SystemUser } from '../types';
-import { normalizeImageFile } from '../services/imageUtils';
+import { normalizeImageDataUrl, normalizeImageFile } from '../services/imageUtils';
+import { ZAYA_LOGO_SRC } from '../brand';
 
 interface SettingsProps {
   theme: string;
@@ -23,10 +24,28 @@ const Settings: React.FC<SettingsProps> = ({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const estimateDataUrlBytes = (dataUrl: string): number => {
+    const commaIndex = dataUrl.indexOf(',');
+    if (commaIndex === -1) return dataUrl.length;
+    const base64 = dataUrl.slice(commaIndex + 1);
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+  };
+
+  const normalizeAvatarForSync = async (file: File): Promise<string> => {
+    const MAX_BYTES = 220 * 1024;
+    let avatar = await normalizeImageFile(file, { maxDimension: 512, mimeType: 'image/jpeg', quality: 0.82 });
+    if (estimateDataUrlBytes(avatar) <= MAX_BYTES) return avatar;
+    avatar = await normalizeImageDataUrl(avatar, { maxDimension: 420, mimeType: 'image/jpeg', quality: 0.76 });
+    if (estimateDataUrlBytes(avatar) <= MAX_BYTES) return avatar;
+    avatar = await normalizeImageDataUrl(avatar, { maxDimension: 320, mimeType: 'image/jpeg', quality: 0.68 });
+    return avatar;
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       const file = e.target.files[0];
-      normalizeImageFile(file, { maxDimension: 512, mimeType: 'image/jpeg', quality: 0.82 })
+      normalizeAvatarForSync(file)
         .then((avatar) => setUser((prev) => ({ ...prev, avatar })))
         .catch((err) => console.error('Avatar upload failed:', err));
     }
@@ -54,7 +73,7 @@ const Settings: React.FC<SettingsProps> = ({
 
              <div className="flex flex-col md:flex-row items-center md:items-start gap-12">
                 <div className="relative group cursor-pointer overflow-hidden rounded-[2.5rem] border-4 border-gold shadow-2xl w-48 h-48">
-                   <img src={user.avatar} className="w-full h-full object-cover" alt="" />
+                   <img src={user.avatar || ZAYA_LOGO_SRC} className="w-full h-full object-cover" alt="" />
                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3">
                       <button onClick={() => setIsPreviewOpen(true)} className="px-4 py-2 bg-white text-enterprise-blue rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-gold hover:text-white transition-all">View Profile</button>
                       <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 border border-white text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-white hover:text-enterprise-blue transition-all">Change Photo</button>
@@ -144,7 +163,7 @@ const Settings: React.FC<SettingsProps> = ({
                <button onClick={() => setIsPreviewOpen(false)} className="absolute -top-16 -right-16 text-white text-4xl hover:text-gold transition-colors">
                   <i className="fas fa-times"></i>
                </button>
-               <img src={user.avatar} className="max-w-[85vw] max-h-[85vh] rounded-[3rem] border-8 border-gold shadow-[0_0_150px_rgba(212,175,55,0.4)] object-contain" alt="Identity Preview" />
+               <img src={user.avatar || ZAYA_LOGO_SRC} className="max-w-[85vw] max-h-[85vh] rounded-[3rem] border-8 border-gold shadow-[0_0_150px_rgba(212,175,55,0.4)] object-contain" alt="Identity Preview" />
             </div>
          </div>
        )}

@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>ZAYA Group Recruitment Portal</title>
+    <title>Employee Reporting & Performance Management System</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico?v=0.1.5">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=0.1.5">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=0.1.5">
     <link rel="shortcut icon" href="/favicon.ico?v=0.1.5">
     <link rel="manifest" href="/site.webmanifest">
     <meta name="theme-color" content="#003366">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/vendor/fonts/inter/inter.css">
+    <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css">
+    <script src="/vendor/tailwindcss.cdn.js"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -25,15 +27,13 @@
               }
             },
             backgroundImage: {
-              'enterprise-pattern': "url('https://www.transparenttextures.com/patterns/carbon-fibre.png')",
+              'enterprise-pattern': "repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 2px, rgba(0,0,0,0.06) 2px 4px)",
             }
           }
         }
       }
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         html, body, #root {
             width: 100%;
             min-height: 100%;
@@ -41,7 +41,7 @@
         }
         body {
             min-height: 100dvh;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
             background-color: #f8fafc;
             color: #0f172a;
             transition: background-color 200ms ease, color 200ms ease;
@@ -252,6 +252,100 @@
           text-transform: uppercase;
           letter-spacing: 0.14em;
         }
+
+        /* Liquid glass surfaces (offline-safe: no external assets) */
+        .liquid-surface,
+        .liquid-panel,
+        .liquid-bar {
+          position: relative;
+          -webkit-backdrop-filter: blur(16px) saturate(140%);
+          backdrop-filter: blur(16px) saturate(140%);
+        }
+
+        .liquid-surface::before,
+        .liquid-panel::before,
+        .liquid-bar::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          pointer-events: none;
+          opacity: 0.7;
+          background:
+            radial-gradient(120% 120% at 18% 12%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 58%),
+            radial-gradient(120% 120% at 86% 0%, rgba(59,130,246,0.22) 0%, rgba(59,130,246,0) 52%),
+            linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0));
+          mix-blend-mode: overlay;
+        }
+
+        .liquid-surface > *,
+        .liquid-panel > *,
+        .liquid-bar > * {
+          position: relative;
+          z-index: 1;
+        }
+
+        .liquid-panel {
+          border-radius: 1.5rem;
+          background: rgba(255, 255, 255, 0.76);
+          border: 1px solid rgba(15, 23, 42, 0.10);
+          box-shadow:
+            0 24px 80px rgba(2, 6, 23, 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.55);
+        }
+
+        .liquid-surface {
+          background: rgba(255, 255, 255, 0.70);
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          box-shadow: 0 18px 60px rgba(2, 6, 23, 0.10);
+        }
+
+        .liquid-bar {
+          background: rgba(255, 255, 255, 0.66);
+        }
+
+        html.dark .liquid-panel {
+          background: rgba(10, 18, 40, 0.62);
+          border-color: rgba(96, 165, 250, 0.18);
+          box-shadow:
+            0 26px 90px rgba(0, 0, 0, 0.48),
+            inset 0 1px 0 rgba(255, 255, 255, 0.10);
+        }
+
+        html.dark .liquid-surface {
+          background: rgba(12, 20, 44, 0.56);
+          border-color: rgba(96, 165, 250, 0.16);
+          box-shadow: 0 20px 70px rgba(0, 0, 0, 0.40);
+        }
+
+        html.dark .liquid-bar {
+          background: rgba(15, 27, 64, 0.50);
+        }
+
+        html.dark .liquid-surface::before,
+        html.dark .liquid-panel::before,
+        html.dark .liquid-bar::before {
+          opacity: 0.85;
+          background:
+            radial-gradient(120% 120% at 18% 12%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 62%),
+            radial-gradient(120% 120% at 86% 0%, rgba(59,130,246,0.24) 0%, rgba(59,130,246,0) 52%),
+            linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0));
+          mix-blend-mode: screen;
+        }
+
+        .liquid-tint-blue {
+          background-image:
+            radial-gradient(circle at 18% 10%, rgba(16,85,165,0.22) 0%, rgba(16,85,165,0) 55%),
+            radial-gradient(circle at 85% 0%, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0) 52%);
+          background-blend-mode: overlay;
+        }
+
+        @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+          .liquid-surface, .liquid-panel, .liquid-bar {
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+          }
+        }
     </style>
 <script>
   (function () {
@@ -267,17 +361,6 @@
     window.addEventListener('resize', applyViewportMetrics);
     window.addEventListener('orientationchange', applyViewportMetrics);
   })();
-</script>
-<script type="importmap">
-{
-  "imports": {
-    "recharts": "https://esm.sh/recharts@^3.7.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0"
-  }
-}
 </script>
 </head>
 <body>

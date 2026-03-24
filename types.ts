@@ -81,6 +81,94 @@ export interface SystemUser {
   lastLogin: string;
   avatar?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
+  baseSalary?: number;
+  allowancesTotal?: number;
+  deductionsTotal?: number;
+  performanceScore?: number;
+}
+
+export interface DailyReport {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface AttendanceLog {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  checkIn: string;
+  checkOut?: string;
+}
+
+export interface TeamMessage {
+  id: string;
+  senderId: string;
+  message: string;
+  createdAt: string;
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
+export type TaskStatus = 'pending' | 'completed';
+
+export interface TaskItem {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  createdAt: string;
+}
+
+export interface PayrollRecord {
+  id: string;
+  userId: string;
+  month: number;
+  year: number;
+  basicSalary: number;
+  allowancesTotal: number;
+  deductionsTotal: number;
+  netSalary: number;
+  createdAt: string;
+}
+
+export interface PayrollRunInput {
+  month: number; // 1-12
+  year: number;
+  workingDays?: number;
+  defaultBasicSalary?: number;
+  defaultAllowancesTotal?: number;
+  defaultDeductionsTotal?: number;
+  defaultPerformanceScore?: number;
+}
+
+export interface PayslipRecord {
+  id: string;
+  payrollId: string;
+  breakdown: any;
+  createdAt: string;
+}
+
+export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveRequestType = 'leave' | 'sick';
+
+export interface LeaveRequest {
+  id: string;
+  userId: string;
+  type: LeaveRequestType;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  reason: string;
+  status: LeaveRequestStatus;
+  createdAt: string;
 }
 
 export interface AuthorizedMachine {
