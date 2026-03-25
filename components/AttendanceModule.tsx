@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AttendanceLog, LeaveRequest, SystemUser } from '../types';
+import type { AttendanceCheckoutRequest, AttendanceLog, LeaveRequest, SystemUser } from '../types';
 import {
   fetchAttendanceLogs,
+  fetchLatestMiddayCheckoutRequest,
   fetchLeaveRequests,
   fetchTodayAttendance,
   requestClockOutApproval,
@@ -22,8 +23,8 @@ interface AttendanceModuleProps {
 const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, users, onNavigate }) => {
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [today, setToday] = useState<AttendanceLog | null>(null);
-  const [approvalCode, setApprovalCode] = useState('');
   const [checkoutReason, setCheckoutReason] = useState('');
+  const [checkoutRequest, setCheckoutRequest] = useState<AttendanceCheckoutRequest | null>(null);
   const [leaveType, setLeaveType] = useState<'leave' | 'sick'>('leave');
   const [leaveStart, setLeaveStart] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaveEnd, setLeaveEnd] = useState(() => new Date().toISOString().slice(0, 10));
@@ -70,11 +71,34 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
       if (cancelled) return;
       setLogs(loaded);
       setToday(t);
+      setCheckoutRequest(t?.id ? await fetchLatestMiddayCheckoutRequest(String(t.id)) : null);
       setLeaveRequests(leave);
     };
     void load();
     return () => { cancelled = true; };
   }, [user, isAdmin]);
+
+  useEffect(() => {
+    if (!hasEmployeeSupabase()) return;
+    if (!today?.id) return;
+    const attendanceId = String(today.id);
+    const toRequest = (row: any): AttendanceCheckoutRequest => ({
+      id: String(row.id),
+      attendanceId: String(row.attendance_id),
+      userId: String(row.user_id),
+      date: String(row.date),
+      reason: row.reason ? String(row.reason) : undefined,
+      status: String(row.status || 'pending') === 'approved' ? 'approved' : String(row.status || 'pending') === 'denied' ? 'denied' : 'pending',
+      requestedAt: String(row.requested_at || row.created_at || ''),
+      decidedAt: row.decided_at ? String(row.decided_at) : undefined,
+    });
+    const sub = subscribeToTableChanges('attendance_checkout_requests', {
+      filter: `attendance_id=eq.${attendanceId}`,
+      onInsert: (row) => setCheckoutRequest(toRequest(row)),
+      onUpdate: (row) => setCheckoutRequest(toRequest(row)),
+    });
+    return () => sub.unsubscribe();
+  }, [today?.id]);
 
   useEffect(() => {
     if (!hasEmployeeSupabase()) return;
@@ -155,8 +179,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
     if (today.checkOut) { alert('You already checked out today.'); return; }
     if (!isCurrentlyCheckedIn) { alert('You must be checked in to request a mid-day checkout.'); return; }
     try {
-      await requestClockOutApproval(user, today, checkoutReason.trim());
-      alert('Authorization email sent to gm@zayagroupltd.com. Enter the approval code to mid-day checkout.');
+      const created = await requestClockOutApproval(user, today, checkoutReason.trim());
+      setCheckoutRequest(created);
+      alert('Authorization email sent to gm@zayagroupltd.com.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unable to send approval email.');
     }
@@ -165,10 +190,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
   const handleMidDayCheckout = async () => {
     if (!today) { alert('Clock in first.'); return; }
     try {
-      const next = await midDayClockOut(user, today, approvalCode);
+      const next = await midDayClockOut(user, today);
       setToday(next);
       setLogs((prev) => prev.map((l) => (l.id === next.id ? next : l)));
-      setApprovalCode('');
       setCheckoutReason('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Mid-day checkout failed.');
@@ -181,8 +205,8 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
       const next = await clockOut(user, today);
       setToday(next);
       setLogs((prev) => prev.map((l) => (l.id === next.id ? next : l)));
-      setApprovalCode('');
       setCheckoutReason('');
+      setCheckoutRequest(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Clock out failed.');
     }
@@ -275,7 +299,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
               <button
                 onClick={handleClockIn}
                 disabled={!!today?.checkOut || isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl bg-enterprise-blue text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                className="w-full py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
               >
                 Clock In
               </button>
@@ -290,25 +314,17 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
                 />
                 <button
                   onClick={handleRequestCheckout}
-                  disabled={!isCurrentlyCheckedIn}
+                  disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
                   className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                 >
-                  Request Mid-day Approval (Email)
+                  {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval (Email)'}
                 </button>
-
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60 mt-4 mb-2">Approval code</label>
-                <input
-                  value={approvalCode}
-                  onChange={(e) => setApprovalCode(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                  placeholder="Enter code from GM email"
-                />
                 <button
                   onClick={handleMidDayCheckout}
-                  disabled={!isCurrentlyCheckedIn}
+                  disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
                   className="w-full mt-3 py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                 >
-                  Mid-day Checkout
+                  Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
                 </button>
                 <button
                   onClick={handleClockOut}
@@ -323,39 +339,50 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
 
           <div className="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance Logs</h3>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{logs.length} records</span>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                {isAdmin ? 'Attendance Logs' : 'Attendance'}
+              </h3>
+              {isAdmin && (
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{logs.length} records</span>
+              )}
             </div>
 
-            <div className="mt-4 overflow-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
-                  <tr>
-                    {isAdmin && <th className="py-2 pr-3">Employee</th>}
-                    <th className="py-2 pr-3">Date</th>
-                    <th className="py-2 pr-3">Check In</th>
-                    <th className="py-2 pr-3">Check Out</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200/70 dark:divide-blue-400/10">
-                  {logs.map((l) => (
-                    <tr key={l.id}>
-                      {isAdmin && <td className="py-2 pr-3 font-bold text-slate-700 dark:text-white">{userNameById.get(l.userId) || l.userId}</td>}
-                      <td className="py-2 pr-3 font-mono text-slate-700 dark:text-white">{l.date}</td>
-                      <td className="py-2 pr-3 text-slate-700 dark:text-blue-200">{new Date(l.checkIn).toLocaleTimeString('en-GB')}</td>
-                      <td className="py-2 pr-3 text-slate-700 dark:text-blue-200">{l.checkOut ? new Date(l.checkOut).toLocaleTimeString('en-GB') : '-'}</td>
-                    </tr>
-                  ))}
-                  {logs.length === 0 && (
+            {isAdmin ? (
+              <div className="mt-4 overflow-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
                     <tr>
-                      <td className="py-6 text-slate-500 dark:text-blue-300/60" colSpan={isAdmin ? 4 : 3}>
-                        No attendance data yet.
-                      </td>
+                      <th className="py-2 pr-3">Employee</th>
+                      <th className="py-2 pr-3">Date</th>
+                      <th className="py-2 pr-3">Check In</th>
+                      <th className="py-2 pr-3">Check Out</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200/70 dark:divide-blue-400/10">
+                    {logs.map((l) => (
+                      <tr key={l.id}>
+                        <td className="py-2 pr-3 font-bold text-slate-700 dark:text-white">{userNameById.get(l.userId) || l.userId}</td>
+                        <td className="py-2 pr-3 font-mono text-slate-700 dark:text-white">{l.date}</td>
+                        <td className="py-2 pr-3 text-slate-700 dark:text-blue-200">{new Date(l.checkIn).toLocaleTimeString('en-GB')}</td>
+                        <td className="py-2 pr-3 text-slate-700 dark:text-blue-200">{l.checkOut ? new Date(l.checkOut).toLocaleTimeString('en-GB') : '-'}</td>
+                      </tr>
+                    ))}
+                    {logs.length === 0 && (
+                      <tr>
+                        <td className="py-6 text-slate-500 dark:text-blue-300/60" colSpan={4}>
+                          No attendance data yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-300/70 dark:border-blue-400/20 p-8 text-center">
+                <p className="text-sm font-semibold text-slate-600 dark:text-blue-200">Attendance logs are managed by administrators.</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Use Clock In / Clock Out to submit today&apos;s attendance.</p>
+              </div>
+            )}
 
             <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Leave / Sick Request (Email)</h3>

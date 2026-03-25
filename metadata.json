@@ -1,6 +1,6 @@
 {
-  "name": "Employee Reporting & Performance Management System (ZGRP)",
-  "description": "Employee reporting and performance management system featuring attendance tracking, team chat, notices, tasks, payroll, machine authorization, and AI orientation.",
+  "name": "Zaya Group Portal (ZGRP)",
+  "description": "Zaya Group Portal featuring employee reporting, attendance tracking, team chat, notices, tasks, payroll, machine authorization, and AI orientation.",
   "requestFramePermissions": [
     "camera"
   ]

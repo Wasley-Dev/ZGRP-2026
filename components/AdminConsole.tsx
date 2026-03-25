@@ -139,7 +139,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   };
 
   const handleLoginHeroUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
+    const files = Array.from(event.target.files || []) as File[];
     if (files.length === 0) return;
 
     files.forEach((file, index) => {

@@ -309,7 +309,7 @@ export const enforceSingleSessionPerUser = async (
       if (r.status !== 'ACTIVE') return r;
       return {
         ...r,
-        status: 'FORCED_OUT',
+        status: 'FORCED_OUT' as SessionRow['status'],
         is_online: false,
         last_seen_at: nowIso(),
         force_logout_reason: reason,

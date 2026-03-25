@@ -160,7 +160,7 @@ function setupAutoUpdates() {
 }
 
 app.whenReady().then(() => {
-  app.setName('Employee Reporting & Performance Management System');
+  app.setName('Zaya Group Portal');
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_USER_MODEL_ID);
   }

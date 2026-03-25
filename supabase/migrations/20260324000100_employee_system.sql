@@ -1,4 +1,4 @@
--- Employee Reporting & Performance Management System schema
+-- Zaya Group Portal (Employee Reporting & Performance) schema
 -- This migration creates the requested tables and indexes.
 -- Note: The current app uses the Supabase `anon` key without Supabase Auth sign-in.
 -- For that reason, policies below are permissive (like the existing portal_* tables)
@@ -130,4 +130,3 @@ create policy "payslips_all_anon" on public.payslips for all to anon using (true
 
 drop policy if exists "leave_requests_all_anon" on public.leave_requests;
 create policy "leave_requests_all_anon" on public.leave_requests for all to anon using (true) with check (true);
-

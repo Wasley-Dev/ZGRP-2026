@@ -103,6 +103,9 @@ const Layout: React.FC<LayoutProps> = ({
     setToastQueue((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
+  const isAdmin = isSuperAdmin || user.role === UserRole.ADMIN;
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
 
@@ -112,7 +115,7 @@ const Layout: React.FC<LayoutProps> = ({
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
     { id: 'notices', label: 'Notices', icon: 'fa-bell' },
     { id: 'tasks', label: 'Tasks', icon: 'fa-list' },
-    { id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' },
+    ...(isAdmin ? [{ id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' }] : []),
 
     // Existing modules (kept from previous system)
     { id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' },
@@ -127,11 +130,11 @@ const Layout: React.FC<LayoutProps> = ({
 
   const adminItems = [
     { id: 'admin', label: 'Admin Console', icon: 'fa-user-shield' },
-    { id: 'machines', label: 'Machine Auth', icon: 'fa-laptop-code' },
-    { id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' },
+    { id: 'employment', label: 'Employment Management', icon: 'fa-id-badge' },
+    ...(isSuperAdmin ? [{ id: 'machines', label: 'Machine Auth', icon: 'fa-laptop-code' }] : []),
+    ...(isSuperAdmin ? [{ id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' }] : []),
   ];
 
-  const isAdmin = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
   const unreadCount = notifications.filter((n) => !n.read).length;
   const isDark = theme === 'dark';
   const shellThemeClass = isDark ? 'dark theme-dark' : 'theme-light';
@@ -150,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
-    const validModules = new Set(['dashboard','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','machines','recovery','reports']);
+    const validModules = new Set(['dashboard','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
     if (n.origin && validModules.has(n.origin)) onModuleChange(n.origin);
     setIsNotifOpen(false);
   };

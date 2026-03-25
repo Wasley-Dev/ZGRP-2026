@@ -1,4 +1,4 @@
-# Supabase Schema (Employee Reporting & Performance Management System)
+# Supabase Schema (Zaya Group Portal)
 
 This repo already contains permissive Supabase tables/policies for the portal (`supabase/portal_users.sql`, `supabase/portal_data.sql`) which allow the app to work using the Supabase **anon** key (no Supabase Auth sign-in).
 
@@ -53,4 +53,3 @@ If you want true security:
 …you must migrate login to Supabase Auth and store `user_id` as the Supabase `auth.uid()` (UUID), then switch policies to `authenticated` and enforce `user_id = auth.uid()`.
 
 If you want, I can implement that next (it’s a bigger change: auth migration + user-id mapping + policy hardening).
-

@@ -16,9 +16,9 @@ import {
   Area
 } from 'recharts';
 
-import { BookingEntry, Candidate, RecruitmentStatus, SystemUser, UserRole } from '../types';
+import { AttendanceCheckoutRequest, BookingEntry, Candidate, RecruitmentStatus, SystemUser, UserRole } from '../types';
 import { getTodayIsoInEAT } from '../services/dateTime';
-import { clockIn, clockOut, fetchDailyReports, fetchTodayAttendance, midDayClockOut, requestClockOutApproval } from '../services/employeeSystemService';
+import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -33,8 +33,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
-  const [approvalCode, setApprovalCode] = React.useState('');
   const [checkoutReason, setCheckoutReason] = React.useState('');
+  const [checkoutRequest, setCheckoutRequest] = React.useState<AttendanceCheckoutRequest | null>(null);
 
   const isCurrentlyCheckedIn = React.useMemo(() => {
     if (!todayAttendance?.checkIn) return false;
@@ -114,6 +114,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         ]);
         if (cancelled) return;
         setTodayAttendance(attendance);
+        setCheckoutRequest(attendance?.id ? await fetchLatestMiddayCheckoutRequest(String(attendance.id)) : null);
         setMyReportsCount(reports.length);
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -125,6 +126,29 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     void load();
     return () => { cancelled = true; };
   }, [user.id]);
+
+  React.useEffect(() => {
+    if (!hasEmployeeSupabase()) return;
+    if (!todayAttendance?.id) return;
+    const attendanceId = String(todayAttendance.id);
+    const toRequest = (row: any): AttendanceCheckoutRequest => ({
+      id: String(row.id),
+      attendanceId: String(row.attendance_id),
+      userId: String(row.user_id),
+      date: String(row.date),
+      reason: row.reason ? String(row.reason) : undefined,
+      status: String(row.status || 'pending') === 'approved' ? 'approved' : String(row.status || 'pending') === 'denied' ? 'denied' : 'pending',
+      requestedAt: String(row.requested_at || row.created_at || ''),
+      decidedAt: row.decided_at ? String(row.decided_at) : undefined,
+    });
+
+    const sub = subscribeToTableChanges('attendance_checkout_requests', {
+      filter: `attendance_id=eq.${attendanceId}`,
+      onInsert: (row) => setCheckoutRequest(toRequest(row)),
+      onUpdate: (row) => setCheckoutRequest(toRequest(row)),
+    });
+    return () => sub.unsubscribe();
+  }, [todayAttendance?.id]);
 
   const handleClockIn = async () => {
     try {
@@ -140,8 +164,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     if (todayAttendance.checkOut) { alert('You already checked out today.'); return; }
     if (!isCurrentlyCheckedIn) { alert('You must be checked in to request a mid-day checkout.'); return; }
     try {
-      await requestClockOutApproval(user, todayAttendance, checkoutReason.trim());
-      alert('Approval request sent to gm@zayagroupltd.com. Enter the approval code to mid-day checkout.');
+      const created = await requestClockOutApproval(user, todayAttendance, checkoutReason.trim());
+      setCheckoutRequest(created);
+      alert('Approval request sent to gm@zayagroupltd.com.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unable to send approval email.');
     }
@@ -150,9 +175,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const handleMidDayCheckout = async () => {
     if (!todayAttendance?.checkIn || !todayAttendance?.id) { alert('Clock in first.'); return; }
     try {
-      const next = await midDayClockOut(user, todayAttendance, approvalCode);
+      const next = await midDayClockOut(user, todayAttendance);
       setTodayAttendance(next);
-      setApprovalCode('');
       setCheckoutReason('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Mid-day checkout failed.');
@@ -164,8 +188,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     try {
       const next = await clockOut(user, todayAttendance);
       setTodayAttendance(next);
-      setApprovalCode('');
       setCheckoutReason('');
+      setCheckoutRequest(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Clock out failed.');
     }
@@ -257,133 +281,128 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     }
   };
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
-      {/* Employee Reporting & Performance */}
-      <div className={`${panelClass} p-8`}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Employee Reporting & Performance</h2>
-            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Daily reports, attendance, tasks, and payroll.</p>
+  const employeeReportingPanel = (
+    <div className={`${panelClass} p-8`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Employee Reporting & Performance</h2>
+          <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Daily reports, attendance, tasks, and payroll.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+            Submit Report
+          </button>
+          <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            Check Attendance
+          </button>
+          <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            Open Chat
+          </button>
+          <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            View Notices
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'My Reports', value: myReportsCount.toString(), icon: 'fa-clipboard-list', action: 'dailyReports' },
+          { label: 'Today Attendance', value: todayAttendance?.checkIn ? (todayAttendance.checkOut ? 'OUT' : 'IN') : 'NONE', icon: 'fa-user-clock', action: 'attendance' },
+          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'settings' },
+          { label: 'Weekly Reports', value: weeklyReportsCount.toString(), icon: 'fa-calendar-day', action: 'dailyReports' },
+        ].map((kpi) => (
+          <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={`${tileClass} text-left`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
+                <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
+                <i className={`fas ${kpi.icon}`}></i>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-6">
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
+          <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Mid-day checkout requires GM email approval. End-of-day clock out does not.</p>
+          <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-blue-200">
+            <p>Status: <span className="font-black text-slate-900 dark:text-white">{statusLabel}</span></p>
+            {todayAttendance?.checkIn && <p>Check-in: <span className="font-mono">{new Date(todayAttendance.checkIn).toLocaleTimeString('en-GB')}</span></p>}
+            {todayAttendance?.checkOut && <p>Check-out: <span className="font-mono">{new Date(todayAttendance.checkOut).toLocaleTimeString('en-GB')}</span></p>}
+            {!todayAttendance?.checkOut && Array.isArray(todayAttendance?.segments) && todayAttendance.segments?.[todayAttendance.segments.length - 1]?.out && (
+              <p>Mid-day out: <span className="font-mono">{new Date(todayAttendance.segments[todayAttendance.segments.length - 1].out).toLocaleTimeString('en-GB')}</span></p>
+            )}
           </div>
-          <div className="flex flex-wrap gap-2 justify-end">
-            <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
-              Submit Report
+
+          <div className="mt-5 space-y-2">
+            <button
+              onClick={handleClockIn}
+              disabled={!!todayAttendance?.checkOut || isCurrentlyCheckedIn}
+              className="w-full py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
+            >
+              Clock In
             </button>
-            <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-              Check Attendance
+            <input
+              value={checkoutReason}
+              onChange={(e) => setCheckoutReason(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+              placeholder="Checkout reason (optional)"
+            />
+            <button
+              onClick={handleRequestCheckout}
+              disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
+              className="w-full py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+            >
+              {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval'}
             </button>
-            <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-              Open Chat
+            <button
+              onClick={handleMidDayCheckout}
+              disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
+              className="w-full py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+            >
+              Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
             </button>
-            <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-              View Notices
+            <button
+              onClick={handleClockOut}
+              disabled={!isCurrentlyCheckedIn}
+              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+            >
+              Clock Out (End of Day)
             </button>
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'My Reports', value: myReportsCount.toString(), icon: 'fa-clipboard-list', action: 'dailyReports' },
-            { label: 'Today Attendance', value: todayAttendance?.checkIn ? (todayAttendance.checkOut ? 'OUT' : 'IN') : 'NONE', icon: 'fa-user-clock', action: 'attendance' },
-            { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'settings' },
-            { label: 'Weekly Reports', value: weeklyReportsCount.toString(), icon: 'fa-calendar-day', action: 'dailyReports' },
-          ].map((kpi) => (
-            <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={`${tileClass} text-left`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
-                  <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+            { label: 'Quick Action', title: 'Submit Report', icon: 'fa-pen', action: 'dailyReports', hint: 'Write-once daily reporting' },
+            { label: 'Quick Action', title: 'Check Attendance', icon: 'fa-user-check', action: 'attendance', hint: 'View logs and leave requests' },
+            { label: 'Quick Action', title: 'Open Team Chat', icon: 'fa-comments', action: 'chat', hint: 'Realtime messaging' },
+            { label: 'Quick Action', title: 'View Notices', icon: 'fa-bell', action: 'notices', hint: 'Company announcements' },
+          ].map((q) => (
+            <button key={q.title} onClick={() => onNavigate(q.action)} className={`${tileClass} text-left`}>
+              <div className="flex items-start gap-4">
+                <div className="w-11 h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm shrink-0">
+                  <i className={`fas ${q.icon}`}></i>
                 </div>
-                <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
-                  <i className={`fas ${kpi.icon}`}></i>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{q.label}</p>
+                  <p className="mt-2 text-sm font-black text-slate-900 dark:text-white">{q.title}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">{q.hint}</p>
                 </div>
               </div>
             </button>
           ))}
         </div>
-
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-6">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
-            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Mid-day checkout requires GM email approval. End-of-day clock out does not.</p>
-            <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-blue-200">
-              <p>Status: <span className="font-black text-slate-900 dark:text-white">{statusLabel}</span></p>
-              {todayAttendance?.checkIn && <p>Check-in: <span className="font-mono">{new Date(todayAttendance.checkIn).toLocaleTimeString('en-GB')}</span></p>}
-              {todayAttendance?.checkOut && <p>Check-out: <span className="font-mono">{new Date(todayAttendance.checkOut).toLocaleTimeString('en-GB')}</span></p>}
-              {!todayAttendance?.checkOut && Array.isArray(todayAttendance?.segments) && todayAttendance.segments?.[todayAttendance.segments.length - 1]?.out && (
-                <p>Mid-day out: <span className="font-mono">{new Date(todayAttendance.segments[todayAttendance.segments.length - 1].out).toLocaleTimeString('en-GB')}</span></p>
-              )}
-            </div>
-
-            <div className="mt-5 space-y-2">
-              <button
-                onClick={handleClockIn}
-                disabled={!!todayAttendance?.checkOut || isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl bg-enterprise-blue text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-              >
-                Clock In
-              </button>
-              <input
-                value={checkoutReason}
-                onChange={(e) => setCheckoutReason(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                placeholder="Checkout reason (optional)"
-              />
-              <button
-                onClick={handleRequestCheckout}
-                disabled={!isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-              >
-                Request Mid-day Approval
-              </button>
-              <input
-                value={approvalCode}
-                onChange={(e) => setApprovalCode(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                placeholder="Approval code"
-              />
-              <button
-                onClick={handleMidDayCheckout}
-                disabled={!isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-              >
-                Mid-day Checkout
-              </button>
-              <button
-                onClick={handleClockOut}
-                disabled={!isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-              >
-                Clock Out (End of Day)
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { label: 'Quick Action', title: 'Submit Report', icon: 'fa-pen', action: 'dailyReports', hint: 'Write-once daily reporting' },
-              { label: 'Quick Action', title: 'Check Attendance', icon: 'fa-user-check', action: 'attendance', hint: 'View logs and leave requests' },
-              { label: 'Quick Action', title: 'Open Team Chat', icon: 'fa-comments', action: 'chat', hint: 'Realtime messaging' },
-              { label: 'Quick Action', title: 'View Notices', icon: 'fa-bell', action: 'notices', hint: 'Company announcements' },
-            ].map((q) => (
-              <button key={q.title} onClick={() => onNavigate(q.action)} className={`${tileClass} text-left`}>
-                <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm shrink-0">
-                    <i className={`fas ${q.icon}`}></i>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{q.label}</p>
-                    <p className="mt-2 text-sm font-black text-slate-900 dark:text-white">{q.title}</p>
-                    <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">{q.hint}</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
+    </div>
+  );
 
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -473,6 +492,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
               </div>
             </div>
           </div>
+
+          {/* Employee Reporting & Performance (below Enterprise Recruitment Funnel) */}
+          {employeeReportingPanel}
 
           {/* Real-time Operations - Broad Alignment */}
           <div className={`${panelClass} p-8`}>

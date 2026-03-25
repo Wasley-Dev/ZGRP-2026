@@ -90,7 +90,10 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Date</label>
+            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">
+              <i className="fas fa-calendar-alt text-gold"></i>
+              <span>Date</span>
+            </label>
             <input
               type="date"
               value={date}
@@ -111,7 +114,7 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
             <button
               disabled={isSaving}
               onClick={handleCreate}
-              className="px-6 py-3 rounded-2xl bg-enterprise-blue text-white font-black uppercase tracking-widest text-[10px] shadow-xl disabled:opacity-60"
+              className="px-6 py-3 rounded-2xl bg-gold text-enterprise-blue font-black uppercase tracking-widest text-[10px] shadow-xl disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
             >
               {isSaving ? 'Submitting...' : 'Submit Report'}
             </button>

@@ -49,6 +49,7 @@ const TeamChat = React.lazy(() => import('./components/TeamChat'));
 const NoticesModule = React.lazy(() => import('./components/NoticesModule'));
 const TasksModule = React.lazy(() => import('./components/TasksModule'));
 const PayrollModule = React.lazy(() => import('./components/PayrollModule'));
+const EmploymentManagement = React.lazy(() => import('./components/EmploymentManagement'));
 const RecruitmentHub = React.lazy(() => import('./components/RecruitmentHub'));
 const BookingModule = React.lazy(() => import('./components/BookingModule'));
 const BroadcastModule = React.lazy(() => import('./components/BroadcastModule'));
@@ -242,7 +243,7 @@ const App: React.FC = () => {
     () => loadSharedState({
       bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
       systemConfig: {
-        systemName: 'Employee Reporting & Performance Management System',
+        systemName: 'Zaya Group Portal',
         logoIcon: 'fa-z',
         loginHeroImages: [],
         maintenanceMode: false,
@@ -474,7 +475,7 @@ const App: React.FC = () => {
   };
 
   const validModules = useMemo(
-    () => new Set(['dashboard', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
+    () => new Set(['dashboard', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'employment', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
     []
   );
 
@@ -1102,13 +1103,16 @@ const App: React.FC = () => {
   };
 
   const renderModule = () => {
+    const isSuperAdmin = currentUser.role === UserRole.SUPER_ADMIN;
+    const isAdmin = isSuperAdmin || currentUser.role === UserRole.ADMIN;
+
     switch (activeModule) {
       case 'dashboard':
         return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
       case 'dailyReports':
-        return <DailyReports user={currentUser} isAdmin={currentUser.role !== UserRole.USER} users={allUsers} />;
+        return <DailyReports user={currentUser} isAdmin={isAdmin} users={allUsers} />;
       case 'attendance':
-        return <AttendanceModule user={currentUser} isAdmin={currentUser.role !== UserRole.USER} users={allUsers} onNavigate={setActiveModule} />;
+        return <AttendanceModule user={currentUser} isAdmin={isAdmin} users={allUsers} onNavigate={setActiveModule} />;
       case 'chat':
         return <TeamChat user={currentUser} users={allUsers} />;
       case 'notices':
@@ -1116,7 +1120,25 @@ const App: React.FC = () => {
       case 'tasks':
         return <TasksModule user={currentUser} users={allUsers} />;
       case 'payroll':
+        if (!isAdmin) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Payroll</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to administrators.</p>
+            </div>
+          );
+        }
         return <PayrollModule user={currentUser} users={allUsers} />;
+      case 'employment':
+        if (!isAdmin) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Employment Management</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to administrators.</p>
+            </div>
+          );
+        }
+        return <EmploymentManagement users={allUsers} currentUser={currentUser} />;
       case 'candidates':
       case 'database':
         return <CandidateRegistry candidates={candidates} onAdd={addCandidate} onDelete={deleteCandidate} onUpdate={updateCandidate} mode={activeModule as any} />;
@@ -1129,8 +1151,24 @@ const App: React.FC = () => {
       case 'settings':
         return <Settings theme={theme} onThemeToggle={toggleTheme} user={currentUser} setUser={setCurrentUser} backgroundImageUrl={backgroundImageUrl} onBackgroundImageChange={setBackgroundImageUrl} />;
       case 'admin':
+        if (!isAdmin) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Console</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to administrators.</p>
+            </div>
+          );
+        }
         return <AdminConsole users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} systemConfig={systemConfig} setSystemConfig={setSystemConfig} />;
       case 'machines':
+        if (!isSuperAdmin) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Machine Authentication</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to super admin.</p>
+            </div>
+          );
+        }
         return (
           <MachineAuth
             sessions={activeSessions}
@@ -1171,6 +1209,14 @@ const App: React.FC = () => {
           />
         );
       case 'recovery':
+        if (!isSuperAdmin) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">System Recovery</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to super admin.</p>
+            </div>
+          );
+        }
         return (
           <SystemRecovery
             systemConfig={systemConfig} currentUser={currentUser}

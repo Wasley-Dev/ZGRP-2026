@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AttendanceLog, DailyReport, LeaveRequest, Notice, PayrollRecord, PayrollRunInput, PayslipRecord, SystemUser, TaskItem, TeamMessage } from '../types';
+import type { AttendanceCheckoutRequest, AttendanceLog, DailyReport, LeaveRequest, Notice, PayrollRecord, PayrollRunInput, PayslipRecord, SystemUser, TaskItem, TeamMessage } from '../types';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
@@ -52,6 +52,58 @@ const resolveApiBaseUrl = (): string => {
   const origin = window.location?.origin || '';
   if (origin.startsWith('http://') || origin.startsWith('https://')) return origin;
   return API_BASE_URL || DEFAULT_API_BASE_URL;
+};
+
+const generateToken = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+  } catch {
+    // ignore
+  }
+  return `${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`;
+};
+
+const sha256Hex = async (value: string): Promise<string> => {
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    throw new Error('Browser crypto is unavailable for approval token hashing.');
+  }
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+const normalizeCheckoutRequest = (row: any): AttendanceCheckoutRequest => ({
+  id: String(row.id),
+  attendanceId: String(row.attendance_id),
+  userId: String(row.user_id),
+  date: String(row.date),
+  reason: row.reason ? String(row.reason) : undefined,
+  status: String(row.status || 'pending') === 'approved' ? 'approved' : String(row.status || 'pending') === 'denied' ? 'denied' : 'pending',
+  requestedAt: String(row.requested_at || row.created_at || ''),
+  decidedAt: row.decided_at ? String(row.decided_at) : undefined,
+});
+
+export const fetchLatestMiddayCheckoutRequest = async (attendanceId: string): Promise<AttendanceCheckoutRequest | null> => {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('attendance_checkout_requests')
+    .select('*')
+    .eq('attendance_id', attendanceId)
+    .order('requested_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('fetchLatestMiddayCheckoutRequest error:', error);
+    return null;
+  }
+  if (!data) return null;
+  return normalizeCheckoutRequest(data);
 };
 
 export const fetchDailyReports = async (user: SystemUser, isAdmin: boolean): Promise<DailyReport[]> => {
@@ -217,59 +269,81 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
   };
 };
 
-const CHECKOUT_TOKEN_KEY_PREFIX = 'zaya_checkout_token_v1:';
-
-export const requestClockOutApproval = async (user: SystemUser, attendance: AttendanceLog, reason: string): Promise<void> => {
-  const token = `CO-${attendance.date}-${Math.random().toString(36).slice(2, 8)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage.setItem(`${CHECKOUT_TOKEN_KEY_PREFIX}${user.id}:${attendance.date}`, token);
-    } catch {
-      // ignore
-    }
+export const requestClockOutApproval = async (user: SystemUser, attendance: AttendanceLog, reason: string): Promise<AttendanceCheckoutRequest> => {
+  if (!supabase) {
+    throw new Error('GM approval requires an online connection (Supabase).');
+  }
+  const existing = await fetchLatestMiddayCheckoutRequest(attendance.id);
+  if (existing?.status === 'pending') {
+    throw new Error('Approval already requested. Await GM response.');
   }
 
-  // Send email (if backend configured). If not configured, GM can still approve manually by sharing the code shown in the email failure UI.
-  const subject = `Clock-Out Authorization Request (${attendance.date})`;
+  const token = generateToken();
+  const tokenHash = await sha256Hex(token);
+  const payload = {
+    attendance_id: attendance.id,
+    user_id: user.id,
+    date: attendance.date,
+    reason: reason || null,
+    status: 'pending',
+    token_hash: tokenHash,
+    requested_at: nowIso(),
+  };
+
+  const insert = await supabase.from('attendance_checkout_requests').insert(payload as any).select('*').single();
+  if (insert.error || !insert.data) {
+    const message = String(insert.error?.message || '');
+    if (/attendance_checkout_requests/i.test(message) || /relation/i.test(message)) {
+      throw new Error('Approval requests table missing. Apply the latest Supabase migrations.');
+    }
+    throw insert.error || new Error('Failed to create approval request.');
+  }
+
+  const request = normalizeCheckoutRequest(insert.data as any);
+
+  const baseUrl = resolveApiBaseUrl();
+  if (!baseUrl) throw new Error('Email backend URL not set. Configure VITE_API_BASE_URL.');
+  const approveUrl = `${baseUrl}/api/v1/approvals/attendance-midday?id=${encodeURIComponent(request.id)}&action=approve&token=${encodeURIComponent(token)}`;
+  const denyUrl = `${baseUrl}/api/v1/approvals/attendance-midday?id=${encodeURIComponent(request.id)}&action=deny&token=${encodeURIComponent(token)}`;
+
+  const subject = `Mid-day Clock-Out Authorization (${attendance.date})`;
   const body = [
+    'MID-DAY CHECKOUT AUTHORIZATION REQUEST',
+    '',
     `Employee: ${user.name} (${user.email})`,
     `User ID: ${user.id}`,
     `Date: ${attendance.date}`,
     `Check-in: ${attendance.checkIn}`,
     `Reason: ${reason || 'Not provided'}`,
     '',
-    `Authorization Code: ${token}`,
+    'Approve:',
+    approveUrl,
     '',
-    'Reply to the employee with the Authorization Code to permit checkout.',
+    'Deny:',
+    denyUrl,
+    '',
+    'This decision will update automatically in the employee portal.',
   ].join('\n');
 
-  const baseUrl = resolveApiBaseUrl();
-  if (!baseUrl) throw new Error('Email backend URL not set. Configure VITE_API_BASE_URL.');
   await fetch(`${baseUrl}/api/v1/messages/email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to: ['gm@zayagroupltd.com'], subject, body }),
   });
+
+  return request;
 };
 
-export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog, approvalCode: string): Promise<AttendanceLog> => {
+export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
   if (!attendance.checkIn) throw new Error('You must clock in first.');
   if (attendance.checkOut) throw new Error('You already completed attendance for today.');
   if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
-  const expectedKey = `${CHECKOUT_TOKEN_KEY_PREFIX}${user.id}:${attendance.date}`;
-  const expected = typeof window !== 'undefined' ? window.localStorage.getItem(expectedKey) : null;
-  if (!expected || expected.trim().toUpperCase() !== approvalCode.trim().toUpperCase()) {
-    throw new Error('Invalid authorization code. Request approval from gm@zayagroupltd.com.');
-  }
+  if (!supabase) throw new Error('Mid-day checkout requires GM approval (online connection required).');
 
-  if (!supabase) {
-    const now = nowIso();
-    const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
-    const last = segments[segments.length - 1];
-    if (!last?.in || last?.out) throw new Error('Mid-day checkout not available.');
-    last.out = now;
-    return { ...attendance, segments };
-  }
+  const latest = await fetchLatestMiddayCheckoutRequest(attendance.id);
+  if (!latest) throw new Error('No approval request found. Request mid-day approval first.');
+  if (latest.status === 'pending') throw new Error('Approval pending. Await GM response.');
+  if (latest.status !== 'approved') throw new Error('Approval denied. Contact GM for assistance.');
 
   const now = nowIso();
   const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
@@ -282,11 +356,6 @@ export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog
     throw new Error('Mid-day checkout requires an attendance schema update (segments column). Apply the latest Supabase migration.');
   }
   if (error || !data) throw error || new Error('Clock out failed');
-  try {
-    if (typeof window !== 'undefined') window.localStorage.removeItem(expectedKey);
-  } catch {
-    // ignore
-  }
   return {
     id: String((data as any).id),
     userId: String((data as any).user_id),
@@ -459,9 +528,9 @@ export const subscribeToTableInserts = (
   onInsert: (row: any) => void
 ) => {
   if (!supabase) return { unsubscribe: () => {} };
-  const channel = supabase
-    .channel(`erp-${table}-inserts`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload) => {
+  const channel = supabase.channel(`erp-${table}-inserts`);
+  (channel as any)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table }, (payload: any) => {
       onInsert(payload.new);
     })
     .subscribe();
@@ -490,10 +559,10 @@ export const subscribeToTableChanges = (
   const events = options.events?.length ? options.events : ['INSERT', 'UPDATE'];
   const channel = supabase.channel(`erp-${table}-changes:${options.filter || 'all'}`);
   events.forEach((event) => {
-    channel.on(
+    (channel as any).on(
       'postgres_changes',
       { event, schema: 'public', table, filter: options.filter },
-      (payload) => {
+      (payload: any) => {
         if (event === 'INSERT') options.onInsert?.(payload.new);
         if (event === 'UPDATE') options.onUpdate?.(payload.new);
         if (event === 'DELETE') options.onDelete?.(payload.old);

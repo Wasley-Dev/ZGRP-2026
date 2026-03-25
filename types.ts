@@ -105,6 +105,19 @@ export interface AttendanceLog {
   segments?: Array<{ in: string; out?: string }>;
 }
 
+export type AttendanceApprovalStatus = 'pending' | 'approved' | 'denied';
+
+export interface AttendanceCheckoutRequest {
+  id: string;
+  attendanceId: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  reason?: string;
+  status: AttendanceApprovalStatus;
+  requestedAt: string;
+  decidedAt?: string;
+}
+
 export interface TeamMessage {
   id: string;
   senderId: string;
