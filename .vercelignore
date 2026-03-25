@@ -2,7 +2,6 @@ release
 node_modules
 dist
 .env
-assets
 desktop-macos-latest
 gh-run-logs
 .git
