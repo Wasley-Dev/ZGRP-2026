@@ -8,7 +8,10 @@ interface InvoicesModuleProps {
 }
 
 const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
-  const isAdmin = user.role !== UserRole.USER;
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const canViewAll = user.role !== UserRole.USER || isSalesManager;
+  const canAssign = user.role !== UserRole.USER || isSalesManager;
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -23,12 +26,12 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const data = await fetchInvoices(user, isAdmin);
+      const data = await fetchInvoices(user, canViewAll);
       if (!cancelled) setInvoices(data);
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, isAdmin]);
+  }, [user.id, canViewAll]);
 
   const handleCreate = async () => {
     const no = invoiceNo.trim();
@@ -37,7 +40,7 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
     if (!no || !c || !Number.isFinite(a) || a <= 0) { alert('Invoice no, client, and amount are required.'); return; }
     setBusy(true);
     try {
-      const created = await createInvoice({ ...user, id: assigneeId }, {
+      const created = await createInvoice(user, assigneeId, {
         invoiceNo: no,
         client: c,
         amount: a,
@@ -86,7 +89,7 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
         <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">New Invoice</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {isAdmin && (
+            {canAssign && (
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
@@ -156,4 +159,3 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
 };
 
 export default InvoicesModule;
-

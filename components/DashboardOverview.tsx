@@ -19,6 +19,7 @@ import {
 import { AttendanceCheckoutRequest, BookingEntry, Candidate, Notice, RecruitmentStatus, SystemUser, TaskItem, UserRole } from '../types';
 import { getTodayIsoInEAT } from '../services/dateTime';
 import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchNotices, fetchTasks, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, setTaskStatus, subscribeToTableChanges } from '../services/employeeSystemService';
+import { fetchInvoices, fetchLeads } from '../services/salesService';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -34,6 +35,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const isEmployee = user.role === UserRole.USER;
   const isAdminOrSuper = user.role !== UserRole.USER;
   const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesTeam && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const canSeeSalesOverview = user.role !== UserRole.USER || isSalesManager;
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
@@ -41,6 +44,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const [checkoutRequest, setCheckoutRequest] = React.useState<AttendanceCheckoutRequest | null>(null);
   const [myTasks, setMyTasks] = React.useState<TaskItem[]>([]);
   const [latestNotices, setLatestNotices] = React.useState<Notice[]>([]);
+  const [salesOverview, setSalesOverview] = React.useState<{ leads: number; won: number; pipeline: number; paid: number; unpaidInvoices: number } | null>(null);
 
   const isCurrentlyCheckedIn = React.useMemo(() => {
     if (!todayAttendance?.checkIn) return false;
@@ -136,6 +140,29 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     void load();
     return () => { cancelled = true; };
   }, [user.id]);
+
+  React.useEffect(() => {
+    if (!canSeeSalesOverview) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [leads, invoices] = await Promise.all([
+          fetchLeads(user, true),
+          fetchInvoices(user, true),
+        ]);
+        if (cancelled) return;
+        const won = leads.filter((l) => String((l as any).status) === 'won').length;
+        const pipeline = leads.filter((l) => String((l as any).status) !== 'lost').reduce((acc, l) => acc + Number((l as any).estimatedValue || 0), 0);
+        const paid = invoices.filter((i) => String((i as any).status) === 'paid').reduce((acc, i) => acc + Number((i as any).amount || 0), 0);
+        const unpaidInvoices = invoices.filter((i) => !['paid', 'void'].includes(String((i as any).status))).length;
+        setSalesOverview({ leads: leads.length, won, pipeline, paid, unpaidInvoices });
+      } catch {
+        // ignore
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [canSeeSalesOverview, user.id]);
 
   React.useEffect(() => {
     if (!hasEmployeeSupabase()) return;
@@ -736,6 +763,52 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         </div>
       )}
 
+      {canSeeSalesOverview && (
+        <div className={`${panelClass} p-6`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Sales Team Progress</h3>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+                Overview of leads, pipeline, and paid invoices (requires Sales migrations in Supabase).
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={() => onNavigate('salesDashboard')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+                Open Sales
+              </button>
+              <button onClick={() => onNavigate('leads')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Leads
+              </button>
+              <button onClick={() => onNavigate('invoices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Invoices
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            {[
+              { label: 'Total Leads', value: String(salesOverview?.leads ?? 0), icon: 'fa-user-tag' },
+              { label: 'Deals Won', value: String(salesOverview?.won ?? 0), icon: 'fa-trophy' },
+              { label: 'Pipeline Value', value: `TZS ${Math.round(salesOverview?.pipeline ?? 0).toLocaleString()}`, icon: 'fa-coins' },
+              { label: 'Paid Revenue', value: `TZS ${Math.round(salesOverview?.paid ?? 0).toLocaleString()}`, icon: 'fa-money-bill-wave' },
+              { label: 'Unpaid Invoices', value: String(salesOverview?.unpaidInvoices ?? 0), icon: 'fa-file-invoice-dollar' },
+            ].map((kpi) => (
+              <div key={kpi.label} className={`${tileClass} text-left cursor-default`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
+                    <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
+                    <i className={`fas ${kpi.icon}`}></i>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Department Performance Chart with Training in red */}
@@ -801,39 +874,6 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
 
           {/* Employee Reporting & Performance (below Enterprise Recruitment Funnel) */}
           {employeeReportingPanel}
-
-          {/* Real-time Operations - Broad Alignment */}
-          <div className={`${panelClass} p-8`}>
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Real-time Operations</h3>
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(bookings.length
-                ? bookings.slice(0, 4).map((booking) => ({
-                    title: `${booking.purpose}: ${booking.booker}`,
-                    time: `${booking.date} ${booking.time}`,
-                    status: 'Scheduled',
-                  }))
-                : [{ title: 'No Bookings Yet', time: '-', status: 'Waiting for data' }]).map((event, idx) => (
-                <div key={idx} className={tileClass} onClick={() => onNavigate('recruitment')}>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs font-black text-slate-800 dark:text-white uppercase leading-tight">{event.title}</p>
-                      <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{event.status}</p>
-                    </div>
-                    <span className="text-[9px] font-black text-gold bg-gold/5 px-2 py-0.5 rounded border border-gold/20 whitespace-nowrap">{event.time}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button 
-              onClick={handleTrace}
-              className="w-full mt-8 py-4 bg-enterprise-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all hover:brightness-110"
-            >
-              Execute Full Schedule Trace
-            </button>
-          </div>
         </div>
 
         <div className="space-y-6">
@@ -892,6 +932,39 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
                   </div>
                 ))}
              </div>
+          </div>
+
+          {/* Real-time Operations (aligned under Upcoming Operations) */}
+          <div className={`${panelClass} p-8`}>
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight text-sm">Real-time Operations</h3>
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            </div>
+            <div className="space-y-4">
+              {(bookings.length
+                ? bookings.slice(0, 4).map((booking) => ({
+                    title: `${booking.purpose}: ${booking.booker}`,
+                    time: `${booking.date} ${booking.time}`,
+                    status: 'Scheduled',
+                  }))
+                : [{ title: 'No Bookings Yet', time: '-', status: 'Waiting for data' }]).map((event, idx) => (
+                <div key={idx} className={tileClass} onClick={() => onNavigate('recruitment')}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-black text-slate-800 dark:text-white uppercase leading-tight">{event.title}</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{event.status}</p>
+                    </div>
+                    <span className="text-[9px] font-black text-gold bg-gold/5 px-2 py-0.5 rounded border border-gold/20 whitespace-nowrap">{event.time}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleTrace}
+              className="w-full mt-8 py-4 bg-enterprise-blue text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-900/20 active:scale-95 transition-all hover:brightness-110"
+            >
+              Execute Full Schedule Trace
+            </button>
           </div>
         </div>
       </div>

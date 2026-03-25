@@ -279,4 +279,5 @@ export interface SystemConfig {
   maintenanceUpdatedBy?: string;
   maintenanceUpdatedAt?: string;
   backupHour?: number;
+  salesAdminWriteEnabled?: boolean; // super admin toggles whether admins can edit sales targets
 }

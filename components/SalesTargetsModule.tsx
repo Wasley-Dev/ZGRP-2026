@@ -1,30 +1,47 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { type Invoice, type Lead, type SalesTarget, type SystemUser, UserRole } from '../types';
+import { type Invoice, type Lead, type SalesTarget, type SystemConfig, type SystemUser, UserRole } from '../types';
 import { fetchInvoices, fetchLeads, fetchSalesTargets, upsertSalesTarget } from '../services/salesService';
 
 interface SalesTargetsModuleProps {
   user: SystemUser;
+  users: SystemUser[];
+  systemConfig: SystemConfig;
 }
 
-const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user }) => {
-  const isAdmin = user.role !== UserRole.USER;
+const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, systemConfig }) => {
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const canViewAllSales = user.role !== UserRole.USER || isSalesManager;
+  const canEditTargets = user.role === UserRole.SUPER_ADMIN || isSalesManager || (user.role === UserRole.ADMIN && Boolean(systemConfig.salesAdminWriteEnabled));
+  const canChooseAssignee = user.role !== UserRole.USER || isSalesManager;
   const now = useMemo(() => new Date(), []);
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [leadsTarget, setLeadsTarget] = useState('30');
   const [revenueTarget, setRevenueTarget] = useState('5000000');
+  const [targetUserId, setTargetUserId] = useState(user.id);
   const [targets, setTargets] = useState<SalesTarget[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [busy, setBusy] = useState(false);
 
+  const salesUsers = useMemo(() => {
+    return users
+      .filter((u) => u.status !== 'BANNED')
+      .filter((u) => /sales/i.test(String(u.department || '')) || /sales/i.test(String(u.jobTitle || '')));
+  }, [users]);
+
+  useEffect(() => {
+    if (!canChooseAssignee) setTargetUserId(user.id);
+  }, [canChooseAssignee, user.id]);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const [t, l, i] = await Promise.all([
-        fetchSalesTargets(user, isAdmin),
-        fetchLeads(user, isAdmin),
-        fetchInvoices(user, isAdmin),
+        fetchSalesTargets(user, canViewAllSales),
+        fetchLeads(user, canViewAllSales),
+        fetchInvoices(user, canViewAllSales),
       ]);
       if (cancelled) return;
       setTargets(t);
@@ -33,11 +50,11 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user }) => {
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, isAdmin]);
+  }, [user.id, canViewAllSales]);
 
   const myTarget = useMemo(
-    () => targets.find((t) => t.userId === user.id && t.month === month && t.year === year) || null,
-    [targets, user.id, month, year]
+    () => targets.find((t) => t.userId === targetUserId && t.month === month && t.year === year) || null,
+    [targets, targetUserId, month, year]
   );
 
   useEffect(() => {
@@ -46,19 +63,20 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user }) => {
     setRevenueTarget(String(myTarget.revenueTarget));
   }, [myTarget?.id]);
 
-  const myLeadsCount = useMemo(() => leads.filter((l) => l.userId === user.id).length, [leads, user.id]);
+  const myLeadsCount = useMemo(() => leads.filter((l) => l.userId === targetUserId).length, [leads, targetUserId]);
   const myRevenuePaid = useMemo(
-    () => invoices.filter((i) => i.userId === user.id && i.status === 'paid').reduce((acc, i) => acc + Number(i.amount || 0), 0),
-    [invoices, user.id]
+    () => invoices.filter((i) => i.userId === targetUserId && i.status === 'paid').reduce((acc, i) => acc + Number(i.amount || 0), 0),
+    [invoices, targetUserId]
   );
 
   const handleSave = async () => {
     const lt = Math.max(0, Number(leadsTarget || 0));
     const rt = Math.max(0, Number(revenueTarget || 0));
+    if (!canEditTargets) { alert('You do not have permission to edit targets.'); return; }
     setBusy(true);
     try {
-      const saved = await upsertSalesTarget(user, { month, year, leadsTarget: lt, revenueTarget: rt });
-      setTargets((prev) => [saved, ...prev.filter((t) => !(t.userId === user.id && t.month === month && t.year === year))]);
+      const saved = await upsertSalesTarget(user, targetUserId, { month, year, leadsTarget: lt, revenueTarget: rt });
+      setTargets((prev) => [saved, ...prev.filter((t) => !(t.userId === targetUserId && t.month === month && t.year === year))]);
       alert('Targets saved.');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to save targets.');
@@ -90,6 +108,17 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user }) => {
         <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Configure</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {canChooseAssignee && (
+              <select
+                value={targetUserId}
+                onChange={(e) => setTargetUserId(e.target.value)}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+              >
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}{u.jobTitle ? ` — ${u.jobTitle}` : ''}</option>
+                ))}
+              </select>
+            )}
             <input
               value={month}
               onChange={(e) => setMonth(Number(e.target.value))}
@@ -111,18 +140,20 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user }) => {
             <input
               value={leadsTarget}
               onChange={(e) => setLeadsTarget(e.target.value)}
+              disabled={!canEditTargets}
               className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
               placeholder="Leads target"
             />
             <input
               value={revenueTarget}
               onChange={(e) => setRevenueTarget(e.target.value)}
+              disabled={!canEditTargets}
               className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
               placeholder="Revenue target (TZS)"
             />
             <div className="md:col-span-2 flex justify-end">
               <button
-                disabled={busy}
+                disabled={busy || !canEditTargets}
                 onClick={() => void handleSave()}
                 className="px-6 py-3 rounded-2xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow disabled:opacity-60"
               >

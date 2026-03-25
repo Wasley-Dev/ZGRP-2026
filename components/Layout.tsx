@@ -106,17 +106,22 @@ const Layout: React.FC<LayoutProps> = ({
   const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const isAdmin = isSuperAdmin || user.role === UserRole.ADMIN;
   const isEmployeeWorkflowsEnabled = user.role !== UserRole.ADMIN;
-  const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
-  const homeItem = isSalesTeam
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const hasSalesAccess = isAdmin || isSalesDept;
+  const isSalesRestrictedUser = isSalesDept && user.role === UserRole.USER;
+  const showSalesHome = isSalesDept && user.role === UserRole.USER;
+  const homeItem = showSalesHome
     ? { id: 'salesDashboard', label: 'Sales Dashboard', icon: 'fa-chart-pie' }
     : { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' };
 
   const navItems = [
     homeItem,
 
-    ...(isSalesTeam ? [{ id: 'leads', label: 'Leads', icon: 'fa-user-tag' }] : []),
-    ...(isSalesTeam ? [{ id: 'salesTargets', label: 'Targets / KPIs', icon: 'fa-bullseye' }] : []),
-    ...(isSalesTeam ? [{ id: 'invoices', label: 'Invoices', icon: 'fa-file-invoice-dollar' }] : []),
+    ...(hasSalesAccess ? [{ id: 'leads', label: 'Leads', icon: 'fa-user-tag' }] : []),
+    ...(hasSalesAccess ? [{ id: 'salesTargets', label: 'Targets / KPIs', icon: 'fa-bullseye' }] : []),
+    ...(hasSalesAccess ? [{ id: 'invoices', label: 'Invoices', icon: 'fa-file-invoice-dollar' }] : []),
+    ...(isSalesManager ? [{ id: 'dashboard', label: 'Enterprise Dashboard', icon: 'fa-chart-line' }] : []),
 
     // Employee reporting & performance
     ...(isEmployeeWorkflowsEnabled ? [{ id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' }] : []),
@@ -127,12 +132,12 @@ const Layout: React.FC<LayoutProps> = ({
     ...(isAdmin ? [{ id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' }] : []),
 
     // Existing modules (kept from previous system)
-    ...(!isSalesTeam ? [{ id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' }] : []),
-    ...(!isSalesTeam ? [{ id: 'candidates', label: 'Candidates', icon: 'fa-database' }] : []),
-    ...(!isSalesTeam ? [{ id: 'database', label: 'Candidates Registry', icon: 'fa-users' }] : []),
-    ...(!isSalesTeam ? [{ id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'candidates', label: 'Candidates', icon: 'fa-database' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'database', label: 'Candidates Registry', icon: 'fa-users' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' }] : []),
     { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
-    ...(!isSalesTeam ? [{ id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' }] : []),
 
     { id: 'settings', label: 'Settings', icon: 'fa-cog' },
   ];
@@ -164,7 +169,7 @@ const Layout: React.FC<LayoutProps> = ({
     onMarkRead(n.id);
     const validModules = new Set(['dashboard','salesDashboard','leads','salesTargets','invoices','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
     const restrictedForSales = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
-    if (n.origin && validModules.has(n.origin) && !(isSalesTeam && restrictedForSales.has(n.origin))) onModuleChange(n.origin);
+    if (n.origin && validModules.has(n.origin) && !(isSalesRestrictedUser && restrictedForSales.has(n.origin))) onModuleChange(n.origin);
     setIsNotifOpen(false);
   };
 
@@ -447,7 +452,7 @@ const Layout: React.FC<LayoutProps> = ({
 
         {/* Mobile bottom nav bar */}
         <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 liquid-bar ${isDark ? 'border-blue-400/20' : 'border-slate-200'}`}>
-          {((isSalesTeam
+          {((showSalesHome
             ? [
                 { id: 'salesDashboard', icon: 'fa-chart-pie', label: 'sales' },
                 { id: 'leads', icon: 'fa-user-tag', label: 'leads' },

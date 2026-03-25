@@ -11,8 +11,21 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
-  const [activeChannel, setActiveChannel] = useState<'general' | 'sales'>(() => (isSalesTeam ? 'sales' : 'general'));
+  const departmentSlug = String(user.department || 'general')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'general';
+  const deptChannel = `dept:${departmentSlug}`;
+  const normalizeChannel = (value: unknown): string => {
+    const raw = String(value || '').trim();
+    if (!raw) return 'org';
+    const lower = raw.toLowerCase();
+    if (lower === 'general') return 'org';
+    if (lower === 'sales') return 'dept:sales';
+    return raw;
+  };
+  const [activeChannel, setActiveChannel] = useState<string>(() => deptChannel);
   const listRef = useRef<HTMLDivElement>(null);
 
   const userById = useMemo(() => new Map<string, SystemUser>(users.map((u) => [u.id, u])), [users]);
@@ -42,10 +55,10 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
         id: String(row.id),
         senderId: String(row.sender_id),
         message: String(row.message || ''),
-        channel: row.channel ? String(row.channel) : 'general',
+        channel: normalizeChannel(row.channel),
         createdAt: String(row.created_at || ''),
       };
-      if ((next.channel || 'general') !== activeChannel) return;
+      if (normalizeChannel(next.channel) !== activeChannel) return;
       setMessages((prev) => (prev.some((m) => m.id === next.id) ? prev : [...prev, next]));
       window.setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }), 30);
     });
@@ -78,25 +91,24 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setActiveChannel('general')}
+              onClick={() => setActiveChannel('org')}
               className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                activeChannel === 'general'
+                activeChannel === 'org'
                   ? 'bg-gold text-enterprise-blue border-gold'
                   : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
               }`}
             >
-              General
+              Organization
             </button>
             <button
-              onClick={() => setActiveChannel('sales')}
+              onClick={() => setActiveChannel(deptChannel)}
               className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                activeChannel === 'sales'
+                activeChannel === deptChannel
                   ? 'bg-gold text-enterprise-blue border-gold'
                   : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
               }`}
-              title={isSalesTeam ? 'Sales channel' : 'Sales channel (view-only)'}
             >
-              Sales
+              {String(user.department || 'Department')}
             </button>
             <span className="text-[10px] font-black uppercase tracking-widest text-gold">{messages.length}</span>
           </div>

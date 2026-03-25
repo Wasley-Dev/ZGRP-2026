@@ -70,10 +70,16 @@ type RememberedAuth = {
   savedAt: number;
 };
 
-const isSalesTeamUser = (user: SystemUser): boolean => {
+const isSalesDeptUser = (user: SystemUser): boolean => {
   return /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
 };
-const getHomeModule = (user: SystemUser): string => (isSalesTeamUser(user) ? 'salesDashboard' : 'dashboard');
+const isSalesManagerUser = (user: SystemUser): boolean => {
+  if (!isSalesDeptUser(user)) return false;
+  return /manager|head|lead/i.test(String(user.jobTitle || ''));
+};
+const isSalesRepUser = (user: SystemUser): boolean => isSalesDeptUser(user) && user.role === UserRole.USER && !isSalesManagerUser(user);
+const hasSalesAccess = (user: SystemUser): boolean => user.role !== UserRole.USER || isSalesDeptUser(user);
+const getHomeModule = (user: SystemUser): string => (isSalesDeptUser(user) && user.role === UserRole.USER ? 'salesDashboard' : 'dashboard');
 const GENERATED_NAME_POOL = [
   'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
   'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
@@ -258,6 +264,7 @@ const App: React.FC = () => {
         loginHeroImages: [],
         maintenanceMode: false,
         backupHour: 15,
+        salesAdminWriteEnabled: false,
       },
     }), []
   );
@@ -1140,10 +1147,12 @@ const App: React.FC = () => {
   const renderModule = () => {
     const isSuperAdmin = currentUser.role === UserRole.SUPER_ADMIN;
     const isAdmin = isSuperAdmin || currentUser.role === UserRole.ADMIN;
-    const isSalesTeam = isSalesTeamUser(currentUser);
+    const isSalesDept = isSalesDeptUser(currentUser);
+    const isSalesRestrictedUser = isSalesDept && currentUser.role === UserRole.USER;
+    const canAccessSales = hasSalesAccess(currentUser);
     const salesModules = new Set(['salesDashboard', 'leads', 'salesTargets', 'invoices']);
     const salesRestricted = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
-    if (isSalesTeam && salesRestricted.has(activeModule)) {
+    if (isSalesRestrictedUser && salesRestricted.has(activeModule)) {
       return (
         <div className="liquid-panel p-6">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
@@ -1159,7 +1168,7 @@ const App: React.FC = () => {
         </div>
       );
     }
-    if (!isSalesTeam && salesModules.has(activeModule)) {
+    if (!canAccessSales && salesModules.has(activeModule)) {
       return (
         <div className="liquid-panel p-6">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
@@ -1178,14 +1187,14 @@ const App: React.FC = () => {
 
     switch (activeModule) {
       case 'dashboard':
-        if (isSalesTeamUser(currentUser)) return <SalesDashboard user={currentUser} onNavigate={setActiveModule} />;
+        if (isSalesRepUser(currentUser)) return <SalesDashboard user={currentUser} onNavigate={setActiveModule} />;
         return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
       case 'salesDashboard':
         return <SalesDashboard user={currentUser} onNavigate={setActiveModule} />;
       case 'leads':
         return <LeadsModule user={currentUser} users={allUsers} />;
       case 'salesTargets':
-        return <SalesTargetsModule user={currentUser} />;
+        return <SalesTargetsModule user={currentUser} users={allUsers} systemConfig={systemConfig} />;
       case 'invoices':
         return <InvoicesModule user={currentUser} users={allUsers} />;
       case 'dailyReports':

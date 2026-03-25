@@ -8,7 +8,9 @@ interface SalesDashboardProps {
 }
 
 const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => {
-  const isAdmin = user.role !== UserRole.USER;
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const canViewAllSales = user.role !== UserRole.USER || isSalesManager;
   const [leads, setLeads] = useState<Lead[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [targets, setTargets] = useState<SalesTarget[]>([]);
@@ -17,9 +19,9 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
     let cancelled = false;
     const load = async () => {
       const [l, i, t] = await Promise.all([
-        fetchLeads(user, isAdmin),
-        fetchInvoices(user, isAdmin),
-        fetchSalesTargets(user, isAdmin),
+        fetchLeads(user, canViewAllSales),
+        fetchInvoices(user, canViewAllSales),
+        fetchSalesTargets(user, canViewAllSales),
       ]);
       if (cancelled) return;
       setLeads(l);
@@ -28,7 +30,7 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, isAdmin]);
+  }, [user.id, canViewAllSales]);
 
   const monthKey = useMemo(() => {
     const now = new Date();
@@ -41,17 +43,19 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
 
   const myLeads = useMemo(() => leads.filter((l) => l.userId === user.id), [leads, user.id]);
   const myInvoices = useMemo(() => invoices.filter((i) => i.userId === user.id), [invoices, user.id]);
+  const scopeLeads = canViewAllSales ? leads : myLeads;
+  const scopeInvoices = canViewAllSales ? invoices : myInvoices;
 
   const totals = useMemo(() => {
-    const openLeads = myLeads.filter((l) => !['won', 'lost'].includes(String(l.status))).length;
-    const won = myLeads.filter((l) => String(l.status) === 'won').length;
-    const pipelineValue = myLeads
+    const openLeads = scopeLeads.filter((l) => !['won', 'lost'].includes(String(l.status))).length;
+    const won = scopeLeads.filter((l) => String(l.status) === 'won').length;
+    const pipelineValue = scopeLeads
       .filter((l) => !['lost'].includes(String(l.status)))
       .reduce((acc, l) => acc + Number(l.estimatedValue || 0), 0);
-    const unpaidInvoices = myInvoices.filter((i) => i.status !== 'paid' && i.status !== 'void').length;
-    const revenuePaid = myInvoices.filter((i) => i.status === 'paid').reduce((acc, i) => acc + Number(i.amount || 0), 0);
+    const unpaidInvoices = scopeInvoices.filter((i) => i.status !== 'paid' && i.status !== 'void').length;
+    const revenuePaid = scopeInvoices.filter((i) => i.status === 'paid').reduce((acc, i) => acc + Number(i.amount || 0), 0);
     return { openLeads, won, pipelineValue, unpaidInvoices, revenuePaid };
-  }, [myLeads, myInvoices]);
+  }, [scopeLeads, scopeInvoices]);
 
   const kpiTile =
     'group p-6 rounded-2xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#141f4e_0%,#0d1739_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] flex items-center justify-between text-left hover:border-gold/40 transition-all active:scale-[0.98]';
@@ -82,10 +86,10 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Open Leads', value: totals.openLeads.toString(), icon: 'fa-user-tag', action: 'leads' },
-          { label: 'Deals Won', value: totals.won.toString(), icon: 'fa-trophy', action: 'leads' },
-          { label: 'Pipeline Value', value: `TZS ${Math.round(totals.pipelineValue).toLocaleString()}`, icon: 'fa-coins', action: 'leads' },
-          { label: 'Unpaid Invoices', value: totals.unpaidInvoices.toString(), icon: 'fa-file-invoice-dollar', action: 'invoices' },
+          { label: `${canViewAllSales ? 'Team' : 'My'} Open Leads`, value: totals.openLeads.toString(), icon: 'fa-user-tag', action: 'leads' },
+          { label: `${canViewAllSales ? 'Team' : 'My'} Deals Won`, value: totals.won.toString(), icon: 'fa-trophy', action: 'leads' },
+          { label: `${canViewAllSales ? 'Team' : 'My'} Pipeline Value`, value: `TZS ${Math.round(totals.pipelineValue).toLocaleString()}`, icon: 'fa-coins', action: 'leads' },
+          { label: `${canViewAllSales ? 'Team' : 'My'} Unpaid Invoices`, value: totals.unpaidInvoices.toString(), icon: 'fa-file-invoice-dollar', action: 'invoices' },
         ].map((kpi) => (
           <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={kpiTile}>
             <div>
@@ -137,4 +141,3 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
 };
 
 export default SalesDashboard;
-

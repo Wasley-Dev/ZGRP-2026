@@ -89,32 +89,33 @@ const toTarget = (row: any): SalesTarget => ({
   createdAt: String(row.created_at || ''),
 });
 
-export const fetchLeads = async (user: SystemUser, isAdmin: boolean): Promise<Lead[]> => {
+export const fetchLeads = async (user: SystemUser, canViewAll: boolean): Promise<Lead[]> => {
   const local = readLocalArray<Lead>('leads', []);
-  if (!supabase) return isAdmin ? local : local.filter((l) => l.userId === user.id);
+  if (!supabase) return canViewAll ? local : local.filter((l) => l.userId === user.id);
 
   const q = supabase.from('leads').select('*').order('created_at', { ascending: false }).limit(300);
-  const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
+  const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
-    if (isSchemaError(error)) return isAdmin ? local : local.filter((l) => l.userId === user.id);
-    return isAdmin ? local : local.filter((l) => l.userId === user.id);
+    if (isSchemaError(error)) return canViewAll ? local : local.filter((l) => l.userId === user.id);
+    return canViewAll ? local : local.filter((l) => l.userId === user.id);
   }
   const mapped = (data as any[]).map(toLead);
   writeLocalArray('leads', mapped);
-  return isAdmin ? mapped : mapped.filter((l) => l.userId === user.id);
+  return canViewAll ? mapped : mapped.filter((l) => l.userId === user.id);
 };
 
 export const createLead = async (
-  user: SystemUser,
+  actor: SystemUser,
+  targetUserId: string,
   input: Omit<Lead, 'id' | 'userId' | 'createdAt'>
 ): Promise<Lead> => {
-  const local: Lead = { id: `local-${Date.now()}`, userId: user.id, createdAt: nowIso(), ...input };
+  const local: Lead = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray('leads', [local, ...current].slice(0, 500));
   if (!supabase) return local;
 
   const payload = {
-    user_id: user.id,
+    user_id: targetUserId,
     name: input.name,
     company: input.company || null,
     phone: input.phone || null,
@@ -142,32 +143,33 @@ export const updateLeadStatus = async (leadId: string, status: Lead['status']): 
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
 };
 
-export const fetchInvoices = async (user: SystemUser, isAdmin: boolean): Promise<Invoice[]> => {
+export const fetchInvoices = async (user: SystemUser, canViewAll: boolean): Promise<Invoice[]> => {
   const local = readLocalArray<Invoice>('invoices', []);
-  if (!supabase) return isAdmin ? local : local.filter((i) => i.userId === user.id);
+  if (!supabase) return canViewAll ? local : local.filter((i) => i.userId === user.id);
 
   const q = supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(300);
-  const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
+  const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
-    if (isSchemaError(error)) return isAdmin ? local : local.filter((i) => i.userId === user.id);
-    return isAdmin ? local : local.filter((i) => i.userId === user.id);
+    if (isSchemaError(error)) return canViewAll ? local : local.filter((i) => i.userId === user.id);
+    return canViewAll ? local : local.filter((i) => i.userId === user.id);
   }
   const mapped = (data as any[]).map(toInvoice);
   writeLocalArray('invoices', mapped);
-  return isAdmin ? mapped : mapped.filter((i) => i.userId === user.id);
+  return canViewAll ? mapped : mapped.filter((i) => i.userId === user.id);
 };
 
 export const createInvoice = async (
-  user: SystemUser,
+  actor: SystemUser,
+  targetUserId: string,
   input: Omit<Invoice, 'id' | 'userId' | 'createdAt'>
 ): Promise<Invoice> => {
-  const local: Invoice = { id: `local-${Date.now()}`, userId: user.id, createdAt: nowIso(), ...input };
+  const local: Invoice = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
   const current = readLocalArray<Invoice>('invoices', []);
   writeLocalArray('invoices', [local, ...current].slice(0, 500));
   if (!supabase) return local;
 
   const payload = {
-    user_id: user.id,
+    user_id: targetUserId,
     invoice_no: input.invoiceNo,
     client: input.client,
     amount: input.amount,
@@ -193,29 +195,30 @@ export const updateInvoiceStatus = async (invoiceId: string, status: Invoice['st
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update invoice.');
 };
 
-export const fetchSalesTargets = async (user: SystemUser, isAdmin: boolean): Promise<SalesTarget[]> => {
+export const fetchSalesTargets = async (user: SystemUser, canViewAll: boolean): Promise<SalesTarget[]> => {
   const local = readLocalArray<SalesTarget>('targets', []);
-  if (!supabase) return isAdmin ? local : local.filter((t) => t.userId === user.id);
+  if (!supabase) return canViewAll ? local : local.filter((t) => t.userId === user.id);
 
   const q = supabase.from('sales_targets').select('*').order('created_at', { ascending: false }).limit(300);
-  const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
+  const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
-    if (isSchemaError(error)) return isAdmin ? local : local.filter((t) => t.userId === user.id);
-    return isAdmin ? local : local.filter((t) => t.userId === user.id);
+    if (isSchemaError(error)) return canViewAll ? local : local.filter((t) => t.userId === user.id);
+    return canViewAll ? local : local.filter((t) => t.userId === user.id);
   }
   const mapped = (data as any[]).map(toTarget);
   writeLocalArray('targets', mapped);
-  return isAdmin ? mapped : mapped.filter((t) => t.userId === user.id);
+  return canViewAll ? mapped : mapped.filter((t) => t.userId === user.id);
 };
 
 export const upsertSalesTarget = async (
-  user: SystemUser,
+  actor: SystemUser,
+  targetUserId: string,
   input: { month: number; year: number; leadsTarget: number; revenueTarget: number }
 ): Promise<SalesTarget> => {
-  const id = `local-target-${user.id}-${input.year}-${input.month}`;
+  const id = `local-target-${targetUserId}-${input.year}-${input.month}`;
   const local: SalesTarget = {
     id,
-    userId: user.id,
+    userId: targetUserId,
     month: input.month,
     year: input.year,
     leadsTarget: input.leadsTarget,
@@ -223,12 +226,12 @@ export const upsertSalesTarget = async (
     createdAt: nowIso(),
   };
   const current = readLocalArray<SalesTarget>('targets', []);
-  const next = [local, ...current.filter((t) => !(t.userId === user.id && t.month === input.month && t.year === input.year))];
+  const next = [local, ...current.filter((t) => !(t.userId === targetUserId && t.month === input.month && t.year === input.year))];
   writeLocalArray('targets', next.slice(0, 500));
   if (!supabase) return local;
 
   const payload = {
-    user_id: user.id,
+    user_id: targetUserId,
     month: input.month,
     year: input.year,
     leads_target: input.leadsTarget,
@@ -244,4 +247,3 @@ export const upsertSalesTarget = async (
   writeLocalArray('targets', [created, ...next.filter((t) => t.id !== created.id)].slice(0, 500));
   return created;
 };
-

@@ -36,6 +36,7 @@ Option A (Supabase Dashboard SQL Editor):
    - `supabase/migrations/20260325000100_attendance_checkout_requests.sql`
    - `supabase/migrations/20260325000200_sales_modules.sql`
    - `supabase/migrations/20260325000300_messages_channel.sql`
+   - Important: do not run `20260324000200_attendance_segments.sql` before `20260324000100_employee_system.sql` or you will get `relation "public.attendance" does not exist`.
 3. If you still see “schema cache” errors, wait ~60 seconds then refresh, or run this in SQL Editor:
    - `notify pgrst, 'reload schema';`
 

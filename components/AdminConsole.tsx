@@ -3,6 +3,8 @@ import { AttendanceCheckoutRequest, SystemUser, UserRole, SystemConfig } from '.
 import { ZAYA_LOGO_SRC } from '../brand';
 import { decideMiddayCheckoutRequest, fetchPendingMiddayCheckoutRequests, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
 import attendanceCheckoutRequestsMigration from '../supabase/migrations/20260325000100_attendance_checkout_requests.sql?raw';
+import employeeSystemMigration from '../supabase/migrations/20260324000100_employee_system.sql?raw';
+import attendanceSegmentsMigration from '../supabase/migrations/20260324000200_attendance_segments.sql?raw';
 
 interface AdminProps {
   users: SystemUser[];
@@ -82,6 +84,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   }, [canApproveMidday]);
 
   const showMiddayMigrationHelp = Boolean(middayError) && /attendance_checkout_requests|schema cache|could not find the table/i.test(middayError);
+  const showEmployeeSystemHelp = Boolean(middayError) && /relation \"public\\.attendance\" does not exist|public\\.attendance|reports|messages|notices|tasks|payroll|payslips|leave_requests/i.test(middayError);
 
   const handleCopyMigration = async () => {
     try {
@@ -252,6 +255,12 @@ const AdminConsole: React.FC<AdminProps> = ({
     alert('Global branding and login experience updated.');
   };
 
+  const handleToggleSalesAdminWrite = (enabled: boolean) => {
+    if (!canManageLoginExperience) return;
+    setSystemConfig({ ...systemConfig, salesAdminWriteEnabled: enabled });
+    alert(enabled ? 'Admins can now edit Sales targets/KPIs.' : 'Sales targets/KPIs edits are now restricted to Super Admin and Sales Managers.');
+  };
+
   const handleInviteUser = () => {
     const normalizedEmail = inviteEmail.trim().toLowerCase();
     const normalizedPhone = invitePhone.trim();
@@ -357,6 +366,50 @@ const AdminConsole: React.FC<AdminProps> = ({
                     </pre>
                     <p className="mt-3 text-[10px] text-slate-600 font-bold">
                       Paste this into Supabase SQL Editor for your project, then refresh this page.
+                    </p>
+                  </details>
+                )}
+
+                {showEmployeeSystemHelp && (
+                  <details className="rounded-xl border border-red-200 bg-white/70 p-3">
+                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-800">
+                      Migration SQL (Employee System Core Tables)
+                    </summary>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => void navigator.clipboard.writeText(employeeSystemMigration).then(() => { setCopiedMigration(true); window.setTimeout(() => setCopiedMigration(false), 2000); }).catch(() => alert('Copy failed. Expand the SQL and copy manually.'))}
+                        className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                      >
+                        {copiedMigration ? 'Copied' : 'Copy SQL'}
+                      </button>
+                    </div>
+                    <pre className="mt-3 max-h-64 overflow-auto text-[10px] leading-relaxed whitespace-pre-wrap text-slate-800">
+                      {employeeSystemMigration}
+                    </pre>
+                    <p className="mt-3 text-[10px] text-slate-600 font-bold">
+                      Run this first to create `attendance`, `reports`, `messages`, `tasks`, `notices`, `payroll`, `payslips`, `leave_requests`.
+                    </p>
+                  </details>
+                )}
+
+                {showEmployeeSystemHelp && (
+                  <details className="rounded-xl border border-red-200 bg-white/70 p-3">
+                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-800">
+                      Migration SQL (Attendance Segments)
+                    </summary>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => void navigator.clipboard.writeText(attendanceSegmentsMigration).then(() => { setCopiedMigration(true); window.setTimeout(() => setCopiedMigration(false), 2000); }).catch(() => alert('Copy failed. Expand the SQL and copy manually.'))}
+                        className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                      >
+                        {copiedMigration ? 'Copied' : 'Copy SQL'}
+                      </button>
+                    </div>
+                    <pre className="mt-3 max-h-64 overflow-auto text-[10px] leading-relaxed whitespace-pre-wrap text-slate-800">
+                      {attendanceSegmentsMigration}
+                    </pre>
+                    <p className="mt-3 text-[10px] text-slate-600 font-bold">
+                      Run after the core migration to enable mid-day out/in segments.
                     </p>
                   </details>
                 )}
@@ -723,6 +776,29 @@ const AdminConsole: React.FC<AdminProps> = ({
                 </div>
               </div>
             </div>
+
+            {canManageLoginExperience && (
+              <div className="mt-6 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-white">Sales Governance</h3>
+                    <p className="mt-2 text-[10px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-widest">
+                      Super Admin controls whether Admins can edit Sales targets/KPIs.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSalesAdminWrite(!Boolean(systemConfig.salesAdminWriteEnabled))}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow border ${
+                      systemConfig.salesAdminWriteEnabled
+                        ? 'bg-gold text-enterprise-blue border-gold'
+                        : 'bg-white/70 dark:bg-slate-950/40 text-slate-700 dark:text-white border-slate-200 dark:border-blue-400/20'
+                    }`}
+                  >
+                    {systemConfig.salesAdminWriteEnabled ? 'Admins Can Edit' : 'Admins View Only'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="pt-6">
               <button

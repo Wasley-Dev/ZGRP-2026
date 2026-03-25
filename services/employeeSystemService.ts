@@ -737,14 +737,22 @@ export const setTaskStatus = async (taskId: string, status: 'pending' | 'complet
   }
 };
 
+const normalizeChatChannel = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'org';
+  const lower = raw.toLowerCase();
+  if (lower === 'general') return 'org';
+  if (lower === 'sales') return 'dept:sales';
+  return raw;
+};
+
 export const fetchChatMessages = async (channel?: string): Promise<TeamMessage[]> => {
   const localAll = readLocalArray<TeamMessage>('messages', []);
-  const local = channel ? localAll.filter((m) => (m.channel || 'general') === channel) : localAll;
+  const local = channel ? localAll.filter((m) => normalizeChatChannel(m.channel) === channel) : localAll;
   if (!supabase) return local;
 
-  let q: any = supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(300);
-  if (channel) q = q.eq('channel', channel);
-  const { data, error } = await q;
+  // Fetch recent messages without filtering so legacy channels (e.g. `general`, `sales`) still show correctly.
+  const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(300);
   if (error || !data) {
     console.error('fetchChatMessages error:', error);
     if (isSchemaOrPermissionError(error)) return local;
@@ -754,15 +762,16 @@ export const fetchChatMessages = async (channel?: string): Promise<TeamMessage[]
     id: String(row.id),
     senderId: String(row.sender_id),
     message: String(row.message || ''),
-    channel: row.channel ? String(row.channel) : 'general',
+    channel: normalizeChatChannel(row.channel),
     createdAt: String(row.created_at || ''),
   }));
   writeLocalArray('messages', mapped);
-  return channel ? mapped.filter((m) => (m.channel || 'general') === channel) : mapped;
+  return channel ? mapped.filter((m) => normalizeChatChannel(m.channel) === channel) : mapped;
 };
 
-export const sendChatMessage = async (sender: SystemUser, message: string, channel: string = 'general'): Promise<TeamMessage> => {
-  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, channel, createdAt: nowIso() };
+export const sendChatMessage = async (sender: SystemUser, message: string, channel: string = 'org'): Promise<TeamMessage> => {
+  const normalizedChannel = normalizeChatChannel(channel);
+  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, channel: normalizedChannel, createdAt: nowIso() };
   if (!supabase) {
     writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
     return local;
@@ -771,7 +780,7 @@ export const sendChatMessage = async (sender: SystemUser, message: string, chann
   const primary = await supabase.from('messages').insert({
     sender_id: sender.id,
     message,
-    channel,
+    channel: normalizedChannel,
     created_at: nowIso(),
   } as any).select('*').single();
 
@@ -799,7 +808,7 @@ export const sendChatMessage = async (sender: SystemUser, message: string, chann
     id: String((data as any).id),
     senderId: String((data as any).sender_id),
     message: String((data as any).message || ''),
-    channel: (data as any).channel ? String((data as any).channel) : channel,
+    channel: normalizeChatChannel((data as any).channel || normalizedChannel),
     createdAt: String((data as any).created_at || ''),
   };
   writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), created].slice(-500));

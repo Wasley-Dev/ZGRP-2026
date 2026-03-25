@@ -8,7 +8,10 @@ interface LeadsModuleProps {
 }
 
 const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
-  const isAdmin = user.role !== UserRole.USER;
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const canViewAll = user.role !== UserRole.USER || isSalesManager;
+  const canAssign = user.role !== UserRole.USER || isSalesManager;
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -25,19 +28,19 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const data = await fetchLeads(user, isAdmin);
+      const data = await fetchLeads(user, canViewAll);
       if (!cancelled) setLeads(data);
     };
     void load();
     return () => { cancelled = true; };
-  }, [user.id, isAdmin]);
+  }, [user.id, canViewAll]);
 
   const handleCreate = async () => {
     const n = name.trim();
     if (!n) { alert('Lead name is required.'); return; }
     setIsSaving(true);
     try {
-      const created = await createLead({ ...user, id: assigneeId }, {
+      const created = await createLead(user, assigneeId, {
         name: n,
         company: company.trim() || undefined,
         phone: phone.trim() || undefined,
@@ -88,7 +91,7 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
         <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">New Lead</h3>
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {isAdmin && (
+            {canAssign && (
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
@@ -168,4 +171,3 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
 };
 
 export default LeadsModule;
-
