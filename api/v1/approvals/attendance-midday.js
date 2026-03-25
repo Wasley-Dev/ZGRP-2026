@@ -2,12 +2,19 @@ import { createHash } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
-const SUPABASE_SERVICE_ROLE_KEY =
-  (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim();
+const SUPABASE_KEY =
+  (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    ''
+  ).trim();
 
 const supabase =
-  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  SUPABASE_URL && SUPABASE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_KEY, {
         auth: { persistSession: false, autoRefreshToken: false },
       })
     : null;
@@ -60,7 +67,7 @@ export default async function handler(req, res) {
         res,
         500,
         'Service Not Configured',
-        'Server environment variables are missing. Configure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel.'
+        'Server environment variables are missing. Configure SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or SUPABASE_SERVICE_ROLE_KEY) in Vercel.'
       );
     }
 
@@ -106,4 +113,3 @@ export default async function handler(req, res) {
     return html(res, 500, 'Unhandled Error', error instanceof Error ? error.message : 'Unexpected server error.');
   }
 }
-
