@@ -4,12 +4,24 @@ import { SystemUser, UserRole } from '../types';
 interface EmploymentManagementProps {
   users: SystemUser[];
   currentUser: SystemUser;
+  onUpdateUsers: (updated: SystemUser[]) => void;
 }
 
-const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, currentUser }) => {
+const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, currentUser, onUpdateUsers }) => {
   const isSuperAdminViewer = currentUser.role === UserRole.SUPER_ADMIN;
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string>(() => users[0]?.id || currentUser.id);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    department: '',
+    jobTitle: '',
+    phone: '',
+    status: 'ACTIVE' as SystemUser['status'],
+    baseSalary: '',
+    allowancesTotal: '',
+    deductionsTotal: '',
+    performanceScore: '',
+  });
 
   const normalizedUsers = useMemo(
     () => users.slice().sort((a, b) => a.name.localeCompare(b.name)),
@@ -38,9 +50,49 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
 
   const isProtectedTarget = selectedUser.role === UserRole.SUPER_ADMIN && !isSuperAdminViewer;
   const visibleRole = isProtectedTarget ? UserRole.USER : selectedUser.role;
+  const canEditTarget = isSuperAdminViewer || selectedUser.role !== UserRole.SUPER_ADMIN;
+
+  React.useEffect(() => {
+    setIsEditing(false);
+    setDraft({
+      department: selectedUser.department || '',
+      jobTitle: selectedUser.jobTitle || '',
+      phone: selectedUser.phone || '',
+      status: selectedUser.status,
+      baseSalary: typeof selectedUser.baseSalary === 'number' ? String(selectedUser.baseSalary) : '',
+      allowancesTotal: typeof selectedUser.allowancesTotal === 'number' ? String(selectedUser.allowancesTotal) : '',
+      deductionsTotal: typeof selectedUser.deductionsTotal === 'number' ? String(selectedUser.deductionsTotal) : '',
+      performanceScore: typeof selectedUser.performanceScore === 'number' ? String(selectedUser.performanceScore) : '',
+    });
+  }, [selectedUser.id]);
 
   const toMoney = (n?: number) =>
     typeof n === 'number' ? `TZS ${n.toLocaleString('en-GB', { maximumFractionDigits: 0 })}` : '-';
+
+  const saveEdits = () => {
+    if (!canEditTarget) return;
+    const nextUsers = users.map((u) => {
+      if (u.id !== selectedUser.id) return u;
+      const baseSalary = draft.baseSalary.trim() ? Number(draft.baseSalary) : undefined;
+      const allowancesTotal = draft.allowancesTotal.trim() ? Number(draft.allowancesTotal) : undefined;
+      const deductionsTotal = draft.deductionsTotal.trim() ? Number(draft.deductionsTotal) : undefined;
+      const performanceScore = draft.performanceScore.trim() ? Number(draft.performanceScore) : undefined;
+      return {
+        ...u,
+        department: draft.department.trim() || u.department,
+        jobTitle: draft.jobTitle.trim() || undefined,
+        phone: draft.phone.trim() || undefined,
+        status: draft.status,
+        baseSalary: Number.isFinite(baseSalary as any) ? baseSalary : u.baseSalary,
+        allowancesTotal: Number.isFinite(allowancesTotal as any) ? allowancesTotal : u.allowancesTotal,
+        deductionsTotal: Number.isFinite(deductionsTotal as any) ? deductionsTotal : u.deductionsTotal,
+        performanceScore: Number.isFinite(performanceScore as any) ? performanceScore : u.performanceScore,
+      };
+    });
+    onUpdateUsers(nextUsers);
+    setIsEditing(false);
+    alert('Employee profile updated.');
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -129,6 +181,16 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
             </div>
           </div>
 
+          <div className="mt-4 flex flex-wrap items-center gap-2 justify-end">
+            <button
+              disabled={!canEditTarget}
+              onClick={() => setIsEditing((v) => !v)}
+              className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow disabled:opacity-60"
+            >
+              {isEditing ? 'Close Edit' : 'Edit Employee'}
+            </button>
+          </div>
+
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Department</p>
@@ -172,6 +234,86 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
               </p>
             </div>
           </div>
+
+          {isEditing && (
+            <div className="mt-6 rounded-3xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <h4 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Edit Details</h4>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  value={draft.department}
+                  onChange={(e) => setDraft((p) => ({ ...p, department: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Department"
+                />
+                <input
+                  value={draft.jobTitle}
+                  onChange={(e) => setDraft((p) => ({ ...p, jobTitle: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Job title"
+                />
+                <input
+                  value={draft.phone}
+                  onChange={(e) => setDraft((p) => ({ ...p, phone: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Phone"
+                />
+                <select
+                  value={draft.status}
+                  onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as any }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="BANNED">BANNED</option>
+                </select>
+                <input
+                  type="number"
+                  value={draft.baseSalary}
+                  onChange={(e) => setDraft((p) => ({ ...p, baseSalary: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Base salary (TZS)"
+                />
+                <input
+                  type="number"
+                  value={draft.allowancesTotal}
+                  onChange={(e) => setDraft((p) => ({ ...p, allowancesTotal: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Allowances total"
+                />
+                <input
+                  type="number"
+                  value={draft.deductionsTotal}
+                  onChange={(e) => setDraft((p) => ({ ...p, deductionsTotal: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Deductions total"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={draft.performanceScore}
+                  onChange={(e) => setDraft((p) => ({ ...p, performanceScore: e.target.value }))}
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                  placeholder="Performance score (0-100)"
+                />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={!canEditTarget}
+                  onClick={saveEdits}
+                  className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow disabled:opacity-60"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -179,4 +321,3 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
 };
 
 export default EmploymentManagement;
-

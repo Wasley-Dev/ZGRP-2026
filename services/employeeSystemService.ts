@@ -15,6 +15,58 @@ const nowIso = () => new Date().toISOString();
 
 const toDateOnly = (iso: string) => iso.slice(0, 10);
 
+const LOCAL_KEY_PREFIX = 'zaya_local_employee_v1:';
+
+const readLocalArray = <T>(key: string, fallback: T[] = []): T[] => {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(`${LOCAL_KEY_PREFIX}${key}`);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeLocalArray = <T>(key: string, value: T[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(`${LOCAL_KEY_PREFIX}${key}`, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+};
+
+const errorMessage = (err: unknown): string => {
+  if (!err) return '';
+  if (err instanceof Error) return err.message || '';
+  const anyErr = err as any;
+  if (typeof anyErr?.message === 'string') return anyErr.message;
+  if (typeof anyErr?.error === 'string') return anyErr.error;
+  if (typeof anyErr?.details === 'string') return anyErr.details;
+  return '';
+};
+
+const asError = (err: unknown, fallback: string) => {
+  if (err instanceof Error) return err;
+  const msg = errorMessage(err);
+  return new Error(msg || fallback);
+};
+
+const isSchemaOrPermissionError = (err: unknown) => {
+  const msg = errorMessage(err).toLowerCase();
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('relation') ||
+    msg.includes('permission denied') ||
+    msg.includes('row level security') ||
+    msg.includes('not allowed') ||
+    msg.includes('jwt') ||
+    msg.includes('invalid api key')
+  );
+};
+
 const normalizeSegments = (value: unknown): AttendanceLog['segments'] => {
   if (!value) return undefined;
   if (Array.isArray(value)) {
@@ -107,34 +159,42 @@ export const fetchLatestMiddayCheckoutRequest = async (attendanceId: string): Pr
 };
 
 export const fetchDailyReports = async (user: SystemUser, isAdmin: boolean): Promise<DailyReport[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<DailyReport>('reports', []).filter((r) => (isAdmin ? true : r.userId === user.id));
   const q = supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(200);
   const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     console.error('fetchDailyReports error:', error);
-    return [];
+    if (isSchemaOrPermissionError(error)) {
+      return readLocalArray<DailyReport>('reports', []).filter((r) => (isAdmin ? true : r.userId === user.id));
+    }
+    return readLocalArray<DailyReport>('reports', []).filter((r) => (isAdmin ? true : r.userId === user.id));
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
     title: String(row.title || ''),
     description: String(row.description || ''),
     createdAt: String(row.created_at || ''),
   }));
+  writeLocalArray('reports', mapped);
+  return mapped;
 };
 
 export const createDailyReport = async (
   user: SystemUser,
   input: { title: string; description: string; date?: string }
 ): Promise<DailyReport> => {
+  const localReport: DailyReport = {
+    id: `local-${Date.now()}`,
+    userId: user.id,
+    title: input.title,
+    description: input.description,
+    createdAt: input.date ? new Date(`${input.date}T12:00:00`).toISOString() : nowIso(),
+  };
   if (!supabase) {
-    return {
-      id: `local-${Date.now()}`,
-      userId: user.id,
-      title: input.title,
-      description: input.description,
-      createdAt: nowIso(),
-    };
+    const next = [localReport, ...readLocalArray<DailyReport>('reports', [])];
+    writeLocalArray('reports', next.slice(0, 400));
+    return localReport;
   }
   const payload = {
     user_id: user.id,
@@ -143,7 +203,15 @@ export const createDailyReport = async (
     created_at: input.date ? new Date(`${input.date}T12:00:00`).toISOString() : nowIso(),
   };
   const { data, error } = await supabase.from('reports').insert(payload).select('*').single();
-  if (error || !data) throw error || new Error('Create report failed');
+  if (error || !data) {
+    console.error('createDailyReport error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      const next = [localReport, ...readLocalArray<DailyReport>('reports', [])];
+      writeLocalArray('reports', next.slice(0, 400));
+      return localReport;
+    }
+    throw asError(error, 'Create report failed');
+  }
   return {
     id: String((data as any).id),
     userId: String((data as any).user_id),
@@ -154,14 +222,14 @@ export const createDailyReport = async (
 };
 
 export const fetchAttendanceLogs = async (user: SystemUser, isAdmin: boolean): Promise<AttendanceLog[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<AttendanceLog>('attendance', []).filter((l) => (isAdmin ? true : l.userId === user.id));
   const q = supabase.from('attendance').select('*').order('date', { ascending: false }).limit(400);
   const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     console.error('fetchAttendanceLogs error:', error);
-    return [];
+    return readLocalArray<AttendanceLog>('attendance', []).filter((l) => (isAdmin ? true : l.userId === user.id));
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
     date: String(row.date),
@@ -169,11 +237,16 @@ export const fetchAttendanceLogs = async (user: SystemUser, isAdmin: boolean): P
     checkOut: row.check_out ? String(row.check_out) : undefined,
     segments: normalizeSegments(row.segments),
   }));
+  writeLocalArray('attendance', mapped);
+  return mapped;
 };
 
 export const fetchTodayAttendance = async (user: SystemUser): Promise<AttendanceLog | null> => {
-  if (!supabase) return null;
   const today = toDateOnly(nowIso());
+  if (!supabase) {
+    const local = readLocalArray<AttendanceLog>('attendance', []);
+    return local.find((l) => l.userId === user.id && l.date === today) || null;
+  }
   const { data, error } = await supabase
     .from('attendance')
     .select('*')
@@ -182,7 +255,8 @@ export const fetchTodayAttendance = async (user: SystemUser): Promise<Attendance
     .maybeSingle();
   if (error) {
     console.error('fetchTodayAttendance error:', error);
-    return null;
+    const local = readLocalArray<AttendanceLog>('attendance', []);
+    return local.find((l) => l.userId === user.id && l.date === today) || null;
   }
   if (!data) return null;
   return {
@@ -197,10 +271,24 @@ export const fetchTodayAttendance = async (user: SystemUser): Promise<Attendance
 
 export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
   const today = toDateOnly(nowIso());
+  const localStore = readLocalArray<AttendanceLog>('attendance', []);
+  const localExisting = localStore.find((l) => l.userId === user.id && l.date === today) || null;
   if (!supabase) {
-    const local: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: nowIso() };
-    local.segments = [{ in: local.checkIn }];
-    return local;
+    if (localExisting?.checkOut) throw new Error('You already completed attendance for today.');
+    const now = nowIso();
+    if (!localExisting) {
+      const local: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: now, segments: [{ in: now }] };
+      writeLocalArray('attendance', [local, ...localStore].slice(0, 500));
+      return local;
+    }
+    const segments = (localExisting.segments || [{ in: localExisting.checkIn }]).slice();
+    const last = segments[segments.length - 1];
+    if (last?.in && !last?.out) throw new Error('You are already checked in.');
+    if (segments.length >= 2) throw new Error('Mid-day return already used for today.');
+    segments.push({ in: now });
+    const updated = { ...localExisting, segments };
+    writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
+    return updated;
   }
   const existing = await fetchTodayAttendance(user);
   const now = nowIso();
@@ -215,19 +303,37 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
         .insert({ user_id: user.id, date: today, check_in: now, check_out: null })
         .select('*')
         .single();
-      if (legacyAttempt.error || !legacyAttempt.data) throw legacyAttempt.error || new Error('Clock in failed');
+      if (legacyAttempt.error || !legacyAttempt.data) {
+        console.error('clockIn legacy insert error:', legacyAttempt.error);
+        if (isSchemaOrPermissionError(legacyAttempt.error)) {
+          const fallback: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: now, segments: [{ in: now }] };
+          writeLocalArray('attendance', [fallback, ...localStore].slice(0, 500));
+          return fallback;
+        }
+        throw asError(legacyAttempt.error, 'Clock in failed');
+      }
       const data = legacyAttempt.data as any;
-      return {
+      const mapped = {
         id: String(data.id),
         userId: String(data.user_id),
         date: String(data.date),
         checkIn: String(data.check_in),
         checkOut: undefined,
       };
+      writeLocalArray('attendance', [mapped, ...localStore.filter((l) => l.id !== mapped.id)].slice(0, 500));
+      return mapped;
     }
-    if (attempt.error || !attempt.data) throw attempt.error || new Error('Clock in failed');
+    if (attempt.error || !attempt.data) {
+      console.error('clockIn insert error:', attempt.error);
+      if (isSchemaOrPermissionError(attempt.error)) {
+        const fallback: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: now, segments: [{ in: now }] };
+        writeLocalArray('attendance', [fallback, ...localStore].slice(0, 500));
+        return fallback;
+      }
+      throw asError(attempt.error, 'Clock in failed');
+    }
     const data = attempt.data as any;
-    return {
+    const mapped = {
       id: String(data.id),
       userId: String(data.user_id),
       date: String(data.date),
@@ -235,6 +341,8 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
       checkOut: undefined,
       segments: normalizeSegments(data.segments) || [{ in: now }],
     };
+    writeLocalArray('attendance', [mapped, ...localStore.filter((l) => l.id !== mapped.id)].slice(0, 500));
+    return mapped;
   }
 
   // If already finalized for the day, block.
@@ -258,8 +366,16 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
   if (error && /segments/i.test(String(error.message || ''))) {
     throw new Error('Mid-day return requires an attendance schema update (segments column). Apply the latest Supabase migration.');
   }
-  if (error || !data) throw error || new Error('Clock in failed');
-  return {
+  if (error || !data) {
+    console.error('clockIn update error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      const fallback: AttendanceLog = { ...existing, segments };
+      writeLocalArray('attendance', [fallback, ...localStore.filter((l) => l.id !== fallback.id)].slice(0, 500));
+      return fallback;
+    }
+    throw asError(error, 'Clock in failed');
+  }
+  const mapped = {
     id: String((data as any).id),
     userId: String((data as any).user_id),
     date: String((data as any).date),
@@ -267,6 +383,8 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
     checkOut: (data as any).check_out ? String((data as any).check_out) : undefined,
     segments: normalizeSegments((data as any).segments) || segments,
   };
+  writeLocalArray('attendance', [mapped, ...localStore.filter((l) => l.id !== mapped.id)].slice(0, 500));
+  return mapped;
 };
 
 export const requestClockOutApproval = async (user: SystemUser, attendance: AttendanceLog, reason: string): Promise<AttendanceCheckoutRequest> => {
@@ -378,7 +496,10 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
   last.out = now;
 
   if (!supabase) {
-    return { ...attendance, checkOut: now, segments };
+    const updated = { ...attendance, checkOut: now, segments };
+    const localStore = readLocalArray<AttendanceLog>('attendance', []);
+    writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
+    return updated;
   }
 
   const attempt = await supabase
@@ -394,19 +515,40 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
       .eq('id', attendance.id)
       .select('*')
       .single();
-    if (legacyAttempt.error || !legacyAttempt.data) throw legacyAttempt.error || new Error('Clock out failed');
+    if (legacyAttempt.error || !legacyAttempt.data) {
+      console.error('clockOut legacy update error:', legacyAttempt.error);
+      if (isSchemaOrPermissionError(legacyAttempt.error)) {
+        const updated = { ...attendance, checkOut: now, segments };
+        const localStore = readLocalArray<AttendanceLog>('attendance', []);
+        writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
+        return updated;
+      }
+      throw asError(legacyAttempt.error, 'Clock out failed');
+    }
     const data = legacyAttempt.data as any;
-    return {
+    const mapped = {
       id: String(data.id),
       userId: String(data.user_id),
       date: String(data.date),
       checkIn: String(data.check_in),
       checkOut: data.check_out ? String(data.check_out) : undefined,
     };
+    const localStore = readLocalArray<AttendanceLog>('attendance', []);
+    writeLocalArray('attendance', [mapped, ...localStore.filter((l) => l.id !== mapped.id)].slice(0, 500));
+    return mapped;
   }
-  if (attempt.error || !attempt.data) throw attempt.error || new Error('Clock out failed');
+  if (attempt.error || !attempt.data) {
+    console.error('clockOut update error:', attempt.error);
+    if (isSchemaOrPermissionError(attempt.error)) {
+      const updated = { ...attendance, checkOut: now, segments };
+      const localStore = readLocalArray<AttendanceLog>('attendance', []);
+      writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
+      return updated;
+    }
+    throw asError(attempt.error, 'Clock out failed');
+  }
   const data = attempt.data as any;
-  return {
+  const mapped = {
     id: String(data.id),
     userId: String(data.user_id),
     date: String(data.date),
@@ -414,58 +556,78 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
     checkOut: data.check_out ? String(data.check_out) : undefined,
     segments: normalizeSegments(data.segments) || segments,
   };
+  const localStore = readLocalArray<AttendanceLog>('attendance', []);
+  writeLocalArray('attendance', [mapped, ...localStore.filter((l) => l.id !== mapped.id)].slice(0, 500));
+  return mapped;
 };
 
 export const fetchNotices = async (): Promise<Notice[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<Notice>('notices', []);
   const { data, error } = await supabase.from('notices').select('*').order('created_at', { ascending: false }).limit(200);
   if (error || !data) {
     console.error('fetchNotices error:', error);
-    return [];
+    return readLocalArray<Notice>('notices', []);
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     title: String(row.title || ''),
     content: String(row.content || ''),
     createdAt: String(row.created_at || ''),
   }));
+  writeLocalArray('notices', mapped);
+  return mapped;
 };
 
 export const createNotice = async (input: { title: string; content: string }): Promise<Notice> => {
+  const local: Notice = { id: `local-${Date.now()}`, title: input.title, content: input.content, createdAt: nowIso() };
   if (!supabase) {
-    return { id: `local-${Date.now()}`, title: input.title, content: input.content, createdAt: nowIso() };
+    writeLocalArray('notices', [local, ...readLocalArray<Notice>('notices', [])].slice(0, 400));
+    return local;
   }
   const { data, error } = await supabase.from('notices').insert({ ...input, created_at: nowIso() }).select('*').single();
-  if (error || !data) throw error || new Error('Create notice failed');
-  return {
+  if (error || !data) {
+    console.error('createNotice error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      writeLocalArray('notices', [local, ...readLocalArray<Notice>('notices', [])].slice(0, 400));
+      return local;
+    }
+    throw asError(error, 'Create notice failed');
+  }
+  const created = {
     id: String((data as any).id),
     title: String((data as any).title || ''),
     content: String((data as any).content || ''),
     createdAt: String((data as any).created_at || ''),
   };
+  writeLocalArray('notices', [created, ...readLocalArray<Notice>('notices', []).filter((n) => n.id !== created.id)].slice(0, 400));
+  return created;
 };
 
 export const fetchTasks = async (user: SystemUser, isAdmin: boolean): Promise<TaskItem[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<TaskItem>('tasks', []).filter((t) => (isAdmin ? true : t.userId === user.id));
   const q = supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(300);
   const { data, error } = isAdmin ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     console.error('fetchTasks error:', error);
-    return [];
+    return readLocalArray<TaskItem>('tasks', []).filter((t) => (isAdmin ? true : t.userId === user.id));
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
     title: String(row.title || ''),
     description: String(row.description || ''),
-    status: (String(row.status || 'pending').toLowerCase() === 'completed' ? 'completed' : 'pending'),
+    status: (String(row.status || 'pending').toLowerCase() === 'completed' ? 'completed' : 'pending') as TaskItem['status'],
     createdAt: String(row.created_at || ''),
   }));
+  writeLocalArray('tasks', mapped);
+  return mapped;
 };
 
 export const createTask = async (input: { userId: string; title: string; description: string }): Promise<TaskItem> => {
+  const local: TaskItem = { id: `local-${Date.now()}`, userId: input.userId, title: input.title, description: input.description, status: 'pending', createdAt: nowIso() };
   if (!supabase) {
-    return { id: `local-${Date.now()}`, userId: input.userId, title: input.title, description: input.description, status: 'pending', createdAt: nowIso() };
+    writeLocalArray('tasks', [local, ...readLocalArray<TaskItem>('tasks', [])].slice(0, 800));
+    return local;
   }
   const { data, error } = await supabase.from('tasks').insert({
     user_id: input.userId,
@@ -474,53 +636,84 @@ export const createTask = async (input: { userId: string; title: string; descrip
     status: 'pending',
     created_at: nowIso(),
   }).select('*').single();
-  if (error || !data) throw error || new Error('Create task failed');
-  return {
+  if (error || !data) {
+    console.error('createTask error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      writeLocalArray('tasks', [local, ...readLocalArray<TaskItem>('tasks', [])].slice(0, 800));
+      return local;
+    }
+    throw asError(error, 'Create task failed');
+  }
+  const created = {
     id: String((data as any).id),
     userId: String((data as any).user_id),
     title: String((data as any).title || ''),
     description: String((data as any).description || ''),
-    status: (String((data as any).status || 'pending').toLowerCase() === 'completed' ? 'completed' : 'pending'),
+    status: (String((data as any).status || 'pending').toLowerCase() === 'completed' ? 'completed' : 'pending') as TaskItem['status'],
     createdAt: String((data as any).created_at || ''),
   };
+  writeLocalArray('tasks', [created, ...readLocalArray<TaskItem>('tasks', []).filter((t) => t.id !== created.id)].slice(0, 800));
+  return created;
 };
 
 export const setTaskStatus = async (taskId: string, status: 'pending' | 'completed'): Promise<void> => {
+  const local = readLocalArray<TaskItem>('tasks', []);
+  if (local.length) {
+    writeLocalArray('tasks', local.map((t) => (t.id === taskId ? { ...t, status } : t)));
+  }
   if (!supabase) return;
-  await supabase.from('tasks').update({ status }).eq('id', taskId);
+  const { error } = await supabase.from('tasks').update({ status }).eq('id', taskId);
+  if (error) {
+    console.error('setTaskStatus error:', error);
+    if (isSchemaOrPermissionError(error)) return;
+    throw asError(error, 'Update task failed');
+  }
 };
 
 export const fetchChatMessages = async (): Promise<TeamMessage[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<TeamMessage>('messages', []);
   const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(300);
   if (error || !data) {
     console.error('fetchChatMessages error:', error);
-    return [];
+    return readLocalArray<TeamMessage>('messages', []);
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     senderId: String(row.sender_id),
     message: String(row.message || ''),
     createdAt: String(row.created_at || ''),
   }));
+  writeLocalArray('messages', mapped);
+  return mapped;
 };
 
 export const sendChatMessage = async (sender: SystemUser, message: string): Promise<TeamMessage> => {
+  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, createdAt: nowIso() };
   if (!supabase) {
-    return { id: `local-${Date.now()}`, senderId: sender.id, message, createdAt: nowIso() };
+    writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
+    return local;
   }
   const { data, error } = await supabase.from('messages').insert({
     sender_id: sender.id,
     message,
     created_at: nowIso(),
   }).select('*').single();
-  if (error || !data) throw error || new Error('Send message failed');
-  return {
+  if (error || !data) {
+    console.error('sendChatMessage error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
+      return local;
+    }
+    throw asError(error, 'Send message failed');
+  }
+  const created = {
     id: String((data as any).id),
     senderId: String((data as any).sender_id),
     message: String((data as any).message || ''),
     createdAt: String((data as any).created_at || ''),
   };
+  writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), created].slice(-500));
+  return created;
 };
 
 export const subscribeToTableInserts = (
@@ -638,25 +831,93 @@ export const processPayroll = async (
   users: SystemUser[],
   input: PayrollRunInput
 ): Promise<{ processed: PayrollRecord[]; skippedUserIds: string[] }> => {
-  if (!supabase) return { processed: [], skippedUserIds: users.map((u) => u.id) };
   const month = input.month;
   const year = input.year;
   const workingDays = input.workingDays ?? 26;
+
+  const computeRecord = (u: SystemUser, daysPresent: number): { record: PayrollRecord; breakdown: any } => {
+    const basicSalary = Number(u.baseSalary ?? input.defaultBasicSalary ?? 0);
+    const allowancesTotal = Number(u.allowancesTotal ?? input.defaultAllowancesTotal ?? 0);
+    const deductionsTotal = Number(u.deductionsTotal ?? input.defaultDeductionsTotal ?? 0);
+    const score = Number(u.performanceScore ?? input.defaultPerformanceScore ?? 0);
+    const performanceBonus = score > 80 ? Math.round(basicSalary * 0.1) : 0;
+    const prorated = workingDays > 0 ? (basicSalary * (daysPresent / workingDays)) : basicSalary;
+    const netSalary = Math.max(0, Math.round(prorated + allowancesTotal - deductionsTotal + performanceBonus));
+    const id = `local-pay-${u.id}-${year}-${month}-${Date.now()}`;
+    return {
+      record: {
+        id,
+        userId: u.id,
+        month,
+        year,
+        basicSalary,
+        allowancesTotal,
+        deductionsTotal,
+        netSalary,
+        createdAt: nowIso(),
+      },
+      breakdown: {
+        company: 'Zaya Group Ltd',
+        employeeName: u.name,
+        month,
+        year,
+        daysPresent,
+        workingDays,
+        basicSalary,
+        allowancesTotal,
+        deductionsTotal,
+        performanceScore: score,
+        performanceBonus,
+        netSalary,
+      },
+    };
+  };
+
+  const processLocal = (): { processed: PayrollRecord[]; skippedUserIds: string[] } => {
+    const attendance = readLocalArray<AttendanceLog>('attendance', []);
+    const existing = new Set(readLocalArray<PayrollRecord>('payroll', []).map((r) => `${r.userId}:${r.month}:${r.year}`));
+    const processed: PayrollRecord[] = [];
+    const skipped: string[] = [];
+    for (const u of users) {
+      const key = `${u.id}:${month}:${year}`;
+      if (existing.has(key)) { skipped.push(u.id); continue; }
+      const daysPresent = attendance.filter((a) => a.userId === u.id && a.checkIn && a.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)).length;
+      const { record, breakdown } = computeRecord(u, daysPresent);
+      processed.push(record);
+      const payslips = readLocalArray<PayslipRecord>('payslips', []);
+      writeLocalArray('payslips', [{ id: `local-slip-${record.id}`, payrollId: record.id, breakdown, createdAt: nowIso() }, ...payslips].slice(0, 800));
+    }
+    const payroll = readLocalArray<PayrollRecord>('payroll', []);
+    writeLocalArray('payroll', [...processed, ...payroll].slice(0, 800));
+    return { processed, skippedUserIds: skipped };
+  };
+
+  if (!supabase) return processLocal();
   const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0)).toISOString().slice(0, 10);
   const monthEnd = new Date(Date.UTC(year, month, 0, 0, 0, 0)).toISOString().slice(0, 10);
 
-  const { data: attendanceRows } = await supabase
+  const { data: attendanceRows, error: attendanceError } = await supabase
     .from('attendance')
     .select('*')
     .gte('date', monthStart)
     .lte('date', monthEnd);
+  if (attendanceError) {
+    console.error('processPayroll attendance fetch error:', attendanceError);
+    if (isSchemaOrPermissionError(attendanceError)) return processLocal();
+    throw asError(attendanceError, 'Payroll processing failed (attendance fetch).');
+  }
   const attendance = (attendanceRows as any[] | null) || [];
 
-  const { data: existingPayrollRows } = await supabase
+  const { data: existingPayrollRows, error: existingError } = await supabase
     .from('payroll')
     .select('user_id, month, year')
     .eq('month', month)
     .eq('year', year);
+  if (existingError) {
+    console.error('processPayroll existing payroll fetch error:', existingError);
+    if (isSchemaOrPermissionError(existingError)) return processLocal();
+    throw asError(existingError, 'Payroll processing failed (existing payroll fetch).');
+  }
   const existingPayroll = new Set(((existingPayrollRows as any[] | null) || []).map((r) => `${r.user_id}:${r.month}:${r.year}`));
 
   const processed: PayrollRecord[] = [];
@@ -669,58 +930,46 @@ export const processPayroll = async (
       continue;
     }
     const daysPresent = attendance.filter((a) => String(a.user_id) === u.id && a.check_in).length;
-    const basicSalary = Number(u.baseSalary ?? input.defaultBasicSalary ?? 0);
-    const allowancesTotal = Number(u.allowancesTotal ?? input.defaultAllowancesTotal ?? 0);
-    const deductionsTotal = Number(u.deductionsTotal ?? input.defaultDeductionsTotal ?? 0);
-    const score = Number(u.performanceScore ?? input.defaultPerformanceScore ?? 0);
-    const performanceBonus = score > 80 ? Math.round(basicSalary * 0.1) : 0;
-    const prorated = workingDays > 0 ? (basicSalary * (daysPresent / workingDays)) : basicSalary;
-    const netSalary = Math.max(0, Math.round(prorated + allowancesTotal - deductionsTotal + performanceBonus));
+    const { record: computed, breakdown } = computeRecord(u, daysPresent);
 
     const payrollRow = {
       user_id: u.id,
       month,
       year,
-      basic_salary: basicSalary,
-      allowances_total: allowancesTotal,
-      deductions_total: deductionsTotal,
-      net_salary: netSalary,
+      basic_salary: computed.basicSalary,
+      allowances_total: computed.allowancesTotal,
+      deductions_total: computed.deductionsTotal,
+      net_salary: computed.netSalary,
       created_at: nowIso(),
     };
     const { data: payroll, error } = await supabase.from('payroll').insert(payrollRow).select('*').single();
-    if (error || !payroll) throw error || new Error('Payroll insert failed');
+    if (error || !payroll) {
+      console.error('processPayroll payroll insert error:', error);
+      if (isSchemaOrPermissionError(error)) return processLocal();
+      throw asError(error, 'Payroll insert failed');
+    }
     const payrollId = String((payroll as any).id);
-
-    const breakdown = {
-      company: 'Zaya Group Ltd',
-      employeeName: u.name,
-      month,
-      year,
-      daysPresent,
-      workingDays,
-      basicSalary,
-      allowancesTotal,
-      deductionsTotal,
-      performanceScore: score,
-      performanceBonus,
-      netSalary,
-    };
-
-    await supabase.from('payslips').insert({
-      payroll_id: payrollId,
-      breakdown_json: breakdown,
-      created_at: nowIso(),
-    });
+    const slipAttempt = await supabase
+      .from('payslips')
+      .upsert(
+        { payroll_id: payrollId, breakdown_json: breakdown, created_at: nowIso() } as any,
+        { onConflict: 'payroll_id' }
+      );
+    if (slipAttempt.error) {
+      console.error('processPayroll payslip upsert error:', slipAttempt.error);
+      if (isSchemaOrPermissionError(slipAttempt.error)) return processLocal();
+      throw asError(slipAttempt.error, 'Payslip generation failed.');
+    }
 
     processed.push({
       id: payrollId,
       userId: u.id,
       month,
       year,
-      basicSalary,
-      allowancesTotal,
-      deductionsTotal,
-      netSalary,
+      basicSalary: computed.basicSalary,
+      allowancesTotal: computed.allowancesTotal,
+      deductionsTotal: computed.deductionsTotal,
+      netSalary: computed.netSalary,
       createdAt: String((payroll as any).created_at || nowIso()),
     });
   }
@@ -729,13 +978,13 @@ export const processPayroll = async (
 };
 
 export const fetchPayrollDashboard = async (): Promise<PayrollRecord[]> => {
-  if (!supabase) return [];
+  if (!supabase) return readLocalArray<PayrollRecord>('payroll', []);
   const { data, error } = await supabase.from('payroll').select('*').order('created_at', { ascending: false }).limit(200);
   if (error || !data) {
     console.error('fetchPayrollDashboard error:', error);
-    return [];
+    return readLocalArray<PayrollRecord>('payroll', []);
   }
-  return (data as any[]).map((row) => ({
+  const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     userId: String(row.user_id),
     month: Number(row.month),
@@ -746,20 +995,25 @@ export const fetchPayrollDashboard = async (): Promise<PayrollRecord[]> => {
     netSalary: Number(row.net_salary ?? 0),
     createdAt: String(row.created_at || ''),
   }));
+  writeLocalArray('payroll', mapped);
+  return mapped;
 };
 
 export const fetchPayslipByPayrollId = async (payrollId: string): Promise<PayslipRecord | null> => {
-  if (!supabase) return null;
+  if (!supabase) return readLocalArray<PayslipRecord>('payslips', []).find((p) => p.payrollId === payrollId) || null;
   const { data, error } = await supabase.from('payslips').select('*').eq('payroll_id', payrollId).maybeSingle();
   if (error) {
     console.error('fetchPayslipByPayrollId error:', error);
-    return null;
+    return readLocalArray<PayslipRecord>('payslips', []).find((p) => p.payrollId === payrollId) || null;
   }
   if (!data) return null;
-  return {
+  const mapped = {
     id: String((data as any).id),
     payrollId: String((data as any).payroll_id),
     breakdown: (data as any).breakdown_json,
     createdAt: String((data as any).created_at || ''),
   };
+  const local = readLocalArray<PayslipRecord>('payslips', []);
+  writeLocalArray('payslips', [mapped, ...local.filter((p) => p.id !== mapped.id)].slice(0, 800));
+  return mapped;
 };

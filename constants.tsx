@@ -130,6 +130,7 @@ export const MOCK_USER: SystemUser = {
 export const MOCK_USERS: SystemUser[] = [
   MOCK_USER,
   { id: 'USR-002', name: 'Sarah Miller', email: 's.miller@zayagroupltd.com', password: 'Sarah#2026', hasCompletedOrientation: false, role: UserRole.ADMIN, department: 'HR', jobTitle: 'HR Manager', lastLogin: '2024-05-10T09:00:00Z', avatar: 'https://picsum.photos/seed/sarah/200/200', status: 'ACTIVE' },
+  { id: 'USR-004', name: 'Asya Afidh', email: 'gm@zayagroupltd.com', password: 'Zaya@123', hasCompletedOrientation: false, role: UserRole.ADMIN, department: 'Executive', jobTitle: 'General Manager', lastLogin: 'Never', avatar: 'https://ui-avatars.com/api/?name=Asya%20Afidh', status: 'ACTIVE' },
   { id: 'USR-003', name: 'James Wilson', email: 'j.wilson@zayagroupltd.com', password: 'James#2026', hasCompletedOrientation: false, role: UserRole.USER, department: 'IT', jobTitle: 'IT Support Officer', lastLogin: '2024-05-09T14:30:00Z', avatar: 'https://picsum.photos/seed/james/200/200', status: 'ACTIVE' },
 ];
 

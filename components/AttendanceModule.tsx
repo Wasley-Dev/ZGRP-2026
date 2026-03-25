@@ -30,6 +30,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
   const [leaveEnd, setLeaveEnd] = useState(() => new Date().toISOString().slice(0, 10));
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   const isCurrentlyCheckedIn = useMemo(() => {
     if (!today?.checkIn) return false;
@@ -59,6 +60,47 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
     const sickDays = approved.filter((r) => r.type === 'sick').length;
     return { presentDays, leaveDays, sickDays };
   }, [logs, leaveRequests, user.id]);
+
+  const monthLabel = useMemo(
+    () => calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+    [calendarMonth]
+  );
+
+  const monthDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const first = new Date(year, month, 1);
+    const startDay = first.getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: Array<{ day: number; iso: string } | null> = [];
+    for (let i = 0; i < startDay; i += 1) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d += 1) {
+      const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ day: d, iso });
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calendarMonth]);
+
+  const myAttendanceByDate = useMemo(() => {
+    const map = new Map<string, AttendanceLog>();
+    logs.filter((l) => l.userId === user.id).forEach((l) => map.set(l.date, l));
+    return map;
+  }, [logs, user.id]);
+
+  const approvedLeaveDays = useMemo(() => {
+    const map = new Map<string, LeaveRequest['type']>();
+    const approved = leaveRequests.filter((r) => r.userId === user.id && r.status === 'approved');
+    approved.forEach((r) => {
+      const start = new Date(`${r.startDate}T00:00:00`);
+      const end = new Date(`${r.endDate}T00:00:00`);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        map.set(iso, r.type);
+      }
+    });
+    return map;
+  }, [leaveRequests, user.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -425,6 +467,72 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
               <p className="mt-3 text-[10px] text-slate-500 dark:text-blue-300/60 font-bold uppercase tracking-widest">
                 Requests are emailed to gm@zayagroupltd.com.
               </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance Calendar</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
+                    aria-label="Previous month"
+                  >
+                    <i className="fas fa-chevron-left text-xs"></i>
+                  </button>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{monthLabel}</span>
+                  <button
+                    onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
+                    aria-label="Next month"
+                  >
+                    <i className="fas fa-chevron-right text-xs"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-500 dark:text-blue-300/60 uppercase">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                  <div key={d}>{d}</div>
+                ))}
+              </div>
+              <div className="mt-2 grid grid-cols-7 gap-1">
+                {monthDays.map((cell, idx) => {
+                  if (!cell) return <div key={`empty-${idx}`} />;
+                  const attendance = myAttendanceByDate.get(cell.iso);
+                  const leaveTypeForDay = approvedLeaveDays.get(cell.iso);
+                  const todayIso = new Date().toISOString().slice(0, 10);
+                  const isToday = cell.iso === todayIso;
+
+                  const base =
+                    'h-8 rounded-lg text-xs font-black relative border transition-all flex items-center justify-center';
+                  const style = leaveTypeForDay
+                    ? leaveTypeForDay === 'sick'
+                      ? 'bg-red-500/15 border-red-400/30 text-red-700 dark:text-red-300'
+                      : 'bg-blue-500/15 border-blue-400/30 text-blue-700 dark:text-blue-200'
+                    : attendance
+                    ? 'bg-gold/15 border-gold text-gold'
+                    : 'bg-white/40 dark:bg-slate-950/30 border-slate-200 dark:border-blue-400/20 text-slate-700 dark:text-blue-200 hover:border-gold';
+
+                  return (
+                    <div key={cell.iso} className={`${base} ${style} ${isToday ? 'ring-2 ring-gold/40' : ''}`} title={attendance ? `Present (${attendance.checkIn ? 'IN' : ''}${attendance.checkOut ? ' / OUT' : ''})` : leaveTypeForDay ? `${leaveTypeForDay.toUpperCase()} (approved)` : ''}>
+                      {cell.day}
+                      {attendance && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-gold border border-white/60"></span>
+                      )}
+                      {leaveTypeForDay && (
+                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${leaveTypeForDay === 'sick' ? 'bg-red-500' : 'bg-blue-500'} border border-white/60`}></span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
+                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gold"></span>Present</span>
+                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Leave</span>
+                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span>Sick</span>
+              </div>
             </div>
           </div>
         </div>

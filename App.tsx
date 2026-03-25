@@ -768,7 +768,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!remoteHydratedRef.current || !hasRemoteUserDirectory()) return;
-    const timer = setTimeout(() => { syncRemoteUsers(allUsers); }, 200);
+    const timer = setTimeout(() => {
+      void syncRemoteUsers(allUsers).catch((err) => {
+        console.warn('Remote user sync failed:', err);
+        pushNotificationDeduped('sync:users:failed', 'User Sync Failed', 'User directory sync failed. Check Supabase portal_users table/RLS.', 'WARNING', 'admin', 20000);
+      });
+    }, 200);
     return () => clearTimeout(timer);
   }, [allUsers]);
 
@@ -974,7 +979,15 @@ const App: React.FC = () => {
     if (removedIds.length > 0 && hasRemoteUserDirectory()) {
       void removeRemoteUsers(removedIds);
     }
-    pushNotification('User Directory Updated', 'Admin changes were synced to all sessions.', 'INFO', 'admin');
+    if (hasRemoteUserDirectory()) {
+      void syncRemoteUsers(normalized).catch((err) => {
+        console.warn('Remote user sync failed:', err);
+        pushNotification('User Sync Failed', 'Users updated locally, but remote sync failed. Check Supabase portal_users table/RLS.', 'WARNING', 'admin');
+      });
+      pushNotification('User Directory Updated', 'Admin changes were saved and queued for sync.', 'INFO', 'admin');
+    } else {
+      pushNotification('User Directory Updated', 'Admin changes were saved locally (offline mode).', 'INFO', 'admin');
+    }
   };
 
   const upsertBooking = (booking: BookingEntry) => {
@@ -1138,7 +1151,7 @@ const App: React.FC = () => {
             </div>
           );
         }
-        return <EmploymentManagement users={allUsers} currentUser={currentUser} />;
+        return <EmploymentManagement users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} />;
       case 'candidates':
       case 'database':
         return <CandidateRegistry candidates={candidates} onAdd={addCandidate} onDelete={deleteCandidate} onUpdate={updateCandidate} mode={activeModule as any} />;

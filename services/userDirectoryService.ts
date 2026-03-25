@@ -76,11 +76,14 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   const message = String(attempt.error?.message || '');
   if (!/job_title/i.test(message)) {
     console.error('Remote user upsert error:', attempt.error);
-    return;
+    throw attempt.error;
   }
   const legacyRows = rows.map(({ job_title, ...rest }) => rest);
   const retry = await supabase.from(TABLE_NAME).upsert(legacyRows as any, { onConflict: 'id' });
-  if (retry.error) console.error('Remote user upsert error (legacy retry):', retry.error);
+  if (retry.error) {
+    console.error('Remote user upsert error (legacy retry):', retry.error);
+    throw retry.error;
+  }
 };
 
 export const removeRemoteUsers = async (ids: string[]): Promise<void> => {
