@@ -7,18 +7,23 @@ This update adds a new migration for the employee system:
 - `supabase/migrations/20260324000100_employee_system.sql`
 - `supabase/migrations/20260324000200_attendance_segments.sql` (adds `segments` to `attendance` for mid-day out/in)
 - `supabase/migrations/20260325000100_attendance_checkout_requests.sql` (GM approval requests)
+- `supabase/migrations/20260325000200_sales_modules.sql` (Leads, Invoices, Sales Targets/KPIs)
+- `supabase/migrations/20260325000300_messages_channel.sql` (adds `channel` to `messages` for Sales chat)
 
 It creates:
 
 - `reports`
 - `attendance` (unique: `user_id + date`)
 - `attendance_checkout_requests` (GM approval requests)
-- `messages`
+- `messages` (optionally includes `channel`)
 - `notices`
 - `tasks`
 - `payroll` (unique: `user_id + month + year`)
 - `payslips` (unique: `payroll_id`)
 - `leave_requests`
+- `leads`
+- `invoices`
+- `sales_targets` (unique: `user_id + month + year`)
 
 ## Apply the migration
 
@@ -29,6 +34,8 @@ Option A (Supabase Dashboard SQL Editor):
    - `supabase/migrations/20260324000100_employee_system.sql`
    - `supabase/migrations/20260324000200_attendance_segments.sql`
    - `supabase/migrations/20260325000100_attendance_checkout_requests.sql`
+   - `supabase/migrations/20260325000200_sales_modules.sql`
+   - `supabase/migrations/20260325000300_messages_channel.sql`
 3. If you still see “schema cache” errors, wait ~60 seconds then refresh, or run this in SQL Editor:
    - `notify pgrst, 'reload schema';`
 

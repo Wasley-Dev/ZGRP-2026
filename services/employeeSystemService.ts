@@ -737,34 +737,56 @@ export const setTaskStatus = async (taskId: string, status: 'pending' | 'complet
   }
 };
 
-export const fetchChatMessages = async (): Promise<TeamMessage[]> => {
-  if (!supabase) return readLocalArray<TeamMessage>('messages', []);
-  const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(300);
+export const fetchChatMessages = async (channel?: string): Promise<TeamMessage[]> => {
+  const localAll = readLocalArray<TeamMessage>('messages', []);
+  const local = channel ? localAll.filter((m) => (m.channel || 'general') === channel) : localAll;
+  if (!supabase) return local;
+
+  let q: any = supabase.from('messages').select('*').order('created_at', { ascending: true }).limit(300);
+  if (channel) q = q.eq('channel', channel);
+  const { data, error } = await q;
   if (error || !data) {
     console.error('fetchChatMessages error:', error);
-    return readLocalArray<TeamMessage>('messages', []);
+    if (isSchemaOrPermissionError(error)) return local;
+    return local;
   }
   const mapped = (data as any[]).map((row) => ({
     id: String(row.id),
     senderId: String(row.sender_id),
     message: String(row.message || ''),
+    channel: row.channel ? String(row.channel) : 'general',
     createdAt: String(row.created_at || ''),
   }));
   writeLocalArray('messages', mapped);
-  return mapped;
+  return channel ? mapped.filter((m) => (m.channel || 'general') === channel) : mapped;
 };
 
-export const sendChatMessage = async (sender: SystemUser, message: string): Promise<TeamMessage> => {
-  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, createdAt: nowIso() };
+export const sendChatMessage = async (sender: SystemUser, message: string, channel: string = 'general'): Promise<TeamMessage> => {
+  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, channel, createdAt: nowIso() };
   if (!supabase) {
     writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
     return local;
   }
-  const { data, error } = await supabase.from('messages').insert({
+
+  const primary = await supabase.from('messages').insert({
     sender_id: sender.id,
     message,
+    channel,
     created_at: nowIso(),
-  }).select('*').single();
+  } as any).select('*').single();
+
+  let data = primary.data as any;
+  let error = primary.error as any;
+  if ((error || !data) && isSchemaOrPermissionError(error) && /channel/i.test(String(error?.message || ''))) {
+    const legacy = await supabase.from('messages').insert({
+      sender_id: sender.id,
+      message,
+      created_at: nowIso(),
+    }).select('*').single();
+    data = legacy.data as any;
+    error = legacy.error as any;
+  }
+
   if (error || !data) {
     console.error('sendChatMessage error:', error);
     if (isSchemaOrPermissionError(error)) {
@@ -777,6 +799,7 @@ export const sendChatMessage = async (sender: SystemUser, message: string): Prom
     id: String((data as any).id),
     senderId: String((data as any).sender_id),
     message: String((data as any).message || ''),
+    channel: (data as any).channel ? String((data as any).channel) : channel,
     createdAt: String((data as any).created_at || ''),
   };
   writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), created].slice(-500));

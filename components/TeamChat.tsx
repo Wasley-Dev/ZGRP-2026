@@ -11,6 +11,8 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const [activeChannel, setActiveChannel] = useState<'general' | 'sales'>(() => (isSalesTeam ? 'sales' : 'general'));
   const listRef = useRef<HTMLDivElement>(null);
 
   const userById = useMemo(() => new Map<string, SystemUser>(users.map((u) => [u.id, u])), [users]);
@@ -25,13 +27,13 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const data = await fetchChatMessages();
+      const data = await fetchChatMessages(activeChannel);
       if (!cancelled) setMessages(data);
       window.setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }), 50);
     };
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeChannel]);
 
   useEffect(() => {
     if (!hasEmployeeSupabase()) return;
@@ -40,20 +42,22 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
         id: String(row.id),
         senderId: String(row.sender_id),
         message: String(row.message || ''),
+        channel: row.channel ? String(row.channel) : 'general',
         createdAt: String(row.created_at || ''),
       };
+      if ((next.channel || 'general') !== activeChannel) return;
       setMessages((prev) => (prev.some((m) => m.id === next.id) ? prev : [...prev, next]));
       window.setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }), 30);
     });
     return () => sub.unsubscribe();
-  }, []);
+  }, [activeChannel]);
 
   const handleSend = async () => {
     const value = text.trim();
     if (!value) return;
     setIsSending(true);
     try {
-      const sent = await sendChatMessage(user, value);
+      const sent = await sendChatMessage(user, value, activeChannel);
       setMessages((prev) => [...prev, sent]);
       setText('');
       window.setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }), 30);
@@ -72,7 +76,30 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Team Chat</h2>
             <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Real-time messaging via Supabase (falls back to local send when offline).</p>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-gold">{messages.length} messages</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveChannel('general')}
+              className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                activeChannel === 'general'
+                  ? 'bg-gold text-enterprise-blue border-gold'
+                  : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
+              }`}
+            >
+              General
+            </button>
+            <button
+              onClick={() => setActiveChannel('sales')}
+              className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                activeChannel === 'sales'
+                  ? 'bg-gold text-enterprise-blue border-gold'
+                  : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
+              }`}
+              title={isSalesTeam ? 'Sales channel' : 'Sales channel (view-only)'}
+            >
+              Sales
+            </button>
+            <span className="text-[10px] font-black uppercase tracking-widest text-gold">{messages.length}</span>
+          </div>
         </div>
 
         <div ref={listRef} className="mt-6 h-[55vh] overflow-auto rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-4 space-y-3">

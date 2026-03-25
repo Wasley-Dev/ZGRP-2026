@@ -33,6 +33,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const isAdminExempt = user.role === UserRole.ADMIN;
   const isEmployee = user.role === UserRole.USER;
   const isAdminOrSuper = user.role !== UserRole.USER;
+  const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
@@ -212,6 +213,28 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       // Keep optimistic state even if offline
     }
   };
+
+  const salesMetrics = React.useMemo(() => {
+    if (!isSalesTeam) return null;
+    const seed = String(user.id || '')
+      .split('')
+      .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const today = new Date();
+    const dayFactor = today.getDate() + (today.getMonth() + 1) * 3;
+    const leadsContacted = 12 + ((seed + dayFactor) % 24);
+    const dealsClosed = ((seed + dayFactor) % 5);
+    const followUpsDue = 3 + ((seed + dayFactor) % 9);
+    const pipelineValue = 1_200_000 + (((seed + dayFactor) % 25) * 250_000); // demo
+    const topAccounts = [
+      'Azam Logistics',
+      'Tanzania Ports Authority',
+      'City Courier Services',
+      'Zaya Fleet Partners',
+      'Prime Retail Group',
+    ];
+    const picks = [0, 1, 2].map((i) => topAccounts[(seed + i) % topAccounts.length]);
+    return { leadsContacted, dealsClosed, followUpsDue, pipelineValue, picks };
+  }, [isSalesTeam, user.id]);
 
   const upcomingOps = React.useMemo(
     () => [
@@ -468,6 +491,59 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
         {employeeReportingPanel}
 
+        {salesMetrics && (
+          <div className={`${panelClass} p-6`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Sales Snapshot</h3>
+                <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Sales pipeline metrics and follow-ups (demo indicators).</p>
+              </div>
+              <button
+                onClick={() => onNavigate('chat')}
+                className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+              >
+                Message Team
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {[
+                { label: 'Leads Contacted', value: salesMetrics.leadsContacted.toString(), icon: 'fa-phone' },
+                { label: 'Deals Closed', value: salesMetrics.dealsClosed.toString(), icon: 'fa-handshake' },
+                { label: 'Follow-ups Due', value: salesMetrics.followUpsDue.toString(), icon: 'fa-calendar-check' },
+                { label: 'Pipeline Value', value: `TZS ${salesMetrics.pipelineValue.toLocaleString()}`, icon: 'fa-coins' },
+              ].map((kpi) => (
+                <div key={kpi.label} className={`${tileClass} text-left cursor-default`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
+                      <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
+                      <i className={`fas ${kpi.icon}`}></i>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Top Accounts (This Week)</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold">3</span>
+              </div>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                {salesMetrics.picks.map((name) => (
+                  <div key={name} className="rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 p-3">
+                    <p className="text-xs font-black text-slate-900 dark:text-white truncate">{name}</p>
+                    <p className="mt-1 text-[10px] text-slate-500 dark:text-blue-300/60 font-bold uppercase tracking-widest">Follow-up queued</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className={`${panelClass} p-6`}>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -562,6 +638,44 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           </button>
         ))}
       </div>
+
+      {salesMetrics && (
+        <div className={`${panelClass} p-6`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Sales Snapshot</h3>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Sales pipeline metrics and follow-ups (demo indicators).</p>
+            </div>
+            <button
+              onClick={() => onNavigate('chat')}
+              className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+            >
+              Message Team
+            </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              { label: 'Leads Contacted', value: salesMetrics.leadsContacted.toString(), icon: 'fa-phone' },
+              { label: 'Deals Closed', value: salesMetrics.dealsClosed.toString(), icon: 'fa-handshake' },
+              { label: 'Follow-ups Due', value: salesMetrics.followUpsDue.toString(), icon: 'fa-calendar-check' },
+              { label: 'Pipeline Value', value: `TZS ${salesMetrics.pipelineValue.toLocaleString()}`, icon: 'fa-coins' },
+            ].map((kpi) => (
+              <div key={kpi.label} className={`${tileClass} text-left cursor-default`}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
+                    <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
+                    <i className={`fas ${kpi.icon}`}></i>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isAdminOrSuper && (
         <div className={`${panelClass} p-6`}>

@@ -106,9 +106,17 @@ const Layout: React.FC<LayoutProps> = ({
   const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const isAdmin = isSuperAdmin || user.role === UserRole.ADMIN;
   const isEmployeeWorkflowsEnabled = user.role !== UserRole.ADMIN;
+  const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const homeItem = isSalesTeam
+    ? { id: 'salesDashboard', label: 'Sales Dashboard', icon: 'fa-chart-pie' }
+    : { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
+    homeItem,
+
+    ...(isSalesTeam ? [{ id: 'leads', label: 'Leads', icon: 'fa-user-tag' }] : []),
+    ...(isSalesTeam ? [{ id: 'salesTargets', label: 'Targets / KPIs', icon: 'fa-bullseye' }] : []),
+    ...(isSalesTeam ? [{ id: 'invoices', label: 'Invoices', icon: 'fa-file-invoice-dollar' }] : []),
 
     // Employee reporting & performance
     ...(isEmployeeWorkflowsEnabled ? [{ id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' }] : []),
@@ -119,12 +127,12 @@ const Layout: React.FC<LayoutProps> = ({
     ...(isAdmin ? [{ id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' }] : []),
 
     // Existing modules (kept from previous system)
-    { id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' },
-    { id: 'candidates', label: 'Candidates', icon: 'fa-database' },
-    { id: 'database', label: 'Candidates Registry', icon: 'fa-users' },
-    { id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' },
+    ...(!isSalesTeam ? [{ id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' }] : []),
+    ...(!isSalesTeam ? [{ id: 'candidates', label: 'Candidates', icon: 'fa-database' }] : []),
+    ...(!isSalesTeam ? [{ id: 'database', label: 'Candidates Registry', icon: 'fa-users' }] : []),
+    ...(!isSalesTeam ? [{ id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' }] : []),
     { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
-    { id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' },
+    ...(!isSalesTeam ? [{ id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' }] : []),
 
     { id: 'settings', label: 'Settings', icon: 'fa-cog' },
   ];
@@ -154,8 +162,9 @@ const Layout: React.FC<LayoutProps> = ({
 
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
-    const validModules = new Set(['dashboard','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
-    if (n.origin && validModules.has(n.origin)) onModuleChange(n.origin);
+    const validModules = new Set(['dashboard','salesDashboard','leads','salesTargets','invoices','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
+    const restrictedForSales = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
+    if (n.origin && validModules.has(n.origin) && !(isSalesTeam && restrictedForSales.has(n.origin))) onModuleChange(n.origin);
     setIsNotifOpen(false);
   };
 
@@ -438,7 +447,14 @@ const Layout: React.FC<LayoutProps> = ({
 
         {/* Mobile bottom nav bar */}
         <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 liquid-bar ${isDark ? 'border-blue-400/20' : 'border-slate-200'}`}>
-          {(isEmployeeWorkflowsEnabled
+          {((isSalesTeam
+            ? [
+                { id: 'salesDashboard', icon: 'fa-chart-pie', label: 'sales' },
+                { id: 'leads', icon: 'fa-user-tag', label: 'leads' },
+                { id: 'chat', icon: 'fa-comments', label: 'chat' },
+                { id: 'attendance', icon: 'fa-user-clock', label: 'time' },
+              ]
+            : isEmployeeWorkflowsEnabled
             ? [
                 { id: 'dashboard', icon: 'fa-chart-line', label: 'dashboard' },
                 { id: 'attendance', icon: 'fa-user-clock', label: 'attendance' },
@@ -450,8 +466,8 @@ const Layout: React.FC<LayoutProps> = ({
                 { id: 'chat', icon: 'fa-comments', label: 'chat' },
                 { id: 'admin', icon: 'fa-user-shield', label: 'admin' },
                 { id: 'settings', icon: 'fa-cog', label: 'settings' },
-              ]
-          ).map((item) => (
+              ]))
+            .map((item) => (
             <button
               key={item.id}
               onClick={() => onModuleChange(item.id)}

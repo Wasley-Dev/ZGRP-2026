@@ -122,6 +122,7 @@ export interface TeamMessage {
   id: string;
   senderId: string;
   message: string;
+  channel?: 'general' | 'sales' | string;
   createdAt: string;
 }
 
@@ -140,6 +141,44 @@ export interface TaskItem {
   title: string;
   description: string;
   status: TaskStatus;
+  createdAt: string;
+}
+
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'won' | 'lost';
+
+export interface Lead {
+  id: string;
+  userId: string;
+  name: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+  status: LeadStatus;
+  estimatedValue?: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'void';
+
+export interface Invoice {
+  id: string;
+  userId: string;
+  invoiceNo: string;
+  client: string;
+  amount: number;
+  status: InvoiceStatus;
+  dueDate?: string; // YYYY-MM-DD
+  createdAt: string;
+}
+
+export interface SalesTarget {
+  id: string;
+  userId: string;
+  month: number; // 1-12
+  year: number;
+  leadsTarget: number;
+  revenueTarget: number;
   createdAt: string;
 }
 

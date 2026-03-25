@@ -50,6 +50,10 @@ const TeamChat = React.lazy(() => import('./components/TeamChat'));
 const NoticesModule = React.lazy(() => import('./components/NoticesModule'));
 const TasksModule = React.lazy(() => import('./components/TasksModule'));
 const PayrollModule = React.lazy(() => import('./components/PayrollModule'));
+const SalesDashboard = React.lazy(() => import('./components/SalesDashboard'));
+const LeadsModule = React.lazy(() => import('./components/LeadsModule'));
+const SalesTargetsModule = React.lazy(() => import('./components/SalesTargetsModule'));
+const InvoicesModule = React.lazy(() => import('./components/InvoicesModule'));
 const EmploymentManagement = React.lazy(() => import('./components/EmploymentManagement'));
 const RecruitmentHub = React.lazy(() => import('./components/RecruitmentHub'));
 const BookingModule = React.lazy(() => import('./components/BookingModule'));
@@ -65,6 +69,11 @@ type RememberedAuth = {
   passwordDigest: string;
   savedAt: number;
 };
+
+const isSalesTeamUser = (user: SystemUser): boolean => {
+  return /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+};
+const getHomeModule = (user: SystemUser): string => (isSalesTeamUser(user) ? 'salesDashboard' : 'dashboard');
 const GENERATED_NAME_POOL = [
   'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
   'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
@@ -476,7 +485,7 @@ const App: React.FC = () => {
   };
 
   const validModules = useMemo(
-    () => new Set(['dashboard', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'employment', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
+    () => new Set(['dashboard', 'salesDashboard', 'leads', 'salesTargets', 'invoices', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'employment', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
     []
   );
 
@@ -725,7 +734,7 @@ const App: React.FC = () => {
       setCurrentUser(updatedUser);
       isRevokedRef.current = false;
       setIsLoggedIn(true);
-      setActiveModule('dashboard');
+      setActiveModule(getHomeModule(updatedUser));
       const installSeenNow = typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
       setHasSeenInstallOrientation(installSeenNow);
       const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
@@ -890,7 +899,7 @@ const App: React.FC = () => {
     setCurrentUser(updatedUser);
     isRevokedRef.current = false;
     setIsLoggedIn(true);
-    setActiveModule('dashboard');
+    setActiveModule(getHomeModule(updatedUser));
     const installSeenNow = typeof window !== 'undefined' && window.localStorage.getItem(INSTALL_ORIENTATION_KEY) === '1';
     setHasSeenInstallOrientation(installSeenNow);
     const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
@@ -1038,7 +1047,7 @@ const App: React.FC = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!isLoggedIn || showOrientation || !validModules.has(activeModule)) setActiveModule('dashboard');
+    if (!isLoggedIn || showOrientation || !validModules.has(activeModule)) setActiveModule(getHomeModule(currentUser));
   }, [activeModule, isLoggedIn, showOrientation, validModules]);
 
   useEffect(() => {
@@ -1131,10 +1140,54 @@ const App: React.FC = () => {
   const renderModule = () => {
     const isSuperAdmin = currentUser.role === UserRole.SUPER_ADMIN;
     const isAdmin = isSuperAdmin || currentUser.role === UserRole.ADMIN;
+    const isSalesTeam = isSalesTeamUser(currentUser);
+    const salesModules = new Set(['salesDashboard', 'leads', 'salesTargets', 'invoices']);
+    const salesRestricted = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
+    if (isSalesTeam && salesRestricted.has(activeModule)) {
+      return (
+        <div className="liquid-panel p-6">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">
+            This module is hidden for the Sales team. Use Sales Dashboard, Leads, Targets/KPIs, Invoices, Daily Reports, Attendance, Team Chat, and Settings.
+          </p>
+          <button
+            onClick={() => setActiveModule(getHomeModule(currentUser))}
+            className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      );
+    }
+    if (!isSalesTeam && salesModules.has(activeModule)) {
+      return (
+        <div className="liquid-panel p-6">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">
+            Sales modules are available only to users in the Sales department.
+          </p>
+          <button
+            onClick={() => setActiveModule(getHomeModule(currentUser))}
+            className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+          >
+            Back to Home
+          </button>
+        </div>
+      );
+    }
 
     switch (activeModule) {
       case 'dashboard':
+        if (isSalesTeamUser(currentUser)) return <SalesDashboard user={currentUser} onNavigate={setActiveModule} />;
         return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
+      case 'salesDashboard':
+        return <SalesDashboard user={currentUser} onNavigate={setActiveModule} />;
+      case 'leads':
+        return <LeadsModule user={currentUser} users={allUsers} />;
+      case 'salesTargets':
+        return <SalesTargetsModule user={currentUser} />;
+      case 'invoices':
+        return <InvoicesModule user={currentUser} users={allUsers} />;
       case 'dailyReports':
         if (currentUser.role === UserRole.ADMIN) {
           return (
