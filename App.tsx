@@ -315,7 +315,12 @@ const App: React.FC = () => {
   const sessionsHashRef = useRef(0);
   // Track notification auto-dismiss timers so we can cancel them if manually dismissed
   const dismissTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const initialUsers = useMemo(() => normalizeUsers(initialSharedState.users), [initialSharedState.users]);
+  // Seed users must always exist even if a stored/shared snapshot is missing them (e.g., older clients publishing).
+  const seedUsers = useMemo(() => normalizeUsers(MOCK_USERS), []);
+  const initialUsers = useMemo(
+    () => mergeSeedUsers(seedUsers, normalizeUsers(initialSharedState.users)),
+    [seedUsers, initialSharedState.users]
+  );
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [allUsers, setAllUsers] = useState<SystemUser[]>(initialUsers);
@@ -587,12 +592,12 @@ const App: React.FC = () => {
       if (!snapshot || cancelled) return;
       if (snapshot.bookings?.length) setBookings(snapshot.bookings);
       if (snapshot.candidates?.length) setCandidates(snapshot.candidates);
-      if (snapshot.users?.length) setAllUsers(normalizeUsers(snapshot.users));
+      if (snapshot.users?.length) setAllUsers(mergeSeedUsers(seedUsers, normalizeUsers(snapshot.users)));
       if (snapshot.systemConfig) setSystemConfig(snapshot.systemConfig);
     };
     hydrateLocal();
     return () => { cancelled = true; };
-  }, []);
+  }, [seedUsers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -601,7 +606,7 @@ const App: React.FC = () => {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
       if (cancelled) return;
       if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(initialUsers, remoteUsers);
+        const merged = mergeSeedUsers(seedUsers, remoteUsers);
         setAllUsers(merged);
         setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
         if (merged.length !== remoteUsers.length) {
@@ -612,7 +617,7 @@ const App: React.FC = () => {
     };
     hydrateUsers();
     return () => { cancelled = true; };
-  }, [initialUsers]);
+  }, [initialUsers, seedUsers]);
 
   useEffect(() => {
     bookingsRef.current = bookings; candidatesRef.current = candidates;
@@ -757,7 +762,7 @@ const App: React.FC = () => {
       if (!matched && hasRemoteUserDirectory()) {
         const remoteUsers = normalizeUsers(await fetchRemoteUsers());
         if (remoteUsers.length > 0) {
-          const merged = mergeSeedUsers(initialUsers, remoteUsers);
+          const merged = mergeSeedUsers(seedUsers, remoteUsers);
           userDirectory = merged;
           setAllUsers(merged);
           matched =
@@ -802,7 +807,7 @@ const App: React.FC = () => {
     };
 
     void restore();
-  }, [allUsers, isLoggedIn, systemConfig, initialUsers]);
+  }, [allUsers, isLoggedIn, systemConfig, initialUsers, seedUsers]);
 
   useEffect(() => {
     const syncClient = new RealtimeSyncClient({
@@ -810,15 +815,16 @@ const App: React.FC = () => {
       onSnapshot: (snapshot) => {
         applyingRemoteUpdateRef.current = true;
         setBookings(snapshot.bookings); setCandidates(snapshot.candidates);
-        setAllUsers(normalizeUsers(snapshot.users)); setNotifications(snapshot.notifications);
+        const mergedUsers = mergeSeedUsers(seedUsers, normalizeUsers(snapshot.users));
+        setAllUsers(mergedUsers); setNotifications(snapshot.notifications);
         setSystemConfig(snapshot.systemConfig);
-        setCurrentUser((prev) => normalizeUsers(snapshot.users).find((u) => u.id === prev.id) || prev);
+        setCurrentUser((prev) => mergedUsers.find((u) => u.id === prev.id) || prev);
       },
     });
     syncClient.start();
     syncClientRef.current = syncClient;
     return () => syncClient.stop();
-  }, []);
+  }, [seedUsers]);
 
   useEffect(() => {
     if (!syncClientRef.current) return;
@@ -939,7 +945,7 @@ const App: React.FC = () => {
     if (!matched && hasRemoteUserDirectory()) {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
       if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(initialUsers, remoteUsers);
+        const merged = mergeSeedUsers(seedUsers, remoteUsers);
         userDirectory = merged;
         setAllUsers(merged);
         matched = merged.find((u) => u.email.toLowerCase() === normalizedEmail);
