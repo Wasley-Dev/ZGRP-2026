@@ -56,9 +56,13 @@ const asError = (err: unknown, fallback: string) => {
 
 const isSchemaOrPermissionError = (err: unknown) => {
   const msg = errorMessage(err).toLowerCase();
+  const code = String((err as any)?.code || '').toLowerCase();
   return (
+    code.startsWith('pgrst') ||
     msg.includes('does not exist') ||
     msg.includes('relation') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find the table') ||
     msg.includes('permission denied') ||
     msg.includes('row level security') ||
     msg.includes('not allowed') ||

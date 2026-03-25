@@ -291,6 +291,7 @@ const Layout: React.FC<LayoutProps> = ({
                 backgroundImage: `linear-gradient(rgba(8,14,35,0.78), rgba(8,14,35,0.86)), url(${backgroundImageUrl})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
                 backgroundAttachment: 'fixed',
               }
             : undefined
