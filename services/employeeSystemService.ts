@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AttendanceCheckoutRequest, AttendanceLog, DailyReport, LeaveRequest, Notice, PayrollRecord, PayrollRunInput, PayslipRecord, SystemUser, TaskItem, TeamMessage } from '../types';
+import { UserRole, type AttendanceCheckoutRequest, type AttendanceLog, type DailyReport, type LeaveRequest, type Notice, type PayrollRecord, type PayrollRunInput, type PayslipRecord, type SystemUser, type TaskItem, type TeamMessage } from '../types';
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
 const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
@@ -368,7 +368,7 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
     .select('*')
     .single();
   if (error && /segments/i.test(String(error.message || ''))) {
-    throw new Error('Mid-day return requires an attendance schema update (segments column). Apply the latest Supabase migration.');
+    throw new Error('Mid-day return requires an attendance schema update (segments column). Apply supabase/migrations/20260324000200_attendance_segments.sql.');
   }
   if (error || !data) {
     console.error('clockIn update error:', error);
@@ -416,7 +416,10 @@ export const requestClockOutApproval = async (user: SystemUser, attendance: Atte
   if (insert.error || !insert.data) {
     const message = String(insert.error?.message || '');
     if (/attendance_checkout_requests/i.test(message) || /relation/i.test(message)) {
-      throw new Error('Approval requests table missing. Apply the latest Supabase migrations.');
+      throw new Error(
+        'Approval requests table missing. Apply the latest Supabase migrations: ' +
+        'supabase/migrations/20260325000100_attendance_checkout_requests.sql (and 20260324000100_employee_system.sql).'
+      );
     }
     throw insert.error || new Error('Failed to create approval request.');
   }
@@ -475,7 +478,7 @@ export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog
 
   const { data, error } = await supabase.from('attendance').update({ segments }).eq('id', attendance.id).select('*').single();
   if (error && /segments/i.test(String(error.message || ''))) {
-    throw new Error('Mid-day checkout requires an attendance schema update (segments column). Apply the latest Supabase migration.');
+    throw new Error('Mid-day checkout requires an attendance schema update (segments column). Apply supabase/migrations/20260324000200_attendance_segments.sql.');
   }
   if (error || !data) throw error || new Error('Clock out failed');
   return {
@@ -833,11 +836,13 @@ export const fetchLeaveRequests = async (user: SystemUser, isAdmin: boolean): Pr
 
 export const processPayroll = async (
   users: SystemUser[],
-  input: PayrollRunInput
+  input: PayrollRunInput,
+  options?: { bypassWriteOnce?: boolean; actor?: SystemUser }
 ): Promise<{ processed: PayrollRecord[]; skippedUserIds: string[] }> => {
   const month = input.month;
   const year = input.year;
   const workingDays = input.workingDays ?? 26;
+  const allowBypass = Boolean(options?.bypassWriteOnce && options?.actor?.role === UserRole.SUPER_ADMIN);
 
   const computeRecord = (u: SystemUser, daysPresent: number): { record: PayrollRecord; breakdown: any } => {
     const basicSalary = Number(u.baseSalary ?? input.defaultBasicSalary ?? 0);
@@ -879,20 +884,30 @@ export const processPayroll = async (
 
   const processLocal = (): { processed: PayrollRecord[]; skippedUserIds: string[] } => {
     const attendance = readLocalArray<AttendanceLog>('attendance', []);
-    const existing = new Set(readLocalArray<PayrollRecord>('payroll', []).map((r) => `${r.userId}:${r.month}:${r.year}`));
+    let payrollStore = readLocalArray<PayrollRecord>('payroll', []);
+    const existing = new Set(payrollStore.map((r) => `${r.userId}:${r.month}:${r.year}`));
     const processed: PayrollRecord[] = [];
     const skipped: string[] = [];
+    const removedPayrollIds: string[] = [];
     for (const u of users) {
       const key = `${u.id}:${month}:${year}`;
-      if (existing.has(key)) { skipped.push(u.id); continue; }
+      if (existing.has(key) && !allowBypass) { skipped.push(u.id); continue; }
+      if (existing.has(key) && allowBypass) {
+        const removed = payrollStore.filter((r) => r.userId === u.id && r.month === month && r.year === year);
+        removedPayrollIds.push(...removed.map((r) => r.id));
+        payrollStore = payrollStore.filter((r) => !(r.userId === u.id && r.month === month && r.year === year));
+      }
       const daysPresent = attendance.filter((a) => a.userId === u.id && a.checkIn && a.date.startsWith(`${year}-${String(month).padStart(2, '0')}`)).length;
       const { record, breakdown } = computeRecord(u, daysPresent);
       processed.push(record);
       const payslips = readLocalArray<PayslipRecord>('payslips', []);
       writeLocalArray('payslips', [{ id: `local-slip-${record.id}`, payrollId: record.id, breakdown, createdAt: nowIso() }, ...payslips].slice(0, 800));
     }
-    const payroll = readLocalArray<PayrollRecord>('payroll', []);
-    writeLocalArray('payroll', [...processed, ...payroll].slice(0, 800));
+    if (removedPayrollIds.length) {
+      const slips = readLocalArray<PayslipRecord>('payslips', []);
+      writeLocalArray('payslips', slips.filter((s) => !removedPayrollIds.includes(s.payrollId)).slice(0, 800));
+    }
+    writeLocalArray('payroll', [...processed, ...payrollStore].slice(0, 800));
     return { processed, skippedUserIds: skipped };
   };
 
@@ -929,7 +944,7 @@ export const processPayroll = async (
 
   for (const u of users) {
     const key = `${u.id}:${month}:${year}`;
-    if (existingPayroll.has(key)) {
+    if (existingPayroll.has(key) && !allowBypass) {
       skipped.push(u.id);
       continue;
     }
@@ -946,7 +961,9 @@ export const processPayroll = async (
       net_salary: computed.netSalary,
       created_at: nowIso(),
     };
-    const { data: payroll, error } = await supabase.from('payroll').insert(payrollRow).select('*').single();
+    const { data: payroll, error } = allowBypass
+      ? await supabase.from('payroll').upsert(payrollRow as any, { onConflict: 'user_id,month,year' }).select('*').single()
+      : await supabase.from('payroll').insert(payrollRow as any).select('*').single();
     if (error || !payroll) {
       console.error('processPayroll payroll insert error:', error);
       if (isSchemaOrPermissionError(error)) return processLocal();

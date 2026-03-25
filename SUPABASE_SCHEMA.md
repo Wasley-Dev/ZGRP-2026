@@ -5,11 +5,14 @@ This repo already contains permissive Supabase tables/policies for the portal (`
 This update adds a new migration for the employee system:
 
 - `supabase/migrations/20260324000100_employee_system.sql`
+- `supabase/migrations/20260324000200_attendance_segments.sql` (adds `segments` to `attendance` for mid-day out/in)
+- `supabase/migrations/20260325000100_attendance_checkout_requests.sql` (GM approval requests)
 
 It creates:
 
 - `reports`
 - `attendance` (unique: `user_id + date`)
+- `attendance_checkout_requests` (GM approval requests)
 - `messages`
 - `notices`
 - `tasks`
@@ -22,8 +25,12 @@ It creates:
 Option A (Supabase Dashboard SQL Editor):
 
 1. Open Supabase Dashboard → SQL Editor
-2. Paste the contents of `supabase/migrations/20260324000100_employee_system.sql`
-3. Run
+2. Paste/run each migration in order:
+   - `supabase/migrations/20260324000100_employee_system.sql`
+   - `supabase/migrations/20260324000200_attendance_segments.sql`
+   - `supabase/migrations/20260325000100_attendance_checkout_requests.sql`
+3. If you still see “schema cache” errors, wait ~60 seconds then refresh, or run this in SQL Editor:
+   - `notify pgrst, 'reload schema';`
 
 Option B (Supabase CLI migrations):
 

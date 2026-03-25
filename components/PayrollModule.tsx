@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { UserRole, type PayrollRecord, type PayslipRecord, type SystemUser } from '../types';
 import { fetchPayrollDashboard, fetchPayslipByPayrollId, hasEmployeeSupabase, processPayroll, subscribeToTableChanges } from '../services/employeeSystemService';
+import zayaPdfLogo from '../assets/zaya-logo-pdf.png';
 
 interface PayrollModuleProps {
   user: SystemUser;
@@ -11,8 +12,25 @@ interface PayrollModuleProps {
 
 const toMoney = (n: number) => n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+const loadImageDataUrl = async (src: string): Promise<string | null> => {
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+};
+
 const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
   const isAdmin = user.role !== UserRole.USER;
+  const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const [records, setRecords] = useState<PayrollRecord[]>([]);
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
   const [year, setYear] = useState(() => new Date().getFullYear());
@@ -20,6 +38,7 @@ const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
   const [defaults, setDefaults] = useState({ basic: 600000, allowances: 0, deductions: 0, score: 80 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [activePayslip, setActivePayslip] = useState<PayslipRecord | null>(null);
+  const [bypassWriteOnce, setBypassWriteOnce] = useState(false);
 
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
 
@@ -63,7 +82,7 @@ const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
         defaultAllowancesTotal: defaults.allowances,
         defaultDeductionsTotal: defaults.deductions,
         defaultPerformanceScore: defaults.score,
-      });
+      }, { bypassWriteOnce, actor: user });
       if (processed.length) {
         alert(`Processed payroll for ${processed.length} employee(s).`);
       }
@@ -85,21 +104,47 @@ const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
     setActivePayslip(payslip);
   };
 
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     if (!activePayslip) return;
     const b = activePayslip.breakdown || {};
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text('Zaya Group Ltd', 14, 18);
-    doc.setFontSize(12);
-    doc.text('Payslip', 14, 28);
-    doc.setFontSize(10);
-    doc.text(`Employee: ${b.employeeName || ''}`, 14, 38);
-    doc.text(`Month/Year: ${b.month || ''}/${b.year || ''}`, 14, 44);
 
-    autoTable(doc, {
-      startY: 52,
-      head: [['Item', 'Amount']],
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const colorBlue: [number, number, number] = [0, 51, 102];
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+
+    const logoData = await loadImageDataUrl(zayaPdfLogo);
+    if (logoData) {
+      try {
+        pdf.addImage(logoData, 'PNG', pageWidth - 32, 10, 18, 18);
+      } catch {
+        // keep export successful even if image decode fails
+      }
+    }
+
+    pdf.setTextColor(...colorBlue);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(16);
+    pdf.text('ZAYA GROUP LTD', 14, 16);
+    pdf.setFontSize(12);
+    pdf.text('PAYSLIP', 14, 24);
+    pdf.setDrawColor(212, 175, 55);
+    pdf.setLineWidth(0.6);
+    pdf.line(14, 27, pageWidth - 14, 27);
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    pdf.text(`Employee: ${b.employeeName || ''}`, 14, 36);
+    pdf.text(`Month/Year: ${b.month || ''}/${b.year || ''}`, 14, 42);
+    pdf.text(`Days Present: ${String(b.daysPresent ?? '-')}/${String(b.workingDays ?? '-')}`, 14, 48);
+
+    autoTable(pdf, {
+      startY: 56,
+      theme: 'grid',
+      head: [['Item', 'Amount (TZS)']],
       body: [
         ['Basic Salary', toMoney(Number(b.basicSalary || 0))],
         ['Allowances', toMoney(Number(b.allowancesTotal || 0))],
@@ -107,10 +152,19 @@ const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
         ['Performance Bonus', toMoney(Number(b.performanceBonus || 0))],
         ['Net Salary', toMoney(Number(b.netSalary || 0))],
       ],
-      styles: { fontSize: 10 },
+      styles: { fontSize: 10, textColor: colorBlue as any, cellPadding: 3 },
+      headStyles: { fillColor: colorBlue as any, textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
     });
 
-    doc.save(`Payslip-${b.employeeName || 'employee'}-${b.month}-${b.year}.pdf`);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(120, 120, 120);
+    pdf.text(`Generated: ${new Date().toLocaleString('en-GB')}`, 14, pageHeight - 12);
+    pdf.text('Zaya Group Portal', pageWidth - 14, pageHeight - 12, { align: 'right' } as any);
+
+    pdf.save(`Payslip-${b.employeeName || 'employee'}-${b.month}-${b.year}.pdf`);
   };
 
   return (
@@ -143,6 +197,17 @@ const PayrollModule: React.FC<PayrollModuleProps> = ({ user, users }) => {
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Run Payroll</h3>
           {!isAdmin && (
             <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Only admin can process payroll.</p>
+          )}
+          {isSuperAdmin && (
+            <label className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-blue-300/70 select-none">
+              <input
+                type="checkbox"
+                checked={bypassWriteOnce}
+                onChange={(e) => setBypassWriteOnce(e.target.checked)}
+                className="h-4 w-4 rounded border border-slate-300 dark:border-blue-400/30 accent-[#D4AF37]"
+              />
+              Bypass write-once (Super Admin only)
+            </label>
           )}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
             <input type="number" min={1} max={12} value={month} onChange={(e) => setMonth(Number(e.target.value))}
