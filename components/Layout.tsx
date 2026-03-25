@@ -204,7 +204,7 @@ const Layout: React.FC<LayoutProps> = ({
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 min-h-0 overflow-y-auto p-2 pb-24 space-y-1">
+      <nav className="flex-1 min-h-0 overflow-y-auto p-2 pb-4 space-y-1">
         {navItems.map((item) => (
           <button
             key={item.id}
@@ -250,7 +250,7 @@ const Layout: React.FC<LayoutProps> = ({
       </nav>
 
       {/* Logout */}
-      <div className={`sticky bottom-0 p-3 border-t backdrop-blur-sm shrink-0 ${isDark ? 'border-white/5 bg-[#003366]/95' : 'border-slate-200 bg-[#f8fbff]'}`}>
+      <div className={`mt-auto p-3 border-t backdrop-blur-sm shrink-0 ${isDark ? 'border-white/5 bg-[#003366]/95' : 'border-slate-200 bg-[#f8fbff]'}`}>
         <button
           onClick={onLogout}
           className="w-full py-3 text-[10px] font-black text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors tracking-[0.2em] border border-red-400/40"

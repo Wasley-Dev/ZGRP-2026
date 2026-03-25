@@ -80,6 +80,30 @@ const isSalesManagerUser = (user: SystemUser): boolean => {
 const isSalesRepUser = (user: SystemUser): boolean => isSalesDeptUser(user) && user.role === UserRole.USER && !isSalesManagerUser(user);
 const hasSalesAccess = (user: SystemUser): boolean => user.role !== UserRole.USER || isSalesDeptUser(user);
 const getHomeModule = (user: SystemUser): string => (isSalesDeptUser(user) && user.role === UserRole.USER ? 'salesDashboard' : 'dashboard');
+
+const mergeSeedUsers = (seedUsers: SystemUser[], remoteUsers: SystemUser[]): SystemUser[] => {
+  const seedById = new Map(seedUsers.map((user) => [user.id, user]));
+  const seedByEmail = new Map(seedUsers.map((user) => [user.email.toLowerCase(), user]));
+  const seenIds = new Set<string>();
+  const seenEmails = new Set<string>();
+
+  const mergedRemote = remoteUsers.map((remote) => {
+    const emailKey = remote.email.toLowerCase();
+    seenIds.add(remote.id);
+    seenEmails.add(emailKey);
+    const seedMatch = seedById.get(remote.id) || seedByEmail.get(emailKey);
+    if (!seedMatch) return remote;
+    if (remote.password && remote.password.trim().length > 0) return remote;
+    return { ...remote, password: seedMatch.password };
+  });
+
+  const missingSeeds = seedUsers.filter((seed) => {
+    const emailKey = seed.email.toLowerCase();
+    return !seenIds.has(seed.id) && !seenEmails.has(emailKey);
+  });
+
+  return [...mergedRemote, ...missingSeeds].sort((a, b) => a.name.localeCompare(b.name));
+};
 const GENERATED_NAME_POOL = [
   'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
   'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
@@ -337,7 +361,7 @@ const App: React.FC = () => {
   type ReportOption = (typeof reportOptions)[number];
   const [reportPopup, setReportPopup] = useState<ReportOption | null>(null);
 
-  const handleDownloadReport = () => {
+  const handleGenerateReport = (action: 'download' | 'print') => {
     if (!reportPopup) return;
     const now = new Date();
     const weekStart = new Date(now);
@@ -355,7 +379,7 @@ const App: React.FC = () => {
     const interviewCount = candidates.filter((c) => c.status === 'INTERVIEW').length;
     const pendingCount = candidates.filter((c) => c.status === 'PENDING').length;
 
-    import('jspdf').then(jsPDF => {
+    import('jspdf').then(async (jsPDF) => {
       const doc = new jsPDF.default();
       doc.setFontSize(22); doc.text(`ZAYA GROUP - ${reportPopup}`, 20, 20);
       doc.setFontSize(12); doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
@@ -409,10 +433,26 @@ const App: React.FC = () => {
         doc.setFontSize(12); write('Operational Summary'); doc.setFontSize(10);
         write(`Conversion estimate: ${candidates.length ? ((deployedCount / candidates.length) * 100).toFixed(1) : '0.0'}%`);
       }
-      doc.save(`${reportPopup.replace(/\s+/g, '_')}_Report.pdf`);
+      const filename = `${reportPopup.replace(/\s+/g, '_')}_Report.pdf`;
+      if (action === 'download') {
+        doc.save(filename);
+      } else {
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        const w = window.open(url, '_blank');
+        if (w) {
+          w.addEventListener('load', () => {
+            try { w.focus(); w.print(); } catch { /* ignore */ }
+          });
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 20000);
+      }
       setReportPopup(null);
     });
   };
+
+  const handleDownloadReport = () => handleGenerateReport('download');
+  const handlePrintReport = () => handleGenerateReport('print');
 
   const openReportByName = (raw?: string) => {
     if (!raw) { setActiveModule('reports'); return; }
@@ -561,8 +601,12 @@ const App: React.FC = () => {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
       if (cancelled) return;
       if (remoteUsers.length > 0) {
-        setAllUsers(remoteUsers);
-        setCurrentUser((prev) => remoteUsers.find((u) => u.id === prev.id) || prev);
+        const merged = mergeSeedUsers(initialUsers, remoteUsers);
+        setAllUsers(merged);
+        setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
+        if (merged.length !== remoteUsers.length) {
+          try { await syncRemoteUsers(merged); } catch { /* ignore */ }
+        }
       } else { await syncRemoteUsers(initialUsers); }
       remoteHydratedRef.current = true;
     };
@@ -713,11 +757,12 @@ const App: React.FC = () => {
       if (!matched && hasRemoteUserDirectory()) {
         const remoteUsers = normalizeUsers(await fetchRemoteUsers());
         if (remoteUsers.length > 0) {
-          userDirectory = remoteUsers;
-          setAllUsers(remoteUsers);
+          const merged = mergeSeedUsers(initialUsers, remoteUsers);
+          userDirectory = merged;
+          setAllUsers(merged);
           matched =
-            remoteUsers.find((u) => u.id === remembered.userId) ||
-            remoteUsers.find((u) => u.email.toLowerCase() === normalizedEmail);
+            merged.find((u) => u.id === remembered.userId) ||
+            merged.find((u) => u.email.toLowerCase() === normalizedEmail);
         }
       }
 
@@ -757,7 +802,7 @@ const App: React.FC = () => {
     };
 
     void restore();
-  }, [allUsers, isLoggedIn, systemConfig]);
+  }, [allUsers, isLoggedIn, systemConfig, initialUsers]);
 
   useEffect(() => {
     const syncClient = new RealtimeSyncClient({
@@ -893,7 +938,12 @@ const App: React.FC = () => {
     let matched = userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
     if (!matched && hasRemoteUserDirectory()) {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
-      if (remoteUsers.length > 0) { userDirectory = remoteUsers; setAllUsers(remoteUsers); matched = remoteUsers.find((u) => u.email.toLowerCase() === normalizedEmail); }
+      if (remoteUsers.length > 0) {
+        const merged = mergeSeedUsers(initialUsers, remoteUsers);
+        userDirectory = merged;
+        setAllUsers(merged);
+        matched = merged.find((u) => u.email.toLowerCase() === normalizedEmail);
+      }
     }
     if (!matched) return 'Account not found. Contact admin.';
     if (matched.status === 'BANNED') return 'This account is banned. Contact administrator.';
@@ -1264,7 +1314,7 @@ const App: React.FC = () => {
       case 'booking':
         return <BookingModule bookings={bookings} users={allUsers} currentUser={currentUser} onUpsertBooking={upsertBooking} onDeleteBooking={deleteBooking} />;
       case 'broadcast':
-        return <BroadcastModule candidates={candidates} />;
+        return <BroadcastModule candidates={candidates} user={currentUser} />;
       case 'settings':
         return <Settings theme={theme} onThemeToggle={toggleTheme} user={currentUser} setUser={setCurrentUser} backgroundImageUrl={backgroundImageUrl} onBackgroundImageChange={setBackgroundImageUrl} />;
       case 'admin':
@@ -1515,6 +1565,12 @@ const App: React.FC = () => {
               className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all"
             >
               Download PDF
+            </button>
+            <button
+              onClick={handlePrintReport}
+              className="w-full mt-3 py-3 bg-gold text-enterprise-blue rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all"
+            >
+              Print
             </button>
             <button onClick={() => setReportPopup(null)} className="w-full mt-3 py-2 text-[10px] text-blue-300/50 hover:text-blue-300 font-bold uppercase tracking-widest transition-all">
               Cancel

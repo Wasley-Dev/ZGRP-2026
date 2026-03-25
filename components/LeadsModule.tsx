@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { type Lead, type LeadStatus, type SystemUser, UserRole } from '../types';
-import { createLead, fetchLeads, updateLeadStatus } from '../services/salesService';
+import { createLead, fetchLeads, updateLead, updateLeadStatus } from '../services/salesService';
 
 interface LeadsModuleProps {
   user: SystemUser;
@@ -22,6 +22,16 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
   const [assigneeId, setAssigneeId] = useState(user.id);
+  const [editing, setEditing] = useState<Lead | null>(null);
+  const [editDraft, setEditDraft] = useState<{ name: string; company: string; phone: string; email: string; status: LeadStatus; estimatedValue: string; notes: string }>({
+    name: '',
+    company: '',
+    phone: '',
+    email: '',
+    status: 'new',
+    estimatedValue: '',
+    notes: '',
+  });
 
   const displayUsers = useMemo(() => users.filter((u) => u.status !== 'BANNED'), [users]);
 
@@ -67,6 +77,110 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
     }
   };
 
+  const openEditor = (lead: Lead) => {
+    setEditing(lead);
+    setEditDraft({
+      name: lead.name || '',
+      company: lead.company || '',
+      phone: lead.phone || '',
+      email: lead.email || '',
+      status: lead.status,
+      estimatedValue: lead.estimatedValue != null ? String(lead.estimatedValue) : '',
+      notes: lead.notes || '',
+    });
+  };
+
+  const saveEditor = async () => {
+    if (!editing) return;
+    const patch = {
+      name: editDraft.name.trim(),
+      company: editDraft.company.trim() || undefined,
+      phone: editDraft.phone.trim() || undefined,
+      email: editDraft.email.trim() || undefined,
+      status: editDraft.status,
+      estimatedValue: editDraft.estimatedValue.trim() ? Number(editDraft.estimatedValue) : undefined,
+      notes: editDraft.notes.trim() || undefined,
+    };
+    setLeads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...patch } : l)));
+    try {
+      await updateLead(editing.id, patch as any);
+      setEditing(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update lead.');
+    }
+  };
+
+  const downloadBlob = (filename: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const downloadCsv = (filename: string, rows: Array<Record<string, any>>) => {
+    const headers = Array.from(
+      rows.reduce((acc, row) => {
+        Object.keys(row).forEach((k) => acc.add(k));
+        return acc;
+      }, new Set<string>())
+    );
+    const escape = (v: any) => `"${String(v ?? '').replace(/\"/g, '""')}"`;
+    const lines = [
+      headers.join(','),
+      ...rows.map((r) => headers.map((h) => escape((r as any)[h])).join(',')),
+    ].join('\n');
+    downloadBlob(filename, new Blob([lines], { type: 'text/csv;charset=utf-8' }));
+  };
+
+  const printLead = (lead: Lead) => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    const html = `
+      <html>
+        <head>
+          <title>Lead - ${lead.name}</title>
+          <style>
+            body{font-family:Arial, sans-serif;padding:24px;}
+            h1{margin:0 0 8px;font-size:20px;}
+            .muted{color:#555;font-size:12px;}
+            .box{border:1px solid #ddd;border-radius:12px;padding:16px;margin-top:16px;}
+            .row{display:flex;gap:16px;flex-wrap:wrap;}
+            .col{min-width:240px;flex:1;}
+            .k{font-weight:700;font-size:12px;color:#333;text-transform:uppercase;letter-spacing:.08em;}
+            .v{margin-top:6px;font-size:14px;}
+          </style>
+        </head>
+        <body>
+          <h1>Zaya Group Portal — Lead</h1>
+          <div class="muted">Printed: ${new Date().toLocaleString('en-GB')}</div>
+          <div class="box">
+            <div class="row">
+              <div class="col"><div class="k">Name</div><div class="v">${lead.name || ''}</div></div>
+              <div class="col"><div class="k">Company</div><div class="v">${lead.company || ''}</div></div>
+            </div>
+            <div class="row" style="margin-top:12px;">
+              <div class="col"><div class="k">Phone</div><div class="v">${lead.phone || ''}</div></div>
+              <div class="col"><div class="k">Email</div><div class="v">${lead.email || ''}</div></div>
+            </div>
+            <div class="row" style="margin-top:12px;">
+              <div class="col"><div class="k">Status</div><div class="v">${lead.status}</div></div>
+              <div class="col"><div class="k">Estimated Value</div><div class="v">${lead.estimatedValue != null ? `TZS ${Math.round(Number(lead.estimatedValue)).toLocaleString()}` : ''}</div></div>
+            </div>
+            <div style="margin-top:12px;">
+              <div class="k">Notes</div><div class="v">${(lead.notes || '').replace(/\n/g, '<br/>')}</div>
+            </div>
+          </div>
+          <script>window.onload=()=>{window.print();};</script>
+        </body>
+      </html>
+    `;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
+
   const nameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
 
   const statusStyle = (s: LeadStatus) => {
@@ -79,13 +193,66 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {editing && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setEditing(null)}>
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl border dark:border-slate-700 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+              <h3 className="text-lg font-black dark:text-white uppercase tracking-tight">View / Edit Lead</h3>
+              <button onClick={() => setEditing(null)} className="text-slate-400 hover:text-red-500">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input value={editDraft.name} onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Lead name" />
+              <input value={editDraft.company} onChange={(e) => setEditDraft((p) => ({ ...p, company: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Company" />
+              <input value={editDraft.phone} onChange={(e) => setEditDraft((p) => ({ ...p, phone: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Phone" />
+              <input value={editDraft.email} onChange={(e) => setEditDraft((p) => ({ ...p, email: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Email" />
+              <select value={editDraft.status} onChange={(e) => setEditDraft((p) => ({ ...p, status: e.target.value as LeadStatus }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none">
+                {(['new','contacted','qualified','won','lost'] as LeadStatus[]).map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+              <input value={editDraft.estimatedValue} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedValue: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Estimated value (TZS)" />
+              <textarea value={editDraft.notes} onChange={(e) => setEditDraft((p) => ({ ...p, notes: e.target.value }))} className="md:col-span-2 w-full min-h-28 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Notes" />
+            </div>
+            <div className="p-6 border-t dark:border-slate-700 flex justify-between gap-3 bg-slate-50 dark:bg-slate-900/40">
+              <button onClick={() => { downloadBlob(`lead_${editing.id}.json`, new Blob([JSON.stringify(editing, null, 2)], { type: 'application/json' })); }} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Download
+              </button>
+              <div className="flex gap-3">
+                <button onClick={() => printLead({ ...editing, ...editDraft, estimatedValue: editDraft.estimatedValue ? Number(editDraft.estimatedValue) : undefined } as any)} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Print
+                </button>
+                <button onClick={() => void saveEditor()} className="px-5 py-3 bg-gold text-enterprise-blue rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="liquid-panel p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Leads</h2>
             <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Capture, qualify, and track sales leads.</p>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-gold">{leads.length} leads</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => downloadCsv(`leads_${new Date().toISOString().slice(0, 10)}.csv`, leads.map((l) => ({
+                name: l.name,
+                company: l.company || '',
+                phone: l.phone || '',
+                email: l.email || '',
+                status: l.status,
+                estimatedValue: l.estimatedValue ?? '',
+                createdAt: l.createdAt,
+              })))}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+            >
+              Download CSV
+            </button>
+            <span className="text-[10px] font-black uppercase tracking-widest text-gold">{leads.length} leads</span>
+          </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
@@ -135,9 +302,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
                       {(l.phone || l.email) ? `${l.phone || ''}${l.phone && l.email ? ' • ' : ''}${l.email || ''}` : 'No contact details'}
                     </p>
                     {l.notes && <p className="mt-2 text-sm text-slate-700 dark:text-blue-200 whitespace-pre-wrap">{l.notes}</p>}
-                    <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
-                      Owner: {nameById.get(l.userId) || l.userId}
-                    </p>
+                    {user.role === UserRole.USER && (
+                      <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
+                        Owner: {nameById.get(l.userId) || l.userId}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
                     <p className={`text-[10px] font-black uppercase tracking-widest ${statusStyle(l.status)}`}>{l.status}</p>
@@ -148,7 +317,27 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => openEditor(l)}
+                      className="px-3 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                    >
+                      View / Edit
+                    </button>
+                    <button
+                      onClick={() => printLead(l)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+                    >
+                      Print
+                    </button>
+                    <button
+                      onClick={() => downloadBlob(`lead_${l.id}.json`, new Blob([JSON.stringify(l, null, 2)], { type: 'application/json' }))}
+                      className="px-3 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+                    >
+                      Download
+                    </button>
+                  </div>
                   {(['new','contacted','qualified','won','lost'] as LeadStatus[]).map((s) => (
                     <button
                       key={s}

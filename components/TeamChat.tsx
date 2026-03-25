@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { SystemUser, TeamMessage } from '../types';
+import { UserRole, type SystemUser, type TeamMessage } from '../types';
 import { fetchChatMessages, hasEmployeeSupabase, sendChatMessage, subscribeToTableInserts } from '../services/employeeSystemService';
 
 interface TeamChatProps {
@@ -29,6 +29,17 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   const listRef = useRef<HTMLDivElement>(null);
 
   const userById = useMemo(() => new Map<string, SystemUser>(users.map((u) => [u.id, u])), [users]);
+  const isAdmin = user.role !== UserRole.USER;
+  const departmentOptions = useMemo(() => {
+    const slugs = new Map<string, string>();
+    users.forEach((u) => {
+      const dept = String(u.department || '').trim();
+      if (!dept) return;
+      const slug = dept.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'general';
+      if (!slugs.has(slug)) slugs.set(slug, dept);
+    });
+    return Array.from(slugs.entries()).map(([slug, label]) => ({ slug, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [users]);
   const getHandle = (u?: SystemUser): string => {
     const email = String(u?.email || '').trim().toLowerCase();
     if (email.includes('@')) return `@${email.split('@')[0]}`;
@@ -100,16 +111,29 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
             >
               Organization
             </button>
-            <button
-              onClick={() => setActiveChannel(deptChannel)}
-              className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                activeChannel === deptChannel
-                  ? 'bg-gold text-enterprise-blue border-gold'
-                  : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
-              }`}
-            >
-              {String(user.department || 'Department')}
-            </button>
+            {isAdmin ? (
+              <select
+                value={activeChannel.startsWith('dept:') ? activeChannel.slice(5) : departmentSlug}
+                onChange={(e) => setActiveChannel(`dept:${e.target.value}`)}
+                className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-700 dark:text-blue-200 outline-none"
+                aria-label="Select department chat"
+              >
+                {departmentOptions.map((d) => (
+                  <option key={d.slug} value={d.slug}>{d.label}</option>
+                ))}
+              </select>
+            ) : (
+              <button
+                onClick={() => setActiveChannel(deptChannel)}
+                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                  activeChannel === deptChannel
+                    ? 'bg-gold text-enterprise-blue border-gold'
+                    : 'border-slate-200 dark:border-blue-400/20 text-slate-600 dark:text-blue-200'
+                }`}
+              >
+                {String(user.department || 'Department')}
+              </button>
+            )}
             <span className="text-[10px] font-black uppercase tracking-widest text-gold">{messages.length}</span>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Candidate } from '../types';
+import { Candidate, Lead, SystemUser, UserRole } from '../types';
 import {
   EMAIL_SENDER,
   SMS_SENDER,
@@ -9,6 +9,7 @@ import {
   sendEmailCampaign,
   sendSmsCampaign,
 } from '../services/communicationsService';
+import { fetchLeads } from '../services/salesService';
 
 type CampaignStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'FAILED';
 
@@ -27,27 +28,68 @@ type CampaignHistory = {
 
 const pollMs = Number(import.meta.env.VITE_SMS_STATUS_POLL_MS || 10000);
 
-const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) => {
+const BroadcastModule: React.FC<{ candidates: Candidate[]; user: SystemUser }> = ({ candidates, user }) => {
   const [channel, setChannel] = useState<'SMS' | 'Email' | 'WhatsApp'>('SMS');
   const [target, setTarget] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [history, setHistory] = useState<CampaignHistory[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+  const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const hasSalesAccess = user.role !== UserRole.USER || isSalesDept;
+  const salesOnly = isSalesDept; // Sales broadcast console uses leads by default for all sales users
+  const [audience, setAudience] = useState<'candidates' | 'leads'>(() => (salesOnly ? 'leads' : 'candidates'));
+
+  useEffect(() => {
+    if (!salesOnly) return;
+    if (audience === 'leads') return;
+    setAudience('leads');
+    setTarget([]);
+  }, [salesOnly, audience]);
+
+  useEffect(() => {
+    if (!hasSalesAccess) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const data = await fetchLeads(user, user.role !== UserRole.USER || isSalesManager);
+        if (!cancelled) setLeads(data);
+      } catch {
+        // ignore
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [hasSalesAccess, user.id]);
 
   const toggleTarget = (value: string) => {
     setTarget((prev) => (prev.includes(value) ? prev.filter((entry) => entry !== value) : [...prev, value]));
   };
 
   const filteredCandidates = useMemo(() => {
+    if (audience !== 'candidates') return [];
     if (target.length === 0 || target.includes('all')) return candidates;
     return candidates.filter((candidate) => target.includes(candidate.status));
-  }, [candidates, target]);
+  }, [candidates, target, audience]);
+
+  const filteredLeads = useMemo(() => {
+    if (audience !== 'leads') return [];
+    if (target.length === 0 || target.includes('all')) return leads;
+    return leads.filter((lead) => target.includes(String(lead.status)));
+  }, [leads, target, audience]);
 
   const recipients = useMemo(() => {
+    if (audience === 'leads') {
+      const emails = Array.from(new Set(filteredLeads.map((lead) => lead.email).filter(Boolean)));
+      const phones = Array.from(new Set(filteredLeads.map((lead) => lead.phone).filter(Boolean)));
+      return { emails, phones };
+    }
     const emails = Array.from(new Set(filteredCandidates.map((candidate) => candidate.email).filter(Boolean)));
     const phones = Array.from(new Set(filteredCandidates.map((candidate) => candidate.phone).filter(Boolean)));
     return { emails, phones };
-  }, [filteredCandidates]);
+  }, [filteredCandidates, filteredLeads, audience]);
 
   const updateCampaignStatus = (
     campaignId: string,
@@ -104,7 +146,10 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
     return () => window.clearInterval(timer);
   }, [history]);
 
-  const buildTargetLabel = () => (target.length > 0 ? target.join(', ') : 'All Candidates');
+  const buildTargetLabel = () => {
+    if (target.length > 0) return target.join(', ');
+    return audience === 'leads' ? 'All Leads' : 'All Candidates';
+  };
 
   const queueHistory = (entry: Omit<CampaignHistory, 'id' | 'time'>) => {
     setHistory((prev) => [
@@ -295,18 +340,35 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-tight">
               Mass Broadcast Console
             </h2>
-            <div className="flex gap-2 p-1 bg-[#0a1628] rounded-2xl border border-[#1e3a5f]">
-              {(['SMS', 'Email', 'WhatsApp'] as const).map((entry) => (
-                <button
-                  key={entry}
-                  onClick={() => setChannel(entry)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    channel === entry ? 'bg-enterprise-blue text-white shadow-lg' : 'text-blue-300/60 hover:text-blue-200'
-                  }`}
-                >
-                  {entry}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!salesOnly && hasSalesAccess && (
+                <div className="flex gap-2 p-1 bg-[#0a1628] rounded-2xl border border-[#1e3a5f]">
+                  {(['candidates', 'leads'] as const).map((entry) => (
+                    <button
+                      key={entry}
+                      onClick={() => { setAudience(entry); setTarget([]); }}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        audience === entry ? 'bg-gold text-enterprise-blue shadow-lg' : 'text-blue-300/60 hover:text-blue-200'
+                      }`}
+                    >
+                      {entry === 'candidates' ? 'Candidates' : 'Leads'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 p-1 bg-[#0a1628] rounded-2xl border border-[#1e3a5f]">
+                {(['SMS', 'Email', 'WhatsApp'] as const).map((entry) => (
+                  <button
+                    key={entry}
+                    onClick={() => setChannel(entry)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      channel === entry ? 'bg-enterprise-blue text-white shadow-lg' : 'text-blue-300/60 hover:text-blue-200'
+                    }`}
+                  >
+                    {entry}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -345,13 +407,23 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
         <div className="bg-[#0f1a2e] p-10 rounded-3xl border border-[#1e3a5f] shadow-sm flex flex-col">
           <h3 className="text-sm font-black text-blue-400 uppercase tracking-widest mb-8">Recipient Protocol</h3>
           <div className="space-y-4 flex-1">
-            {[
-              { id: 'all', label: 'All Candidates' },
-              { id: 'TRAINING', label: 'Training Phase' },
-              { id: 'INTERVIEW', label: 'Interview Phase' },
-              { id: 'DEPLOYMENT', label: 'Deployment Only' },
-              { id: 'PENDING', label: 'Pending Queue' },
-            ].map((item) => (
+            {(audience === 'leads'
+              ? [
+                  { id: 'all', label: 'All Leads' },
+                  { id: 'new', label: 'New' },
+                  { id: 'contacted', label: 'Contacted' },
+                  { id: 'qualified', label: 'Qualified' },
+                  { id: 'won', label: 'Won' },
+                  { id: 'lost', label: 'Lost' },
+                ]
+              : [
+                  { id: 'all', label: 'All Candidates' },
+                  { id: 'TRAINING', label: 'Training Phase' },
+                  { id: 'INTERVIEW', label: 'Interview Phase' },
+                  { id: 'DEPLOYMENT', label: 'Deployment Only' },
+                  { id: 'PENDING', label: 'Pending Queue' },
+                ]
+            ).map((item) => (
               <div
                 key={item.id}
                 onClick={() => toggleTarget(item.id)}
@@ -371,7 +443,7 @@ const BroadcastModule: React.FC<{ candidates: Candidate[] }> = ({ candidates }) 
             ))}
           </div>
           <div className="pt-8 text-center text-[9px] font-black text-blue-300/50 uppercase tracking-widest leading-loose">
-            Recipient filters are mapped directly to live candidate records.
+            Recipient filters are mapped directly to live {audience === 'leads' ? 'lead' : 'candidate'} records.
           </div>
         </div>
       </div>

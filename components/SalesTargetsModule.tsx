@@ -94,6 +94,50 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, sy
     };
   }, [myLeadsCount, myRevenuePaid, leadsTarget, revenueTarget]);
 
+  const downloadBlob = (filename: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const printTargets = () => {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) return;
+    const targetName = users.find((u) => u.id === targetUserId)?.name || targetUserId;
+    const html = `
+      <html>
+        <head>
+          <title>Targets - ${targetName}</title>
+          <style>
+            body{font-family:Arial, sans-serif;padding:24px;}
+            h1{margin:0 0 8px;font-size:20px;}
+            .muted{color:#555;font-size:12px;}
+            .box{border:1px solid #ddd;border-radius:12px;padding:16px;margin-top:16px;}
+            .k{font-weight:700;font-size:12px;color:#333;text-transform:uppercase;letter-spacing:.08em;}
+            .v{margin-top:6px;font-size:14px;}
+          </style>
+        </head>
+        <body>
+          <h1>Zaya Group Portal — Sales Targets / KPIs</h1>
+          <div class="muted">Printed: ${new Date().toLocaleString('en-GB')}</div>
+          <div class="box">
+            <div class="k">Assignee</div><div class="v">${targetName}</div>
+            <div style="margin-top:12px;"><span class="k">Month/Year</span><div class="v">${month}/${year}</div></div>
+            <div style="margin-top:12px;"><span class="k">Leads Target</span><div class="v">${Number(leadsTarget || 0)} (Progress: ${myLeadsCount})</div></div>
+            <div style="margin-top:12px;"><span class="k">Revenue Target</span><div class="v">TZS ${Math.round(Number(revenueTarget || 0)).toLocaleString()} (Paid: TZS ${Math.round(myRevenuePaid).toLocaleString()})</div></div>
+          </div>
+          <script>window.onload=()=>{window.print();};</script>
+        </body>
+      </html>
+    `;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="liquid-panel p-6">
@@ -102,7 +146,21 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, sy
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Targets / KPIs</h2>
             <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Set monthly sales targets and track progress.</p>
           </div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-gold">{myTarget ? 'Configured' : 'Not set'}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={printTargets}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+            >
+              Print
+            </button>
+            <button
+              onClick={() => downloadBlob(`sales_targets_${targetUserId}_${year}_${month}.json`, new Blob([JSON.stringify(myTarget || { userId: targetUserId, month, year, leadsTarget: Number(leadsTarget || 0), revenueTarget: Number(revenueTarget || 0) }, null, 2)], { type: 'application/json' }))}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+            >
+              Download
+            </button>
+            <span className="text-[10px] font-black uppercase tracking-widest text-gold">{myTarget ? 'Configured' : 'Not set'}</span>
+          </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">

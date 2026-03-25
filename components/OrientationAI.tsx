@@ -132,6 +132,42 @@ const OrientationAI: React.FC<{
       ],
       prompts: ['Update profile settings', 'Change theme and verify', 'Open dashboard'],
     },
+    salesDashboard: {
+      label: 'Sales dashboard',
+      steps: [
+        'Review leads, pipeline value, and unpaid invoices.',
+        'Open leads to qualify and update statuses.',
+        'Review targets/KPIs and adjust quota if authorized.',
+      ],
+      prompts: ['Summarize sales KPIs', 'Open leads module', 'Show invoice follow-ups'],
+    },
+    leads: {
+      label: 'Leads workflow',
+      steps: [
+        'Create a new lead with contact details and value.',
+        'Move lead through statuses: new → contacted → qualified → won/lost.',
+        'Print or download lead details for follow-up.',
+      ],
+      prompts: ['How do I qualify leads?', 'Show my leads pipeline', 'Print a lead record'],
+    },
+    invoices: {
+      label: 'Invoice workflow',
+      steps: [
+        'Create invoice with client, amount, and due date.',
+        'Update status: draft → sent → paid (or overdue).',
+        'Print or download invoice list for reconciliation.',
+      ],
+      prompts: ['Show overdue invoices', 'How to mark invoice as paid?', 'Download invoices CSV'],
+    },
+    salesTargets: {
+      label: 'Targets / KPIs',
+      steps: [
+        'Set monthly leads and revenue targets.',
+        'Track progress vs targets from leads and paid invoices.',
+        'Print targets summary for management review.',
+      ],
+      prompts: ['Set targets for this month', 'Show target progress', 'Print KPI summary'],
+    },
   };
 
   const actionRepliesRef = React.useRef<string[]>([
@@ -363,10 +399,20 @@ const OrientationAI: React.FC<{
     }
 
     try {
+      const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+      const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
+      const platform =
+        user.role === UserRole.SUPER_ADMIN ? 'SUPER_ADMIN' :
+        user.role === UserRole.ADMIN ? 'ADMIN' :
+        isSalesManager ? 'SALES_MANAGER' :
+        isSalesDept ? 'SALES' :
+        'EMPLOYEE';
+      const moduleName = (activeModule || steps[tourStep].title || 'dashboard').toString();
+      const moduleContext = `Platform: ${platform}\nActive module: ${moduleName}`;
       const response = await askAI({
         query: userMsg,
         user,
-        moduleContext: steps[tourStep].title,
+        moduleContext,
         conversationHistory: [...messages, { role: 'user', text: userMsg }].map((m) => ({
           role: m.role === 'user' ? 'user' : 'ai',
           text: m.text,

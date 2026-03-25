@@ -143,6 +143,28 @@ export const updateLeadStatus = async (leadId: string, status: Lead['status']): 
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
 };
 
+export const updateLead = async (
+  leadId: string,
+  patch: Partial<Pick<Lead, 'name' | 'company' | 'phone' | 'email' | 'status' | 'estimatedValue' | 'notes'>>
+): Promise<void> => {
+  const current = readLocalArray<Lead>('leads', []);
+  writeLocalArray(
+    'leads',
+    current.map((l) => (l.id === leadId ? { ...l, ...patch } : l))
+  );
+  if (!supabase) return;
+  const payload: any = {};
+  if (patch.name != null) payload.name = patch.name;
+  if (patch.company !== undefined) payload.company = patch.company || null;
+  if (patch.phone !== undefined) payload.phone = patch.phone || null;
+  if (patch.email !== undefined) payload.email = patch.email || null;
+  if (patch.status != null) payload.status = patch.status;
+  if (patch.estimatedValue !== undefined) payload.estimated_value = patch.estimatedValue ?? null;
+  if (patch.notes !== undefined) payload.notes = patch.notes || null;
+  const { error } = await supabase.from('leads').update(payload).eq('id', leadId);
+  if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
+};
+
 export const fetchInvoices = async (user: SystemUser, canViewAll: boolean): Promise<Invoice[]> => {
   const local = readLocalArray<Invoice>('invoices', []);
   if (!supabase) return canViewAll ? local : local.filter((i) => i.userId === user.id);
@@ -192,6 +214,26 @@ export const updateInvoiceStatus = async (invoiceId: string, status: Invoice['st
   writeLocalArray('invoices', current.map((i) => (i.id === invoiceId ? { ...i, status } : i)));
   if (!supabase) return;
   const { error } = await supabase.from('invoices').update({ status }).eq('id', invoiceId);
+  if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update invoice.');
+};
+
+export const updateInvoice = async (
+  invoiceId: string,
+  patch: Partial<Pick<Invoice, 'invoiceNo' | 'client' | 'amount' | 'status' | 'dueDate'>>
+): Promise<void> => {
+  const current = readLocalArray<Invoice>('invoices', []);
+  writeLocalArray(
+    'invoices',
+    current.map((i) => (i.id === invoiceId ? { ...i, ...patch } : i))
+  );
+  if (!supabase) return;
+  const payload: any = {};
+  if (patch.invoiceNo != null) payload.invoice_no = patch.invoiceNo;
+  if (patch.client != null) payload.client = patch.client;
+  if (patch.amount != null) payload.amount = patch.amount;
+  if (patch.status != null) payload.status = patch.status;
+  if (patch.dueDate !== undefined) payload.due_date = patch.dueDate || null;
+  const { error } = await supabase.from('invoices').update(payload).eq('id', invoiceId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update invoice.');
 };
 
