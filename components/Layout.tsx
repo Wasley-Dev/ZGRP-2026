@@ -114,8 +114,8 @@ const Layout: React.FC<LayoutProps> = ({
     ...(isEmployeeWorkflowsEnabled ? [{ id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' }] : []),
     ...(isEmployeeWorkflowsEnabled ? [{ id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' }] : []),
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
-    { id: 'notices', label: 'Notices', icon: 'fa-bell' },
-    { id: 'tasks', label: 'Tasks', icon: 'fa-list' },
+    ...(isAdmin ? [{ id: 'notices', label: 'Notices', icon: 'fa-bell' }] : []),
+    ...(isAdmin ? [{ id: 'tasks', label: 'Tasks', icon: 'fa-list' }] : []),
     ...(isAdmin ? [{ id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' }] : []),
 
     // Existing modules (kept from previous system)

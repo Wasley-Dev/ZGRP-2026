@@ -13,11 +13,7 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const userNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    users.forEach((u) => map.set(u.id, u.name));
-    return map;
-  }, [users]);
+  const userById = useMemo(() => new Map<string, SystemUser>(users.map((u) => [u.id, u])), [users]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,13 +76,37 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
           ) : (
             messages.map((m) => {
               const isMine = m.senderId === user.id;
+              const sender = userById.get(m.senderId);
+              const senderName = sender?.name || m.senderId;
+              const senderTitle = sender?.jobTitle || '';
+              const senderAvatar = sender?.avatar || '';
               return (
                 <div key={m.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl p-3 border ${isMine ? 'bg-enterprise-blue text-white border-blue-900/10' : 'bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white border-slate-200 dark:border-blue-400/20'}`}>
                     <div className="flex items-center justify-between gap-3">
-                      <p className={`text-[10px] font-black uppercase tracking-widest ${isMine ? 'text-gold' : 'text-slate-500 dark:text-blue-300/60'}`}>
-                        {isMine ? 'You' : (userNameById.get(m.senderId) || m.senderId)}
-                      </p>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {!isMine && (
+                          <div className="h-7 w-7 rounded-full border border-gold/30 bg-white/70 dark:bg-slate-900/50 overflow-hidden shrink-0">
+                            {senderAvatar ? (
+                              <img src={senderAvatar} alt={senderName} className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center text-gold text-[10px] font-black">
+                                {String(senderName || '?').slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isMine ? 'text-gold' : 'text-slate-500 dark:text-blue-300/60'}`}>
+                            {isMine ? 'You' : senderName}
+                          </p>
+                          {!isMine && senderTitle && (
+                            <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
+                              {senderTitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                       <p className={`text-[10px] font-mono ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
                         {m.createdAt ? new Date(m.createdAt).toLocaleTimeString('en-GB') : ''}
                       </p>
@@ -121,4 +141,3 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
 };
 
 export default TeamChat;
-

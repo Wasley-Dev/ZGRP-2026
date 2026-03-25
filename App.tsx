@@ -33,6 +33,7 @@ import {
   updateSessionStatus,
   upsertSessionHeartbeat,
 } from './services/sessionService';
+import { clockIn, fetchTodayAttendance } from './services/employeeSystemService';
 import Login from './components/Login';
 import { ZAYA_LOGO_SRC } from './brand';
 
@@ -894,6 +895,18 @@ const App: React.FC = () => {
     setHasSeenInstallOrientation(installSeenNow);
     const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
     setShowOrientation(shouldShowOrientation);
+
+    // Auto clock-in on sign-in (employees + super admin). Admins are exempt.
+    if (updatedUser.role !== UserRole.ADMIN) {
+      try {
+        const today = await fetchTodayAttendance(updatedUser);
+        if (!today?.checkIn) {
+          await clockIn(updatedUser);
+        }
+      } catch (err) {
+        console.warn('Auto clock-in skipped:', err);
+      }
+    }
     // Login notification uses 'machines-login' origin → auto-dismissed in 3s
     pushNotification('Login Success', `${updatedUser.name} signed in from this machine.`, 'SUCCESS', 'machines-login');
     try {

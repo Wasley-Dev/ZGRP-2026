@@ -16,9 +16,9 @@ import {
   Area
 } from 'recharts';
 
-import { AttendanceCheckoutRequest, BookingEntry, Candidate, RecruitmentStatus, SystemUser, UserRole } from '../types';
+import { AttendanceCheckoutRequest, BookingEntry, Candidate, Notice, RecruitmentStatus, SystemUser, TaskItem, UserRole } from '../types';
 import { getTodayIsoInEAT } from '../services/dateTime';
-import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, subscribeToTableChanges } from '../services/employeeSystemService';
+import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchNotices, fetchTasks, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -36,6 +36,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
   const [checkoutReason, setCheckoutReason] = React.useState('');
   const [checkoutRequest, setCheckoutRequest] = React.useState<AttendanceCheckoutRequest | null>(null);
+  const [myTasks, setMyTasks] = React.useState<TaskItem[]>([]);
+  const [latestNotices, setLatestNotices] = React.useState<Notice[]>([]);
 
   const isCurrentlyCheckedIn = React.useMemo(() => {
     if (!todayAttendance?.checkIn) return false;
@@ -109,14 +111,18 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     let cancelled = false;
     const load = async () => {
       try {
-        const [reports, attendance] = await Promise.all([
+        const [reports, attendance, tasks, notices] = await Promise.all([
           fetchDailyReports(user, false),
           fetchTodayAttendance(user),
+          fetchTasks(user, user.role !== UserRole.USER),
+          fetchNotices(),
         ]);
         if (cancelled) return;
         setTodayAttendance(attendance);
         setCheckoutRequest(attendance?.id ? await fetchLatestMiddayCheckoutRequest(String(attendance.id)) : null);
         setMyReportsCount(reports.length);
+        setMyTasks(tasks);
+        setLatestNotices(notices.slice(0, 12));
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         setWeeklyReportsCount(reports.filter((r) => new Date(r.createdAt).getTime() >= weekAgo.getTime()).length);
@@ -339,8 +345,11 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
             Open Chat
           </button>
+          <button onClick={() => onNavigate('tasks')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            My Tasks
+          </button>
           <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-            View Notices
+            Notices
           </button>
         </div>
       </div>
@@ -420,9 +429,9 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             { label: 'Quick Action', title: 'Submit Report', icon: 'fa-pen', action: 'dailyReports', hint: 'Write-once daily reporting' },
-            { label: 'Quick Action', title: 'Check Attendance', icon: 'fa-user-check', action: 'attendance', hint: 'View logs and leave requests' },
-            { label: 'Quick Action', title: 'Open Team Chat', icon: 'fa-comments', action: 'chat', hint: 'Realtime messaging' },
+            { label: 'Quick Action', title: 'My Tasks', icon: 'fa-list-check', action: 'tasks', hint: 'Tasks assigned to you' },
             { label: 'Quick Action', title: 'View Notices', icon: 'fa-bell', action: 'notices', hint: 'Company announcements' },
+            { label: 'Quick Action', title: 'Open Team Chat', icon: 'fa-comments', action: 'chat', hint: 'Realtime messaging' },
           ].map((q) => (
             <button key={q.title} onClick={() => onNavigate(q.action)} className={`${tileClass} text-left`}>
               <div className="flex items-start gap-4">
@@ -470,6 +479,65 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
           </button>
         ))}
       </div>
+
+      {isAdminExempt && (
+        <div className={`${panelClass} p-6`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Tasks & Notices</h3>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Admin view: pending tasks and latest notices.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={() => onNavigate('tasks')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+                Open Tasks
+              </button>
+              <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Open Notices
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Pending Tasks</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold">
+                  {myTasks.filter((t) => t.status !== 'completed').length}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-blue-200">
+                {myTasks.filter((t) => t.status !== 'completed').slice(0, 4).map((t) => (
+                  <div key={t.id} className="flex items-start justify-between gap-3">
+                    <span className="font-semibold truncate">{t.title}</span>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-blue-300/50 shrink-0">{t.userId}</span>
+                  </div>
+                ))}
+                {myTasks.filter((t) => t.status !== 'completed').length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-blue-300/60">No pending tasks.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Latest Notices</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold">{latestNotices.length}</span>
+              </div>
+              <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-blue-200">
+                {latestNotices.slice(0, 4).map((n) => (
+                  <div key={n.id} className="flex items-start justify-between gap-3">
+                    <span className="font-semibold truncate">{n.title}</span>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-blue-300/50 shrink-0">{n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB') : ''}</span>
+                  </div>
+                ))}
+                {latestNotices.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-blue-300/60">No notices yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

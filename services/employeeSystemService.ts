@@ -173,7 +173,10 @@ export const fetchPendingMiddayCheckoutRequests = async (): Promise<AttendanceCh
   if (error || !data) {
     console.error('fetchPendingMiddayCheckoutRequests error:', error);
     if (isSchemaOrPermissionError(error)) {
-      throw asError(error, 'Approval requests table missing. Apply the latest Supabase migrations.');
+      throw asError(
+        error,
+        'Approval requests table missing. Apply supabase/migrations/20260325000100_attendance_checkout_requests.sql.'
+      );
     }
     throw asError(error, 'Failed to load approval requests.');
   }
@@ -194,7 +197,10 @@ export const decideMiddayCheckoutRequest = async (
   if (error || !data) {
     console.error('decideMiddayCheckoutRequest error:', error);
     if (isSchemaOrPermissionError(error)) {
-      throw asError(error, 'Approval requests table missing. Apply the latest Supabase migrations.');
+      throw asError(
+        error,
+        'Approval requests table missing. Apply supabase/migrations/20260325000100_attendance_checkout_requests.sql.'
+      );
     }
     throw asError(error, 'Failed to update approval request.');
   }
@@ -462,14 +468,14 @@ export const requestClockOutApproval = async (user: SystemUser, attendance: Atte
 
   const insert = await supabase.from('attendance_checkout_requests').insert(payload as any).select('*').single();
   if (insert.error || !insert.data) {
-    const message = String(insert.error?.message || '');
-    if (/attendance_checkout_requests/i.test(message) || /relation/i.test(message)) {
+    const message = String((insert.error as any)?.message || '');
+    if (isSchemaOrPermissionError(insert.error) || /attendance_checkout_requests/i.test(message) || /relation/i.test(message)) {
       throw new Error(
         'Approval requests table missing. Apply the latest Supabase migrations: ' +
         'supabase/migrations/20260325000100_attendance_checkout_requests.sql (and 20260324000100_employee_system.sql).'
       );
     }
-    throw insert.error || new Error('Failed to create approval request.');
+    throw asError(insert.error, 'Failed to create approval request.');
   }
 
   const request = normalizeCheckoutRequest(insert.data as any);

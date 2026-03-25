@@ -76,8 +76,7 @@ const TasksModule: React.FC<TasksModuleProps> = ({ user, users }) => {
     }
   };
 
-  const handleToggle = async (task: TaskItem) => {
-    const next = task.status === 'completed' ? 'pending' : 'completed';
+  const handleSetStatus = async (task: TaskItem, next: 'pending' | 'completed') => {
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)));
     try {
       await setTaskStatus(task.id, next);
@@ -145,33 +144,68 @@ const TasksModule: React.FC<TasksModuleProps> = ({ user, users }) => {
           </div>
         ) : (
           <div className="space-y-3">
-            {tasks.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => handleToggle(t)}
-                className="w-full text-left rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5 hover:border-gold transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                      {t.title}{' '}
-                      <span className={`ml-2 text-[10px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                        {t.status}
-                      </span>
-                    </p>
-                    <p className="mt-2 text-sm text-slate-700 dark:text-blue-200 whitespace-pre-wrap">{t.description}</p>
-                    {isAdmin && (
-                      <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
-                        Assigned to: {nameById.get(t.userId) || t.userId}
+            {tasks.map((t) => {
+              const isMine = t.userId === user.id;
+              return (
+                <div
+                  key={t.id}
+                  className="w-full text-left rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5 hover:border-gold transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        {t.title}{' '}
+                        <span className={`ml-2 text-[10px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {t.status === 'completed' ? 'completed' : 'due'}
+                        </span>
                       </p>
+                      <p className="mt-2 text-sm text-slate-700 dark:text-blue-200 whitespace-pre-wrap">{t.description}</p>
+                      {isAdmin && (
+                        <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
+                          Assigned to: {nameById.get(t.userId) || t.userId}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gold shrink-0">
+                      {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-GB') : ''}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                    {!isAdmin && isMine && t.status !== 'completed' && (
+                      <button
+                        onClick={() => void handleSetStatus(t, 'completed')}
+                        className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                      >
+                        Submit Completed
+                      </button>
+                    )}
+                    {!isAdmin && isMine && t.status === 'completed' && (
+                      <div className="px-4 py-2 rounded-xl border border-green-300/40 text-green-700 dark:text-green-300 text-[10px] font-black uppercase tracking-widest">
+                        Submitted
+                      </div>
+                    )}
+
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => void handleSetStatus(t, 'completed')}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow"
+                        >
+                          Mark Completed
+                        </button>
+                        <button
+                          onClick={() => void handleSetStatus(t, 'pending')}
+                          className="px-4 py-2 rounded-xl border border-amber-300 text-amber-700 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest"
+                        >
+                          Mark Due
+                        </button>
+                      </>
                     )}
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gold shrink-0">
-                    {t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-GB') : ''}
-                  </p>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
