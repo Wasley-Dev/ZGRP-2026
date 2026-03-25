@@ -36,11 +36,92 @@ const OrientationAI: React.FC<{
     dashboard: {
       label: 'Dashboard review',
       steps: [
-        'Review KPI cards for candidate volume, training, and deployment status.',
+        'Review KPI cards for candidate volume, training, deployment status, and sales performance (if enabled).',
         'Open one KPI card to inspect details in its target module.',
         'Capture any bottleneck and assign the next action.',
       ],
       prompts: ['Summarize current dashboard KPIs', 'Show recruitment bottlenecks', 'Open candidates module'],
+    },
+    dailyreports: {
+      label: 'Daily reporting',
+      steps: [
+        'Open Daily Reports and click create report.',
+        'Enter a clear title and concise description (reports are write-once).',
+        'Submit and confirm it appears in your report list.',
+      ],
+      prompts: ['Help me write today’s report', 'Show my recent reports', 'What should I include in a daily report?'],
+    },
+    attendance: {
+      label: 'Attendance & clocking',
+      steps: [
+        'Use Clock In / Clock Out from the dashboard when starting/ending work.',
+        'For midday checkout, submit a request and wait for approval.',
+        'Review attendance logs for check-in/out timestamps.',
+      ],
+      prompts: ['Clock-in rules for today', 'Request a midday checkout', 'Show my attendance logs'],
+    },
+    chat: {
+      label: 'Team chat',
+      steps: [
+        'Use Org chat for company-wide messages.',
+        'Use Department chat for team discussions.',
+        'Share updates with context (what, by when, owner).',
+      ],
+      prompts: ['Draft a message to my team', 'Switch to department chat', 'Summarize the last 10 messages'],
+    },
+    notices: {
+      label: 'Notices',
+      steps: [
+        'Admins publish notices; employees can view published notices.',
+        'Open a notice to read details and any action required.',
+        'Acknowledge and follow up in chat if needed.',
+      ],
+      prompts: ['Show latest notices', 'What notices require action?', 'Draft an acknowledgment message'],
+    },
+    tasks: {
+      label: 'Tasks',
+      steps: [
+        'Open Tasks to view items assigned to you.',
+        'Work the list by priority and due date.',
+        'When done, update status (admins can mark completed/due).',
+      ],
+      prompts: ['Show my tasks', 'Help me plan my tasks for today', 'Mark a task as completed'],
+    },
+    payroll: {
+      label: 'Payroll (admin)',
+      steps: [
+        'Open Payroll and choose month/year.',
+        'Process payroll (write-once rule applies).',
+        'Open generated payslips and download PDF.',
+      ],
+      prompts: ['Process payroll for this month', 'Explain payslip breakdown', 'Why did payroll fail?'],
+    },
+    employment: {
+      label: 'Employment management (admin)',
+      steps: [
+        'Open Employment Management to search an employee.',
+        'Review role, title, department, and status.',
+        'Apply updates and confirm they sync across devices.',
+      ],
+      prompts: ['Find an employee profile', 'Update job title for a user', 'Explain role permissions'],
+    },
+    salesdashboard: {
+      label: 'Sales dashboard',
+      steps: [
+        'Review sales KPIs (leads, pipeline, won/lost, invoices).',
+        'Open Leads to follow up on priority prospects.',
+        'Review Targets/KPIs and plan daily actions to hit quota.',
+      ],
+      prompts: ['Summarize sales performance', 'Show top leads to contact today', 'Open leads module'],
+    },
+    salestargets: {
+      label: 'Targets / KPIs',
+      steps: [
+        'Review assigned targets and the current progress.',
+        'Identify the gap to target and plan the next actions.',
+        'Update targets (admins/sales managers) when quotas change.',
+      ],
+      prompts: ['Show KPIs for this month', 'How to set quotas for reps', 'Download targets summary'],
     },
     candidates: {
       label: 'Candidate onboarding',

@@ -35,24 +35,57 @@ const REQUEST_TIMEOUT_MS = 15000;
 const MAX_RETRIES = 2;
 const MEMORY_KEY_PREFIX = 'zaya_personality_';
 
-const BASE_SYSTEM_INSTRUCTION = `You are ZAYA AI, enterprise assistant for the Zaya Group Portal.
-Be accurate, actionable, and concise by default.
-If the user asks to navigate, provide the target module and a one-step action.
-If the user asks to print, export, share, preview, or download, respond with explicit immediate execution wording.
-If the user asks for workflow help, provide short numbered steps and a recommended next action.
-You also operate as a general chatbot: answer non-portal questions clearly and directly.
-For out-of-system questions, answer first, then optionally offer a portal-related follow-up if relevant.
-Never invent data. If unsure, say what is unknown and provide the safest next step.
-When giving recommendations, prioritize security, operational clarity, and auditability.
-You can be conversational, natural, and friendly like a modern voice assistant while staying professional.
-Use varied sentence structure and avoid repetitive robotic phrasing.
-Do not repeatedly use the same template line across turns.
-When asked personal or casual questions, respond naturally first, then offer practical help.`;
+const BASE_SYSTEM_INSTRUCTION = `You are ZAYA AI — the cheerful, smart, and trustworthy assistant inside the Zaya Group Portal.
+
+CORE BEHAVIOUR:
+- Be accurate, actionable, and concise by default.
+- Never invent data. If unsure, say what is unknown and provide the safest next step.
+- If the user asks to navigate, name the target module and give a one-step action.
+- If the user asks to print/export/share/preview/download, respond with explicit immediate execution wording.
+- If the user asks for workflow help, provide short numbered steps and end with a recommended next action.
+- You can answer general questions outside the portal, then optionally offer a portal-related follow-up if relevant.
+- Prioritize security, operational clarity, and auditability.
+
+ROLE + MODULE AWARENESS (IMPORTANT):
+- Use "User role", "User department", and "Current module context" to tailor your answer.
+- Employees: focus on Daily Reports, Attendance/Clocking, Tasks/Notices consumption, and Team Chat.
+- Sales users: focus on Sales Dashboard, Leads, Targets/KPIs, Invoices, and lead-based Broadcast workflows.
+- Admins: focus on publishing Notices, assigning Tasks, approvals, governance, and operational oversight.
+- Super Admin: include system-level controls (System Recovery, Machine Authentication, access governance).
+
+SYSTEM CAPABILITIES YOU KNOW:
+1) Dashboard: KPIs, recruitment funnel, department performance, and (for admins) sales progress widgets.
+2) Daily Reports: employees create write-once daily reports (no editing after submit).
+3) Attendance: clock in/out, attendance logs, midday checkout request/approval.
+4) Team Chat: organization chat + department chats; admins/super admins can view all departments.
+5) Notices: admins publish; everyone views published notices.
+6) Tasks: admins assign; employees see their tasks; admins update status (pending/completed/due).
+7) Payroll (admins/super admins only): process payroll and generate payslips (PDF download).
+8) Sales: sales dashboard, leads, targets/KPIs, invoices, and mass broadcast based on leads.
+9) Employment Management (admins/super admins): employee directory and management tools.
+10) Machine Authentication (super admin): live session/machine controls and device governance.
+11) Admin Console: role/access controls, governance toggles, and migration helpers.
+12) System Recovery (super admin): safe/recovery modes and maintenance utilities.
+
+SECURITY + DATA HYGIENE:
+- Never ask for or request secret keys/tokens/passwords in chat.
+- If a user shares secrets, advise rotating them and moving them to environment variables.`;
 
 const IDENTITY_RULE =
-  'If asked who made you/system or whether AI made it, respond exactly: "You will have to ask my dad via email it@zayagroupltd.com".';
+  'If asked who made you/system or whether AI made it, respond exactly: "You\'ll have to ask my dad about that! 😄 Reach him at it@zayagroupltd.com"';
 
-const identityTriggers = ['who made you', 'ai made', 'made by ai', 'creator', 'developed by ai'];
+const identityTriggers = [
+  'who made you',
+  'ai made',
+  'made by ai',
+  'creator',
+  'developed by',
+  'who built you',
+  'who created you',
+  'who made this system',
+  'who built this system',
+  'who is your dad',
+];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -176,12 +209,25 @@ const formatHistory = (history: ChatMessage[] = []) =>
 const localFallback = (query: string, user: SystemUser): string => {
   const q = query.toLowerCase();
   if (identityTriggers.some((t) => q.includes(t))) {
-    return 'You will have to ask my dad via email it@zayagroupltd.com';
+    return "You'll have to ask my dad about that! 😄 Reach him at it@zayagroupltd.com";
   }
   if (q.includes('dashboard')) return 'Opening Dashboard context. Ask for KPIs, funnel status, or alerts.';
   if (q.includes('candidate')) return 'Use Candidate Registry to add, edit, and track document compliance records.';
   if (q.includes('admin')) return 'Admin Console handles user add/ban/delete/password reset and branding controls.';
   if (q.includes('recruit')) return 'Recruitment Hub gives hiring trends, source breakdowns, and funnel visibility.';
+  if (q.includes('daily report') || q.includes('reporting')) return 'Daily Reports: submit a write-once report with title/description/date, then view it in your report list.';
+  if (q.includes('attendance') || q.includes('clock in') || q.includes('clock out')) return 'Attendance: clock in/out from the dashboard and review your attendance logs (admins are exempt from clocking).';
+  if (q.includes('task')) return 'Tasks: admins assign tasks; you only see tasks assigned to you, and admins can mark them completed or due.';
+  if (q.includes('notice')) return 'Notices: admins publish notices; all users can view published notices.';
+  if (q.includes('chat')) return 'Team Chat: use Org chat for everyone and Department chat for your team; admins/super admins can view all departments.';
+  if (q.includes('lead')) return 'Leads: create, view, edit, print, and download lead records (sales + admins).';
+  if (q.includes('invoice')) return 'Invoices: create, view/edit, print, and download invoices (sales + admins).';
+  if (q.includes('target') || q.includes('kpi') || q.includes('quota')) return 'Targets/KPIs: set quotas and track progress; admins/sales managers can manage targets, and everyone can view assigned targets.';
+  if (q.includes('payroll') || q.includes('payslip')) return 'Payroll: admins/super admins process payroll and generate payslips with PDF download.';
+  if (q.includes('employment') || q.includes('employee management')) return 'Employment Management: admins/super admins manage employee profiles, titles, departments, and access.';
+  if (q.includes('broadcast')) return 'Broadcast: send campaigns via Email/SMS/WhatsApp; sales broadcast is lead-based.';
+  if (q.includes('machine')) return 'Machine Authentication: super admin can view and revoke sessions/devices.';
+  if (q.includes('recovery')) return 'System Recovery: super admin can enter safe/recovery modes and run maintenance actions.';
   if (/(how are you|who are you|what do you like|tell me about yourself|your personality)/.test(q)) {
     return `I am Zaya AI. I adapt to your style, keep responses practical, and I can switch from formal mode to playful mode when you want.`;
   }
@@ -205,7 +251,7 @@ export async function askAI(options: AskAIOptions): Promise<string> {
 
   if (!normalizedQuery) return 'Please enter a question or command.';
   if (identityTriggers.some((t) => normalizedQuery.toLowerCase().includes(t))) {
-    return 'You will have to ask my dad via email it@zayagroupltd.com';
+    return "You'll have to ask my dad about that! 😄 Reach him at it@zayagroupltd.com";
   }
   const online = typeof navigator === 'undefined' ? true : navigator.onLine;
   if (!online) {
