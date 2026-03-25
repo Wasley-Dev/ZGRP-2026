@@ -1123,8 +1123,37 @@ const App: React.FC = () => {
       case 'dashboard':
         return <DashboardOverview onNavigate={setActiveModule} candidatesCount={candidates.length} candidates={candidates} bookings={bookings} user={currentUser} />;
       case 'dailyReports':
+        if (currentUser.role === UserRole.ADMIN) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Daily Reports</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Admins are exempt from daily report submission.</p>
+              <button
+                onClick={() => setActiveModule('admin')}
+                className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+              >
+                Open Admin Console
+              </button>
+            </div>
+          );
+        }
         return <DailyReports user={currentUser} isAdmin={isAdmin} users={allUsers} />;
       case 'attendance':
+        if (currentUser.role === UserRole.ADMIN) {
+          return (
+            <div className="liquid-panel p-6">
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance</h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Admins are exempt from attendance clock-in/out.</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Use Admin Console to approve mid-day checkout requests when needed.</p>
+              <button
+                onClick={() => setActiveModule('admin')}
+                className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+              >
+                Open Admin Console
+              </button>
+            </div>
+          );
+        }
         return <AttendanceModule user={currentUser} isAdmin={isAdmin} users={allUsers} onNavigate={setActiveModule} />;
       case 'chat':
         return <TeamChat user={currentUser} users={allUsers} />;

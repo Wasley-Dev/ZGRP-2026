@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { SystemUser, UserRole, SystemConfig } from '../types';
+import { AttendanceCheckoutRequest, SystemUser, UserRole, SystemConfig } from '../types';
 import { ZAYA_LOGO_SRC } from '../brand';
+import { decideMiddayCheckoutRequest, fetchPendingMiddayCheckoutRequests, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface AdminProps {
   users: SystemUser[];
@@ -42,6 +43,55 @@ const AdminConsole: React.FC<AdminProps> = ({
   const isSuperAdmin = (user: SystemUser) =>
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
   const canManageLoginExperience = isSuperAdmin(currentUser);
+  const canApproveMidday = currentUser.role !== UserRole.USER;
+
+  const [pendingMiddayRequests, setPendingMiddayRequests] = useState<AttendanceCheckoutRequest[]>([]);
+  const [middayError, setMiddayError] = useState('');
+  const [middayBusyId, setMiddayBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canApproveMidday) return;
+    if (!hasEmployeeSupabase()) return;
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setMiddayError('');
+        const rows = await fetchPendingMiddayCheckoutRequests();
+        if (!cancelled) setPendingMiddayRequests(rows);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load approval requests.';
+        if (!cancelled) setMiddayError(msg);
+      }
+    };
+
+    void load();
+    const sub = subscribeToTableChanges('attendance_checkout_requests', {
+      filter: 'status=eq.pending',
+      onInsert: load,
+      onUpdate: load,
+      onDelete: load,
+    });
+
+    return () => {
+      cancelled = true;
+      sub.unsubscribe();
+    };
+  }, [canApproveMidday]);
+
+  const decideMidday = async (requestId: string, decision: 'approved' | 'denied') => {
+    if (!canApproveMidday) return;
+    setMiddayBusyId(requestId);
+    try {
+      await decideMiddayCheckoutRequest(requestId, decision);
+      const rows = await fetchPendingMiddayCheckoutRequests();
+      setPendingMiddayRequests(rows);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update request.');
+    } finally {
+      setMiddayBusyId(null);
+    }
+  };
 
   const getDisplayUser = (target: SystemUser): SystemUser => {
     if (!isSuperAdmin(target)) return target;
@@ -254,6 +304,90 @@ const AdminConsole: React.FC<AdminProps> = ({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
+      {canApproveMidday && (
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border dark:border-slate-700 overflow-hidden">
+          <div className="p-8 border-b dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30">
+            <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight">
+              Mid-day Checkout Approvals
+            </h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Approve or deny pending mid-day attendance checkouts
+            </p>
+          </div>
+
+          <div className="p-8 space-y-4">
+            {!hasEmployeeSupabase() && (
+              <div className="p-5 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold">
+                Supabase is not configured on this device, so approvals can’t be loaded here. Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` and apply the latest migrations.
+              </div>
+            )}
+
+            {middayError && (
+              <div className="p-5 rounded-2xl border border-red-300 bg-red-50 text-red-900 text-xs font-semibold">
+                {middayError}
+              </div>
+            )}
+
+            {hasEmployeeSupabase() && !middayError && pendingMiddayRequests.length === 0 && (
+              <div className="p-6 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-center">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500">No pending requests</p>
+                <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-300">Mid-day approval requests will appear here when employees request them.</p>
+              </div>
+            )}
+
+            {hasEmployeeSupabase() && pendingMiddayRequests.length > 0 && (
+              <div className="overflow-auto rounded-2xl border dark:border-slate-700">
+                <table className="min-w-[760px] w-full text-left text-xs">
+                  <thead className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-900/40">
+                    <tr>
+                      <th className="py-3 px-4">Employee</th>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Requested</th>
+                      <th className="py-3 px-4">Reason</th>
+                      <th className="py-3 px-4">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700 bg-white/60 dark:bg-slate-950/20">
+                    {pendingMiddayRequests.map((r) => {
+                      const u = users.find((x) => x.id === r.userId);
+                      const name = u?.name || r.userId;
+                      const title = u?.jobTitle ? ` • ${u.jobTitle}` : '';
+                      const busy = middayBusyId === r.id;
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30">
+                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-white">{name}{title}</td>
+                          <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-200">{r.date}</td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{r.requestedAt ? new Date(r.requestedAt).toLocaleString('en-GB') : '-'}</td>
+                          <td className="py-3 px-4 text-slate-700 dark:text-slate-200">{r.reason || '-'}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex gap-2">
+                              <button
+                                disabled={busy}
+                                onClick={() => void decideMidday(r.id, 'approved')}
+                                className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                disabled={busy}
+                                onClick={() => void decideMidday(r.id, 'denied')}
+                                className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-600 text-white disabled:opacity-50"
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border dark:border-slate-700 overflow-hidden">
           <div className="p-8 border-b dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30">

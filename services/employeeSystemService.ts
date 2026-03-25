@@ -162,6 +162,45 @@ export const fetchLatestMiddayCheckoutRequest = async (attendanceId: string): Pr
   return normalizeCheckoutRequest(data);
 };
 
+export const fetchPendingMiddayCheckoutRequests = async (): Promise<AttendanceCheckoutRequest[]> => {
+  if (!supabase) throw new Error('Approval center requires an online connection (Supabase).');
+  const { data, error } = await supabase
+    .from('attendance_checkout_requests')
+    .select('*')
+    .eq('status', 'pending')
+    .order('requested_at', { ascending: false })
+    .limit(200);
+  if (error || !data) {
+    console.error('fetchPendingMiddayCheckoutRequests error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      throw asError(error, 'Approval requests table missing. Apply the latest Supabase migrations.');
+    }
+    throw asError(error, 'Failed to load approval requests.');
+  }
+  return (data as any[]).map(normalizeCheckoutRequest);
+};
+
+export const decideMiddayCheckoutRequest = async (
+  requestId: string,
+  decision: 'approved' | 'denied'
+): Promise<AttendanceCheckoutRequest> => {
+  if (!supabase) throw new Error('Approval center requires an online connection (Supabase).');
+  const { data, error } = await supabase
+    .from('attendance_checkout_requests')
+    .update({ status: decision, decided_at: nowIso() })
+    .eq('id', requestId)
+    .select('*')
+    .single();
+  if (error || !data) {
+    console.error('decideMiddayCheckoutRequest error:', error);
+    if (isSchemaOrPermissionError(error)) {
+      throw asError(error, 'Approval requests table missing. Apply the latest Supabase migrations.');
+    }
+    throw asError(error, 'Failed to update approval request.');
+  }
+  return normalizeCheckoutRequest(data as any);
+};
+
 export const fetchDailyReports = async (user: SystemUser, isAdmin: boolean): Promise<DailyReport[]> => {
   if (!supabase) return readLocalArray<DailyReport>('reports', []).filter((r) => (isAdmin ? true : r.userId === user.id));
   const q = supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(200);
@@ -188,6 +227,9 @@ export const createDailyReport = async (
   user: SystemUser,
   input: { title: string; description: string; date?: string }
 ): Promise<DailyReport> => {
+  if (user.role === UserRole.ADMIN) {
+    throw new Error('Admins are exempt from daily report submission.');
+  }
   const localReport: DailyReport = {
     id: `local-${Date.now()}`,
     userId: user.id,
@@ -274,6 +316,9 @@ export const fetchTodayAttendance = async (user: SystemUser): Promise<Attendance
 };
 
 export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
+  if (user.role === UserRole.ADMIN) {
+    throw new Error('Admins are exempt from attendance clock-in/out.');
+  }
   const today = toDateOnly(nowIso());
   const localStore = readLocalArray<AttendanceLog>('attendance', []);
   const localExisting = localStore.find((l) => l.userId === user.id && l.date === today) || null;
@@ -392,6 +437,9 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
 };
 
 export const requestClockOutApproval = async (user: SystemUser, attendance: AttendanceLog, reason: string): Promise<AttendanceCheckoutRequest> => {
+  if (user.role === UserRole.ADMIN) {
+    throw new Error('Admins are exempt from attendance clock-in/out.');
+  }
   if (!supabase) {
     throw new Error('GM approval requires an online connection (Supabase).');
   }
@@ -460,6 +508,9 @@ export const requestClockOutApproval = async (user: SystemUser, attendance: Atte
 };
 
 export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
+  if (user.role === UserRole.ADMIN) {
+    throw new Error('Admins are exempt from attendance clock-in/out.');
+  }
   if (!attendance.checkIn) throw new Error('You must clock in first.');
   if (attendance.checkOut) throw new Error('You already completed attendance for today.');
   if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
@@ -492,6 +543,9 @@ export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog
 };
 
 export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
+  if (user.role === UserRole.ADMIN) {
+    throw new Error('Admins are exempt from attendance clock-in/out.');
+  }
   if (!attendance.checkIn) throw new Error('You must clock in first.');
   if (attendance.checkOut) throw new Error('You already completed attendance for today.');
   if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');

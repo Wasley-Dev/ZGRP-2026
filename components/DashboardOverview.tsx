@@ -30,6 +30,7 @@ interface DashboardProps {
 
 const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCount, candidates, bookings, user }) => {
   const todayIsoInEAT = getTodayIsoInEAT();
+  const isAdminExempt = user.role === UserRole.ADMIN;
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
@@ -281,7 +282,47 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     }
   };
 
-  const employeeReportingPanel = (
+  const employeeReportingPanel = isAdminExempt ? (
+    <div className={`${panelClass} p-8`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Approval Center</h2>
+          <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+            Admins are exempt from daily reports and attendance. Approve mid-day checkouts in the system or via email links.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button onClick={() => onNavigate('admin')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+            Open Approvals
+          </button>
+          <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            Open Chat
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'settings' },
+          { label: 'Notices', value: 'View', icon: 'fa-bell', action: 'notices' },
+          { label: 'Tasks', value: 'Manage', icon: 'fa-list', action: 'tasks' },
+          { label: 'Admin Console', value: 'Open', icon: 'fa-user-shield', action: 'admin' },
+        ].map((kpi) => (
+          <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={`${tileClass} text-left`}>
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{kpi.label}</p>
+                <p className="mt-3 text-2xl font-black text-slate-900 dark:text-white">{kpi.value}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-blue-400/20 flex items-center justify-center text-gold shadow-sm">
+                <i className={`fas ${kpi.icon}`}></i>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : (
     <div className={`${panelClass} p-8`}>
       <div className="flex items-start justify-between gap-4">
         <div>

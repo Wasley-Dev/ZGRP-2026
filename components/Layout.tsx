@@ -105,13 +105,14 @@ const Layout: React.FC<LayoutProps> = ({
 
   const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const isAdmin = isSuperAdmin || user.role === UserRole.ADMIN;
+  const isEmployeeWorkflowsEnabled = user.role !== UserRole.ADMIN;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
 
     // Employee reporting & performance
-    { id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' },
-    { id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' },
+    ...(isEmployeeWorkflowsEnabled ? [{ id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' }] : []),
+    ...(isEmployeeWorkflowsEnabled ? [{ id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' }] : []),
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
     { id: 'notices', label: 'Notices', icon: 'fa-bell' },
     { id: 'tasks', label: 'Tasks', icon: 'fa-list' },
