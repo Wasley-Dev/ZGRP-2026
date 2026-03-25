@@ -438,12 +438,20 @@ const Layout: React.FC<LayoutProps> = ({
 
         {/* Mobile bottom nav bar */}
         <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 liquid-bar ${isDark ? 'border-blue-400/20' : 'border-slate-200'}`}>
-          {[
-            { id: 'dashboard', icon: 'fa-chart-line' },
-            { id: 'attendance', icon: 'fa-user-clock' },
-            { id: 'dailyReports', icon: 'fa-clipboard-list' },
-            { id: 'chat', icon: 'fa-comments' },
-          ].map((item) => (
+          {(isEmployeeWorkflowsEnabled
+            ? [
+                { id: 'dashboard', icon: 'fa-chart-line', label: 'dashboard' },
+                { id: 'attendance', icon: 'fa-user-clock', label: 'attendance' },
+                { id: 'dailyReports', icon: 'fa-clipboard-list', label: 'reports' },
+                { id: 'chat', icon: 'fa-comments', label: 'chat' },
+              ]
+            : [
+                { id: 'dashboard', icon: 'fa-chart-line', label: 'dashboard' },
+                { id: 'chat', icon: 'fa-comments', label: 'chat' },
+                { id: 'admin', icon: 'fa-user-shield', label: 'admin' },
+                { id: 'settings', icon: 'fa-cog', label: 'settings' },
+              ]
+          ).map((item) => (
             <button
               key={item.id}
               onClick={() => onModuleChange(item.id)}
@@ -452,7 +460,7 @@ const Layout: React.FC<LayoutProps> = ({
               }`}
             >
               <i className={`fas ${item.icon} text-base`}></i>
-              <span className="text-[8px] font-black uppercase tracking-widest capitalize">{item.id}</span>
+              <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
             </button>
           ))}
           <button

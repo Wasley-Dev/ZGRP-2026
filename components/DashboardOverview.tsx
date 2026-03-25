@@ -18,7 +18,7 @@ import {
 
 import { AttendanceCheckoutRequest, BookingEntry, Candidate, Notice, RecruitmentStatus, SystemUser, TaskItem, UserRole } from '../types';
 import { getTodayIsoInEAT } from '../services/dateTime';
-import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchNotices, fetchTasks, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, subscribeToTableChanges } from '../services/employeeSystemService';
+import { clockIn, clockOut, fetchDailyReports, fetchLatestMiddayCheckoutRequest, fetchNotices, fetchTasks, fetchTodayAttendance, hasEmployeeSupabase, midDayClockOut, requestClockOutApproval, setTaskStatus, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface DashboardProps {
   onNavigate: (module: string) => void;
@@ -31,6 +31,8 @@ interface DashboardProps {
 const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCount, candidates, bookings, user }) => {
   const todayIsoInEAT = getTodayIsoInEAT();
   const isAdminExempt = user.role === UserRole.ADMIN;
+  const isEmployee = user.role === UserRole.USER;
+  const isAdminOrSuper = user.role !== UserRole.USER;
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
   const [weeklyReportsCount, setWeeklyReportsCount] = React.useState(0);
@@ -199,6 +201,15 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       setCheckoutRequest(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Clock out failed.');
+    }
+  };
+
+  const handleCompleteTask = async (taskId: string) => {
+    setMyTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: 'completed' } : t)));
+    try {
+      await setTaskStatus(taskId, 'completed');
+    } catch {
+      // Keep optimistic state even if offline
     }
   };
 
@@ -451,6 +462,78 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     </div>
   );
 
+  if (isEmployee) {
+    const pending = myTasks.filter((t) => t.status !== 'completed');
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
+        {employeeReportingPanel}
+
+        <div className={`${panelClass} p-6`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Tasks & Notices</h3>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Your assigned tasks and company-wide notices.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+                Open Chat
+              </button>
+              <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Attendance
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Pending Tasks</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold">{pending.length}</span>
+              </div>
+              <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-blue-200">
+                {pending.slice(0, 8).map((t) => (
+                  <div key={t.id} className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{t.title}</p>
+                      <p className="text-[10px] font-mono text-slate-400 dark:text-blue-300/50">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-GB') : ''}</p>
+                    </div>
+                    <button
+                      onClick={() => void handleCompleteTask(t.id)}
+                      className="px-3 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow shrink-0"
+                    >
+                      Complete
+                    </button>
+                  </div>
+                ))}
+                {pending.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-blue-300/60">No pending tasks.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Latest Notices</p>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold">{latestNotices.length}</span>
+              </div>
+              <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-blue-200">
+                {latestNotices.slice(0, 8).map((n) => (
+                  <div key={n.id} className="flex items-start justify-between gap-3">
+                    <span className="font-semibold truncate">{n.title}</span>
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-blue-300/50 shrink-0">{n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB') : ''}</span>
+                  </div>
+                ))}
+                {latestNotices.length === 0 && (
+                  <p className="text-xs text-slate-500 dark:text-blue-300/60">No notices yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
       {/* KPI Cards */}
@@ -480,7 +563,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         ))}
       </div>
 
-      {isAdminExempt && (
+      {isAdminOrSuper && (
         <div className={`${panelClass} p-6`}>
           <div className="flex items-start justify-between gap-4">
             <div>

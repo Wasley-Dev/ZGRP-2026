@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AttendanceCheckoutRequest, SystemUser, UserRole, SystemConfig } from '../types';
 import { ZAYA_LOGO_SRC } from '../brand';
 import { decideMiddayCheckoutRequest, fetchPendingMiddayCheckoutRequests, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
+import attendanceCheckoutRequestsMigration from '../supabase/migrations/20260325000100_attendance_checkout_requests.sql?raw';
 
 interface AdminProps {
   users: SystemUser[];
@@ -48,6 +49,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   const [pendingMiddayRequests, setPendingMiddayRequests] = useState<AttendanceCheckoutRequest[]>([]);
   const [middayError, setMiddayError] = useState('');
   const [middayBusyId, setMiddayBusyId] = useState<string | null>(null);
+  const [copiedMigration, setCopiedMigration] = useState(false);
 
   useEffect(() => {
     if (!canApproveMidday) return;
@@ -78,6 +80,18 @@ const AdminConsole: React.FC<AdminProps> = ({
       sub.unsubscribe();
     };
   }, [canApproveMidday]);
+
+  const showMiddayMigrationHelp = Boolean(middayError) && /attendance_checkout_requests|schema cache|could not find the table/i.test(middayError);
+
+  const handleCopyMigration = async () => {
+    try {
+      await navigator.clipboard.writeText(attendanceCheckoutRequestsMigration);
+      setCopiedMigration(true);
+      window.setTimeout(() => setCopiedMigration(false), 2000);
+    } catch {
+      alert('Copy failed. Expand the SQL and copy manually.');
+    }
+  };
 
   const decideMidday = async (requestId: string, decision: 'approved' | 'denied') => {
     if (!canApproveMidday) return;
@@ -323,8 +337,29 @@ const AdminConsole: React.FC<AdminProps> = ({
             )}
 
             {middayError && (
-              <div className="p-5 rounded-2xl border border-red-300 bg-red-50 text-red-900 text-xs font-semibold">
-                {middayError}
+              <div className="p-5 rounded-2xl border border-red-300 bg-red-50 text-red-900 text-xs font-semibold space-y-3">
+                <div>{middayError}</div>
+                {showMiddayMigrationHelp && (
+                  <details className="rounded-xl border border-red-200 bg-white/70 p-3">
+                    <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-red-800">
+                      Migration SQL (Attendance Checkout Requests)
+                    </summary>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => void handleCopyMigration()}
+                        className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                      >
+                        {copiedMigration ? 'Copied' : 'Copy SQL'}
+                      </button>
+                    </div>
+                    <pre className="mt-3 max-h-64 overflow-auto text-[10px] leading-relaxed whitespace-pre-wrap text-slate-800">
+                      {attendanceCheckoutRequestsMigration}
+                    </pre>
+                    <p className="mt-3 text-[10px] text-slate-600 font-bold">
+                      Paste this into Supabase SQL Editor for your project, then refresh this page.
+                    </p>
+                  </details>
+                )}
               </div>
             )}
 

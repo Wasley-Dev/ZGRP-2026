@@ -14,6 +14,13 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
   const listRef = useRef<HTMLDivElement>(null);
 
   const userById = useMemo(() => new Map<string, SystemUser>(users.map((u) => [u.id, u])), [users]);
+  const getHandle = (u?: SystemUser): string => {
+    const email = String(u?.email || '').trim().toLowerCase();
+    if (email.includes('@')) return `@${email.split('@')[0]}`;
+    const name = String(u?.name || '').trim().toLowerCase();
+    if (!name) return '';
+    return `@${name.replace(/[^a-z0-9]+/g, '').slice(0, 16)}`;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +85,7 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
               const isMine = m.senderId === user.id;
               const sender = userById.get(m.senderId);
               const senderName = sender?.name || m.senderId;
+              const senderHandle = getHandle(sender);
               const senderTitle = sender?.jobTitle || '';
               const senderAvatar = sender?.avatar || '';
               return (
@@ -85,26 +93,22 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
                   <div className={`max-w-[85%] rounded-2xl p-3 border ${isMine ? 'bg-enterprise-blue text-white border-blue-900/10' : 'bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white border-slate-200 dark:border-blue-400/20'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        {!isMine && (
-                          <div className="h-7 w-7 rounded-full border border-gold/30 bg-white/70 dark:bg-slate-900/50 overflow-hidden shrink-0">
-                            {senderAvatar ? (
-                              <img src={senderAvatar} alt={senderName} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center text-gold text-[10px] font-black">
-                                {String(senderName || '?').slice(0, 1).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <div className="h-7 w-7 rounded-full border border-gold/30 bg-white/70 dark:bg-slate-900/50 overflow-hidden shrink-0">
+                          {senderAvatar ? (
+                            <img src={senderAvatar} alt={senderName} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-gold text-[10px] font-black">
+                              {String(senderName || '?').slice(0, 1).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
                         <div className="min-w-0">
                           <p className={`text-[10px] font-black uppercase tracking-widest truncate ${isMine ? 'text-gold' : 'text-slate-500 dark:text-blue-300/60'}`}>
                             {isMine ? 'You' : senderName}
                           </p>
-                          {!isMine && senderTitle && (
-                            <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
-                              {senderTitle}
-                            </p>
-                          )}
+                          <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
+                            {[senderHandle, senderTitle].filter(Boolean).join(' • ') || (isMine ? '' : 'Employee')}
+                          </p>
                         </div>
                       </div>
                       <p className={`text-[10px] font-mono ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
