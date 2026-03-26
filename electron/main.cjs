@@ -16,6 +16,21 @@ const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4;
 
 let mainWindow = null;
 
+const buildLiveUrl = ({ accessToken }) => {
+  try {
+    const liveUrl = new URL(LIVE_URL);
+    if (accessToken) liveUrl.searchParams.set('access', accessToken);
+    liveUrl.searchParams.set('client', 'desktop');
+    liveUrl.searchParams.set('v', app.getVersion());
+    liveUrl.searchParams.set('t', String(Date.now()));
+    return liveUrl.toString();
+  } catch {
+    const fallback = accessToken ? `${LIVE_URL}?access=${encodeURIComponent(accessToken)}` : LIVE_URL;
+    const joiner = fallback.includes('?') ? '&' : '?';
+    return `${fallback}${joiner}client=desktop&v=${encodeURIComponent(app.getVersion())}&t=${Date.now()}`;
+  }
+};
+
 const resolveBundledToken = () => {
   try {
     const pkgPath = path.join(app.getAppPath(), 'package.json');
@@ -62,12 +77,11 @@ function createMainWindow() {
 
   const localBuild = path.join(app.getAppPath(), 'dist', 'index.html');
   const token = ACCESS_TOKEN || resolveBundledToken();
-  const url = token ? `${LIVE_URL}?access=${encodeURIComponent(token)}` : LIVE_URL;
+  const url = buildLiveUrl({ accessToken: token });
   const hasDevUrl = Boolean(process.env.ELECTRON_START_URL);
   const localLoadOptions = token ? { query: { access: token } } : undefined;
 
-  // Dev mode uses the live dev server. Packaged apps load the bundled build first to avoid
-  // blank windows when the network, CDN resources, or remote site are slow/unavailable.
+  // Dev mode uses the live dev server.
   if (hasDevUrl) {
     win.loadURL(url).catch(async () => {
       if (fs.existsSync(localBuild)) {
@@ -79,17 +93,14 @@ function createMainWindow() {
     return;
   }
 
-  win.loadFile(localBuild, localLoadOptions).catch(async () => {
-    if (mainWindow) {
-      console.error('[main-window] bundled app load failed, retrying live URL');
+  // Packaged apps load the live Vercel deployment first so all installed machines pick up
+  // the latest UI immediately. If the network is down, fall back to the bundled build.
+  win.loadURL(url).catch(async () => {
+    if (fs.existsSync(localBuild)) {
+      await win.loadFile(localBuild, localLoadOptions);
+      return;
     }
-    await win.loadURL(url).catch(async () => {
-      if (fs.existsSync(localBuild)) {
-        await win.loadFile(localBuild, localLoadOptions);
-        return;
-      }
-      await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
-    });
+    await win.loadURL('data:text/html,<h2>Unable to load app.</h2>');
   });
 
   win.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
