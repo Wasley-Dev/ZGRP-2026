@@ -79,6 +79,7 @@
       "artifactName": "Zaya-Group-Portal-Setup-${version}.${ext}"
     },
     "mac": {
+      "hardenedRuntime": true,
       "icon": "assets/macos-setup.png",
       "target": [
         "dmg",
