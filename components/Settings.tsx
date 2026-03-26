@@ -9,6 +9,7 @@ interface SettingsProps {
   onThemeToggle: () => void;
   user: SystemUser;
   setUser: React.Dispatch<React.SetStateAction<SystemUser>>;
+  onCommitProfile?: (nextUser: SystemUser) => void;
   backgroundImageUrl?: string;
   onBackgroundImageChange: (value?: string) => void;
 }
@@ -18,6 +19,7 @@ const Settings: React.FC<SettingsProps> = ({
   onThemeToggle,
   user,
   setUser,
+  onCommitProfile,
   backgroundImageUrl,
   onBackgroundImageChange,
 }) => {
@@ -46,7 +48,13 @@ const Settings: React.FC<SettingsProps> = ({
     if (e.target.files?.[0]) {
       const file = e.target.files[0];
       normalizeAvatarForSync(file)
-        .then((avatar) => setUser((prev) => ({ ...prev, avatar })))
+        .then((avatar) => {
+          setUser((prev) => {
+            const next = { ...prev, avatar };
+            onCommitProfile?.(next);
+            return next;
+          });
+        })
         .catch((err) => console.error('Avatar upload failed:', err));
     }
   };
@@ -55,10 +63,12 @@ const Settings: React.FC<SettingsProps> = ({
   const bgInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
-    if (newPassword) {
-      setUser((prev) => ({ ...prev, password: newPassword }));
-      setNewPassword('');
-    }
+    setUser((prev) => {
+      const next = newPassword ? { ...prev, password: newPassword } : prev;
+      onCommitProfile?.(next);
+      return next;
+    });
+    if (newPassword) setNewPassword('');
     alert("SETTINGS SYNCED: Corporate profile updated.");
   };
 

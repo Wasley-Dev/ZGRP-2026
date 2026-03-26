@@ -1433,7 +1433,7 @@ const App: React.FC = () => {
                 {reportOptions.map(r => (
                   <div key={r} className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl hover:border-gold transition-all group">
                     <i className="fas fa-file-pdf text-2xl text-gold mb-3 block"></i>
-                    <h4 className="text-xs font-black text-white uppercase tracking-widest mb-1">{r}</h4>
+                    <h4 className="text-xs font-black text-enterprise-blue dark:text-white uppercase tracking-widest mb-1">{r}</h4>
                     <p className="text-[10px] text-blue-300/40 mb-3">PDF · Live data</p>
                     <button
                       onClick={() => setReportPopup(r)}
@@ -1452,7 +1452,7 @@ const App: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-[#0a1628] border border-[#1e3a5f] p-5 rounded-xl">
                   <h4 className="text-[10px] font-black text-blue-300/60 uppercase tracking-widest mb-2">Forecasted Hiring Needs (Next Qtr)</h4>
-                  <p className="text-3xl font-black text-white">+145 <span className="text-sm text-blue-300/50">Positions</span></p>
+                  <p className="text-3xl font-black text-enterprise-blue dark:text-white">+145 <span className="text-sm text-blue-300/50">Positions</span></p>
                   <div className="mt-4 h-2 bg-[#1e3a5f] rounded-full overflow-hidden">
                     <div className="h-full bg-blue-500 w-[75%]"></div>
                   </div>
@@ -1543,9 +1543,9 @@ const App: React.FC = () => {
             <div className="w-16 h-16 bg-green-900/40 border border-green-500/40 text-green-400 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl">
               <i className="fas fa-check"></i>
             </div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Report Ready</h3>
+            <h3 className="text-xl font-black text-enterprise-blue dark:text-white uppercase tracking-tight mb-2">Report Ready</h3>
             <p className="text-sm text-blue-300/60 mb-6">
-              The <span className="font-bold text-white">{reportPopup}</span> report has been compiled with live data and is ready to download.
+              The <span className="font-bold text-enterprise-blue dark:text-white">{reportPopup}</span> report has been compiled with live data and is ready to download.
             </p>
             <button
               onClick={handleDownloadReport}

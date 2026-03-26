@@ -1,12 +1,16 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { BookingEntry, Candidate, Notification, SystemConfig, SystemUser } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
 const STORAGE_KEY = 'zaya_shared_state_v2';
 const CHANNEL_NAME = (import.meta.env.VITE_SYNC_CHANNEL || 'zaya-portal-sync') as string;
 const EVENT_NAME = 'state-update';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const getRealtimeSupabase = (): { url: string; anonKey: string } | null => {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  return { url: config.url, anonKey: config.anonKey };
+};
 
 export interface SharedStateSnapshot {
   bookings: BookingEntry[];
@@ -103,8 +107,10 @@ export class RealtimeSyncClient {
     window.addEventListener('storage', storageHandler);
     this.unsubscribeStorage = () => window.removeEventListener('storage', storageHandler);
 
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    {
+      const config = getRealtimeSupabase();
+      if (!config) return;
+      this.supabase = createClient(config.url, config.anonKey);
       this.supabaseChannel = this.supabase
         .channel(this.channelName, {
           config: {

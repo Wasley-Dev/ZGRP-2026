@@ -1,13 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { UserRole, type AttendanceCheckoutRequest, type AttendanceLog, type DailyReport, type LeaveRequest, type Notice, type PayrollRecord, type PayrollRunInput, type PayslipRecord, type SystemUser, type TaskItem, type TeamMessage } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 const DEFAULT_API_BASE_URL = 'https://zgrp-portal-2026.vercel.app';
 
-const supabase: SupabaseClient | null =
-  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const SUPABASE_CONFIG = getSupabaseConfig();
+const supabase: SupabaseClient | null = SUPABASE_CONFIG ? createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey) : null;
 
 export const hasEmployeeSupabase = () => Boolean(supabase);
 

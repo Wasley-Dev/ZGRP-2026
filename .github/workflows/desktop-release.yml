@@ -54,7 +54,6 @@ jobs:
 
   release-macos:
     runs-on: macos-latest
-    if: ${{ secrets.MAC_CSC_LINK != '' && secrets.MAC_CSC_KEY_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
     steps:
@@ -67,10 +66,30 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Detect macOS signing/notarization secrets
+        id: mac_creds
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "macOS signing/notarization secrets missing; skipping macOS release job."
+          fi
+
       - name: Install dependencies
+        if: ${{ steps.mac_creds.outputs.enabled == 'true' }}
         run: npm ci
 
       - name: Build macOS installer and update metadata
+        if: ${{ steps.mac_creds.outputs.enabled == 'true' }}
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -85,6 +104,7 @@ jobs:
           npx electron-builder --mac dmg zip --publish never
 
       - name: Upload macOS release assets
+        if: ${{ steps.mac_creds.outputs.enabled == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}

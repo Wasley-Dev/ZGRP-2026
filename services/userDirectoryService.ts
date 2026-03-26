@@ -1,8 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SystemUser } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 const TABLE_NAME = 'portal_users';
 
 type PortalUserRow = {
@@ -20,8 +19,17 @@ type PortalUserRow = {
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
 };
 
-const hasConfig = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-const supabase = hasConfig ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!) : null;
+let supabase: SupabaseClient | null = null;
+let supabaseConfigKey = '';
+const getSupabase = (): SupabaseClient | null => {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  const key = `${config.url}|${config.anonKey}`;
+  if (supabase && supabaseConfigKey === key) return supabase;
+  supabase = createClient(config.url, config.anonKey);
+  supabaseConfigKey = key;
+  return supabase;
+};
 
 const toUser = (row: PortalUserRow): SystemUser => ({
   id: row.id,
@@ -53,11 +61,12 @@ const toRow = (user: SystemUser): PortalUserRow => ({
   status: user.status,
 });
 
-export const hasRemoteUserDirectory = () => hasConfig;
+export const hasRemoteUserDirectory = () => Boolean(getSupabase());
 
 export const fetchRemoteUsers = async (): Promise<SystemUser[]> => {
-  if (!supabase) return [];
-  const { data, error } = await supabase.from(TABLE_NAME).select('*').order('name');
+  const client = getSupabase();
+  if (!client) return [];
+  const { data, error } = await client.from(TABLE_NAME).select('*').order('name');
   if (error || !data) {
     console.error('Remote user fetch error:', error);
     return [];
@@ -66,10 +75,11 @@ export const fetchRemoteUsers = async (): Promise<SystemUser[]> => {
 };
 
 export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
 
   const rows = users.map(toRow);
-  const attempt = await supabase.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
+  const attempt = await client.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
   if (!attempt.error) return;
 
   // Backward compatibility: if the remote table doesn't have `job_title` yet, retry without it.
@@ -79,7 +89,7 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
     throw attempt.error;
   }
   const legacyRows = rows.map(({ job_title, ...rest }) => rest);
-  const retry = await supabase.from(TABLE_NAME).upsert(legacyRows as any, { onConflict: 'id' });
+  const retry = await client.from(TABLE_NAME).upsert(legacyRows as any, { onConflict: 'id' });
   if (retry.error) {
     console.error('Remote user upsert error (legacy retry):', retry.error);
     throw retry.error;
@@ -87,8 +97,9 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
 };
 
 export const removeRemoteUsers = async (ids: string[]): Promise<void> => {
-  if (!supabase || ids.length === 0) return;
-  const { error } = await supabase.from(TABLE_NAME).delete().in('id', ids);
+  const client = getSupabase();
+  if (!client || ids.length === 0) return;
+  const { error } = await client.from(TABLE_NAME).delete().in('id', ids);
   if (error) {
     console.error('Remote user explicit delete error:', error);
   }

@@ -1,12 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { BookingEntry, Candidate, SystemConfig, SystemUser } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+let supabase: SupabaseClient | null = null;
+let supabaseConfigKey = '';
+const getSupabase = (): SupabaseClient | null => {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  const key = `${config.url}|${config.anonKey}`;
+  if (supabase && supabaseConfigKey === key) return supabase;
+  supabase = createClient(config.url, config.anonKey);
+  supabaseConfigKey = key;
+  return supabase;
+};
 
-const supabase = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
-export const hasRemoteData = () => Boolean(supabase);
+export const hasRemoteData = () => Boolean(getSupabase());
 
 type CandidateRow = {
   id: string;
@@ -77,8 +85,9 @@ type BookingRow = {
 const nowIso = () => new Date().toISOString();
 
 export const fetchRemoteCandidates = async (): Promise<Candidate[]> => {
-  if (!supabase) return [];
-  const { data, error } = await supabase.from('portal_candidates').select('*');
+  const client = getSupabase();
+  if (!client) return [];
+  const { data, error } = await client.from('portal_candidates').select('*');
   if (error || !data) {
     console.error('Remote candidates fetch error:', error);
     return [];
@@ -106,7 +115,8 @@ export const fetchRemoteCandidates = async (): Promise<Candidate[]> => {
 };
 
 export const syncRemoteCandidates = async (candidates: Candidate[]): Promise<void> => {
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const rows: CandidateRow[] = candidates.map((c) => ({
     id: c.id,
     full_name: c.fullName,
@@ -128,7 +138,7 @@ export const syncRemoteCandidates = async (candidates: Candidate[]): Promise<voi
     source: c.source || null,
     updated_at: nowIso(),
   }));
-  const { error } = await supabase.from('portal_candidates').upsert(rows, { onConflict: 'id' });
+  const { error } = await client.from('portal_candidates').upsert(rows, { onConflict: 'id' });
   if (error) {
     console.error('Remote candidates upsert error:', error);
     throw error;
@@ -136,8 +146,9 @@ export const syncRemoteCandidates = async (candidates: Candidate[]): Promise<voi
 };
 
 export const fetchRemoteSystemConfig = async (): Promise<SystemConfig | null> => {
-  if (!supabase) return null;
-  const { data, error } = await supabase.from('portal_system_config').select('*').eq('id', 'config').single();
+  const client = getSupabase();
+  if (!client) return null;
+  const { data, error } = await client.from('portal_system_config').select('*').eq('id', 'config').single();
   if (error || !data) {
     if (error) console.error('Remote system config fetch error:', error);
     return null;
@@ -162,7 +173,8 @@ export const fetchRemoteSystemConfig = async (): Promise<SystemConfig | null> =>
 };
 
 export const syncRemoteSystemConfig = async (config: SystemConfig): Promise<void> => {
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const row: ConfigRow = {
     id: 'config',
     system_name: config.systemName,
@@ -181,7 +193,7 @@ export const syncRemoteSystemConfig = async (config: SystemConfig): Promise<void
     backup_hour: config.backupHour ?? 15,
     updated_at: nowIso(),
   };
-  const { error } = await supabase.from('portal_system_config').upsert(row, { onConflict: 'id' });
+  const { error } = await client.from('portal_system_config').upsert(row, { onConflict: 'id' });
   if (error) {
     console.error('Remote system config upsert error:', error);
     throw error;
@@ -189,7 +201,8 @@ export const syncRemoteSystemConfig = async (config: SystemConfig): Promise<void
 };
 
 export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const rows: PortalUserRow[] = users.map((u) => ({
     id: u.id,
     name: u.name,
@@ -204,7 +217,7 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
     last_login: u.lastLogin,
     status: u.status,
   }));
-  const attempt = await supabase.from('portal_users').upsert(rows, { onConflict: 'id' });
+  const attempt = await client.from('portal_users').upsert(rows, { onConflict: 'id' });
   if (!attempt.error) return;
 
   const message = String(attempt.error?.message || '');
@@ -213,7 +226,7 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
     throw attempt.error;
   }
   const legacyRows = rows.map(({ job_title, ...rest }) => rest);
-  const retry = await supabase.from('portal_users').upsert(legacyRows as any, { onConflict: 'id' });
+  const retry = await client.from('portal_users').upsert(legacyRows as any, { onConflict: 'id' });
   if (retry.error) {
     console.error('Remote users upsert error (legacy retry):', retry.error);
     throw retry.error;
@@ -221,8 +234,9 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
 };
 
 export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
-  if (!supabase) return [];
-  const { data, error } = await supabase.from('portal_bookings').select('*').order('created_at', { ascending: false });
+  const client = getSupabase();
+  if (!client) return [];
+  const { data, error } = await client.from('portal_bookings').select('*').order('created_at', { ascending: false });
   if (error || !data) {
     console.error('Remote bookings fetch error:', error);
     return [];
@@ -240,7 +254,8 @@ export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
 };
 
 export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void> => {
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const rows: BookingRow[] = bookings.map((b) => ({
     id: b.id,
     booker: b.booker,
@@ -252,7 +267,7 @@ export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void
     created_by_user_id: b.createdByUserId,
     updated_at: nowIso(),
   }));
-  const { error } = await supabase.from('portal_bookings').upsert(rows, { onConflict: 'id' });
+  const { error } = await client.from('portal_bookings').upsert(rows, { onConflict: 'id' });
   if (error) {
     console.error('Remote bookings upsert error:', error);
     throw error;
