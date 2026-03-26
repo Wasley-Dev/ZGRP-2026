@@ -25,3 +25,13 @@ After the workflow finishes, confirm the release contains:
 - macOS: `latest-mac.yml`, `*-mac.dmg`, `*-mac.zip`, `*-mac.zip.blockmap`
 
 If these are present, existing desktop users on Windows and macOS will receive the update prompt automatically.
+
+## macOS signing/notarization notes
+
+For macOS downloads to open normally (without "App is damaged" / Gatekeeper warnings), the release workflow expects these GitHub secrets:
+
+- `MAC_CSC_LINK` (base64-encoded `.p12` Developer ID Application cert)
+- `MAC_CSC_KEY_PASSWORD`
+- `APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD`
+- `APPLE_TEAM_ID`

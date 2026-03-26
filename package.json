@@ -45,6 +45,7 @@
     "productName": "Zaya Group Portal",
     "asar": true,
     "icon": "assets/app-icon.png",
+    "afterSign": "electron/notarize.cjs",
     "extraMetadata": {
       "electronAccessToken": "Kingsley06#"
     },
@@ -80,7 +81,8 @@
     "mac": {
       "icon": "assets/macos-setup.png",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "artifactName": "Zaya-Group-Portal-${version}-mac.${ext}"
     },
