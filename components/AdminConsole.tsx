@@ -12,6 +12,7 @@ interface AdminProps {
   onUpdateUsers: (updated: SystemUser[]) => void;
   systemConfig: SystemConfig;
   setSystemConfig: (config: SystemConfig) => void;
+  onNavigate?: (module: string) => void;
 }
 
 const SUPER_ADMIN_EMAIL = 'it@zayagroupltd.com';
@@ -22,6 +23,7 @@ const AdminConsole: React.FC<AdminProps> = ({
   onUpdateUsers,
   systemConfig,
   setSystemConfig,
+  onNavigate,
 }) => {
   const [localSystemName, setLocalSystemName] = useState(systemConfig.systemName);
   const [localLogoIcon, setLocalLogoIcon] = useState(systemConfig.logoIcon);
@@ -327,6 +329,35 @@ const AdminConsole: React.FC<AdminProps> = ({
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700">
+      <div className="liquid-panel p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">
+              Admin Centre and Employee Reporting & Performance
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+              Approvals, user access control, and organization-wide reporting.
+            </p>
+          </div>
+          {onNavigate && (
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+                View Reports
+              </button>
+              <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Check Attendance
+              </button>
+              <button onClick={() => onNavigate('performance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Weekly Reports
+              </button>
+              <button onClick={() => onNavigate('employment')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                Employee Mgmt
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {canApproveMidday && (
         <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border dark:border-slate-700 overflow-hidden">
           <div className="p-8 border-b dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30">

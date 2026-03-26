@@ -57,13 +57,19 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
     () => currentUser.role === UserRole.SUPER_ADMIN,
     [currentUser.role]
   );
+  const isGeneralManager = useMemo(() => {
+    const email = String(currentUser.email || '').toLowerCase();
+    const jobTitle = String(currentUser.jobTitle || '');
+    return email === 'gm@zayagroupltd.com' || /general manager/i.test(jobTitle);
+  }, [currentUser.email, currentUser.jobTitle]);
+  const canRecovery = useMemo(() => isSuperAdmin || isGeneralManager, [isSuperAdmin, isGeneralManager]);
   const isAdmin = useMemo(
     () => currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN,
     [currentUser.role]
   );
 
   const saveMaintenance = () => {
-    if (!isSuperAdmin) return;
+    if (!canRecovery) return;
     const strippedMessage = maintenanceMessage.replace(/\[MODE:[A-Z]+\]/g, '').trim();
     const modeTag = systemMode === 'SAFE' ? '[MODE:SAFE]' : systemMode === 'RECOVERY' ? '[MODE:RECOVERY]' : '[MODE:STANDARD]';
     onSaveConfig({
@@ -78,7 +84,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
   };
 
   const queueUpdate = () => {
-    if (!isSuperAdmin) return;
+    if (!canRecovery) return;
     if (!nextVersion.trim()) {
       alert('Enter a target version before rollout.');
       return;
@@ -124,7 +130,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => {
                 setSystemMode('STANDARD');
                 setMaintenanceMode(false);
@@ -139,7 +145,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Full Enterprise Ops</p>
             </button>
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => {
                 setSystemMode('SAFE');
                 setRestrictedMode(true);
@@ -153,7 +159,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Read-Only Protocol</p>
             </button>
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => {
                 setSystemMode('RECOVERY');
                 setMaintenanceMode(true);
@@ -185,7 +191,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-black">{point.size}</span>
                   <button
                     onClick={onRestoreBackup}
-                    disabled={!isSuperAdmin}
+                    disabled={!canRecovery}
                     className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                   >
                     Restore
@@ -232,7 +238,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-slate-50/80 dark:bg-slate-900/55">
             <span className="text-xs font-black uppercase tracking-widest">Maintenance Mode</span>
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => setMaintenanceMode((prev) => !prev)}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
                 maintenanceMode ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700'
@@ -244,7 +250,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <textarea
             value={maintenanceMessage}
             onChange={(e) => setMaintenanceMessage(e.target.value)}
-            disabled={!isSuperAdmin}
+            disabled={!canRecovery}
             className="w-full h-24 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-bold outline-none disabled:opacity-60"
           />
           <div className="flex items-center gap-3">
@@ -254,13 +260,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               min={0}
               max={23}
               value={backupHour}
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onChange={(e) => setBackupHour(Number(e.target.value))}
               className="w-24 p-2 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-black outline-none disabled:opacity-60"
             />
           </div>
           <button
-            disabled={!isSuperAdmin}
+            disabled={!canRecovery}
             onClick={saveMaintenance}
             className="w-full py-3 bg-gold text-enterprise-blue rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-60"
           >
@@ -274,14 +280,14 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             <input
               value={nextVersion}
               onChange={(e) => setNextVersion(e.target.value)}
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               placeholder="Target version"
               className="p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold outline-none disabled:opacity-60 md:col-span-1"
             />
             <select
               value={updateChannel}
               onChange={(e) => setUpdateChannel(e.target.value as 'stable' | 'beta')}
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               className="p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 font-bold outline-none disabled:opacity-60 md:col-span-1"
             >
               <option value="stable">Stable</option>
@@ -289,7 +295,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
             </select>
             <button
               onClick={queueUpdate}
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               className="md:col-span-2 py-3 bg-enterprise-blue text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
             >
               Queue Update Rollout
@@ -298,13 +304,13 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
           <textarea
             value={rolloutNotes}
             onChange={(e) => setRolloutNotes(e.target.value)}
-            disabled={!isSuperAdmin}
+            disabled={!canRecovery}
             className="w-full h-20 p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-slate-50 dark:bg-slate-950 text-sm font-bold outline-none disabled:opacity-60"
             placeholder="Update notes"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => {
                 const next = !restrictedMode;
                 setRestrictedMode(next);
@@ -322,7 +328,7 @@ const SystemRecovery: React.FC<SystemRecoveryProps> = ({
               Restricted Access {restrictedMode ? 'ON' : 'OFF'}
             </button>
             <button
-              disabled={!isSuperAdmin}
+              disabled={!canRecovery}
               onClick={() => {
                 const next = !standbyMode;
                 setStandbyMode(next);

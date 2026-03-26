@@ -311,75 +311,77 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
         </div>
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
-            <div className="mt-4 space-y-3 text-sm">
-              <p className="text-slate-600 dark:text-blue-200">
-                Status:{' '}
-                <span className="font-black text-slate-900 dark:text-white">
-                  {statusLabel}
-                </span>
-              </p>
-              {today?.checkIn && (
+          {!isAdmin && (
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
+              <div className="mt-4 space-y-3 text-sm">
                 <p className="text-slate-600 dark:text-blue-200">
-                  Check-in: <span className="font-mono">{new Date(today.checkIn).toLocaleTimeString('en-GB')}</span>
+                  Status:{' '}
+                  <span className="font-black text-slate-900 dark:text-white">
+                    {statusLabel}
+                  </span>
                 </p>
-              )}
-              {today?.checkOut && (
-                <p className="text-slate-600 dark:text-blue-200">
-                  Check-out: <span className="font-mono">{new Date(today.checkOut).toLocaleTimeString('en-GB')}</span>
-                </p>
-              )}
-              {!today?.checkOut && Array.isArray(today?.segments) && today.segments?.[today.segments.length - 1]?.out && (
-                <p className="text-slate-600 dark:text-blue-200">
-                  Mid-day out: <span className="font-mono">{new Date(today.segments[today.segments.length - 1].out).toLocaleTimeString('en-GB')}</span>
-                </p>
-              )}
-            </div>
+                {today?.checkIn && (
+                  <p className="text-slate-600 dark:text-blue-200">
+                    Check-in: <span className="font-mono">{new Date(today.checkIn).toLocaleTimeString('en-GB')}</span>
+                  </p>
+                )}
+                {today?.checkOut && (
+                  <p className="text-slate-600 dark:text-blue-200">
+                    Check-out: <span className="font-mono">{new Date(today.checkOut).toLocaleTimeString('en-GB')}</span>
+                  </p>
+                )}
+                {!today?.checkOut && Array.isArray(today?.segments) && today.segments?.[today.segments.length - 1]?.out && (
+                  <p className="text-slate-600 dark:text-blue-200">
+                    Mid-day out: <span className="font-mono">{new Date(today.segments[today.segments.length - 1].out).toLocaleTimeString('en-GB')}</span>
+                  </p>
+                )}
+              </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-2">
-              <button
-                onClick={handleClockIn}
-                disabled={!!today?.checkOut || isCurrentlyCheckedIn}
-                className="w-full py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
-              >
-                Clock In
-              </button>
+              <div className="mt-5 grid grid-cols-1 gap-2">
+                <button
+                  onClick={handleClockIn}
+                  disabled={!!today?.checkOut || isCurrentlyCheckedIn}
+                  className="w-full py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
+                >
+                  Clock In
+                </button>
 
-              <div className="rounded-xl border border-slate-200 dark:border-blue-400/20 p-4">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60 mb-2">Checkout reason (optional)</label>
-                <input
-                  value={checkoutReason}
-                  onChange={(e) => setCheckoutReason(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                  placeholder="Emergency / errands / appointment"
-                />
-                <button
-                  onClick={handleRequestCheckout}
-                  disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
-                  className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-                >
-                  {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval (Email)'}
-                </button>
-                <button
-                  onClick={handleMidDayCheckout}
-                  disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
-                  className="w-full mt-3 py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-                >
-                  Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
-                </button>
-                <button
-                  onClick={handleClockOut}
-                  disabled={!isCurrentlyCheckedIn}
-                  className="w-full mt-3 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-                >
-                  Clock Out (End of Day)
-                </button>
+                <div className="rounded-xl border border-slate-200 dark:border-blue-400/20 p-4">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60 mb-2">Checkout reason (optional)</label>
+                  <input
+                    value={checkoutReason}
+                    onChange={(e) => setCheckoutReason(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                    placeholder="Emergency / errands / appointment"
+                  />
+                  <button
+                    onClick={handleRequestCheckout}
+                    disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
+                    className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                  >
+                    {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval (Email)'}
+                  </button>
+                  <button
+                    onClick={handleMidDayCheckout}
+                    disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
+                    className="w-full mt-3 py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                  >
+                    Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
+                  </button>
+                  <button
+                    onClick={handleClockOut}
+                    disabled={!isCurrentlyCheckedIn}
+                    className="w-full mt-3 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                  >
+                    Clock Out (End of Day)
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+          <div className={`${isAdmin ? 'lg:col-span-3' : 'lg:col-span-2'} rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5`}>
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">
                 {isAdmin ? 'Attendance Logs' : 'Attendance'}
@@ -426,114 +428,118 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
               </div>
             )}
 
-            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Leave / Sick Request (Email)</h3>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
-                  value={leaveType}
-                  onChange={(e) => setLeaveType(e.target.value as any)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                >
-                  <option value="leave">Leave</option>
-                  <option value="sick">Sick</option>
-                </select>
-                <input
-                  type="date"
-                  value={leaveStart}
-                  onChange={(e) => setLeaveStart(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                />
-                <input
-                  type="date"
-                  value={leaveEnd}
-                  onChange={(e) => setLeaveEnd(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                />
-                <input
-                  value={leaveReason}
-                  onChange={(e) => setLeaveReason(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-                  placeholder="Reason"
-                />
-                <div className="md:col-span-2 flex justify-end">
-                  <button
-                    onClick={handleLeaveRequest}
-                    className="px-6 py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
-                  >
-                    Send Request to GM
-                  </button>
-                </div>
-              </div>
-              <p className="mt-3 text-[10px] text-slate-500 dark:text-blue-300/60 font-bold uppercase tracking-widest">
-                Requests are emailed to gm@zayagroupltd.com.
-              </p>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance Calendar</h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
-                    aria-label="Previous month"
-                  >
-                    <i className="fas fa-chevron-left text-xs"></i>
-                  </button>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{monthLabel}</span>
-                  <button
-                    onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                    className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
-                    aria-label="Next month"
-                  >
-                    <i className="fas fa-chevron-right text-xs"></i>
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-500 dark:text-blue-300/60 uppercase">
-                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                  <div key={d}>{d}</div>
-                ))}
-              </div>
-              <div className="mt-2 grid grid-cols-7 gap-1">
-                {monthDays.map((cell, idx) => {
-                  if (!cell) return <div key={`empty-${idx}`} />;
-                  const attendance = myAttendanceByDate.get(cell.iso);
-                  const leaveTypeForDay = approvedLeaveDays.get(cell.iso);
-                  const todayIso = new Date().toISOString().slice(0, 10);
-                  const isToday = cell.iso === todayIso;
-
-                  const base =
-                    'h-8 rounded-lg text-xs font-black relative border transition-all flex items-center justify-center';
-                  const style = leaveTypeForDay
-                    ? leaveTypeForDay === 'sick'
-                      ? 'bg-red-500/15 border-red-400/30 text-red-700 dark:text-red-300'
-                      : 'bg-blue-500/15 border-blue-400/30 text-blue-700 dark:text-blue-200'
-                    : attendance
-                    ? 'bg-gold/15 border-gold text-gold'
-                    : 'bg-white/40 dark:bg-slate-950/30 border-slate-200 dark:border-blue-400/20 text-slate-700 dark:text-blue-200 hover:border-gold';
-
-                  return (
-                    <div key={cell.iso} className={`${base} ${style} ${isToday ? 'ring-2 ring-gold/40' : ''}`} title={attendance ? `Present (${attendance.checkIn ? 'IN' : ''}${attendance.checkOut ? ' / OUT' : ''})` : leaveTypeForDay ? `${leaveTypeForDay.toUpperCase()} (approved)` : ''}>
-                      {cell.day}
-                      {attendance && (
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-gold border border-white/60"></span>
-                      )}
-                      {leaveTypeForDay && (
-                        <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${leaveTypeForDay === 'sick' ? 'bg-red-500' : 'bg-blue-500'} border border-white/60`}></span>
-                      )}
+            {!isAdmin && (
+              <>
+                <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Leave / Sick Request (Email)</h3>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <select
+                      value={leaveType}
+                      onChange={(e) => setLeaveType(e.target.value as any)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                    >
+                      <option value="leave">Leave</option>
+                      <option value="sick">Sick</option>
+                    </select>
+                    <input
+                      type="date"
+                      value={leaveStart}
+                      onChange={(e) => setLeaveStart(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                    />
+                    <input
+                      type="date"
+                      value={leaveEnd}
+                      onChange={(e) => setLeaveEnd(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                    />
+                    <input
+                      value={leaveReason}
+                      onChange={(e) => setLeaveReason(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                      placeholder="Reason"
+                    />
+                    <div className="md:col-span-2 flex justify-end">
+                      <button
+                        onClick={handleLeaveRequest}
+                        className="px-6 py-3 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+                      >
+                        Send Request to GM
+                      </button>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                  <p className="mt-3 text-[10px] text-slate-500 dark:text-blue-300/60 font-bold uppercase tracking-widest">
+                    Requests are emailed to gm@zayagroupltd.com.
+                  </p>
+                </div>
 
-              <div className="mt-4 flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gold"></span>Present</span>
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Leave</span>
-                <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span>Sick</span>
-              </div>
-            </div>
+                <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance Calendar</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                        className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
+                        aria-label="Previous month"
+                      >
+                        <i className="fas fa-chevron-left text-xs"></i>
+                      </button>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{monthLabel}</span>
+                      <button
+                        onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                        className="w-8 h-8 rounded-lg border border-slate-200 dark:border-blue-400/20 text-slate-500 dark:text-blue-200 hover:border-gold transition-all"
+                        aria-label="Next month"
+                      >
+                        <i className="fas fa-chevron-right text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[9px] font-black text-slate-500 dark:text-blue-300/60 uppercase">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+                  <div className="mt-2 grid grid-cols-7 gap-1">
+                    {monthDays.map((cell, idx) => {
+                      if (!cell) return <div key={`empty-${idx}`} />;
+                      const attendance = myAttendanceByDate.get(cell.iso);
+                      const leaveTypeForDay = approvedLeaveDays.get(cell.iso);
+                      const todayIso = new Date().toISOString().slice(0, 10);
+                      const isToday = cell.iso === todayIso;
+
+                      const base =
+                        'h-8 rounded-lg text-xs font-black relative border transition-all flex items-center justify-center';
+                      const style = leaveTypeForDay
+                        ? leaveTypeForDay === 'sick'
+                          ? 'bg-red-500/15 border-red-400/30 text-red-700 dark:text-red-300'
+                          : 'bg-blue-500/15 border-blue-400/30 text-blue-700 dark:text-blue-200'
+                        : attendance
+                        ? 'bg-gold/15 border-gold text-gold'
+                        : 'bg-white/40 dark:bg-slate-950/30 border-slate-200 dark:border-blue-400/20 text-slate-700 dark:text-blue-200 hover:border-gold';
+
+                      return (
+                        <div key={cell.iso} className={`${base} ${style} ${isToday ? 'ring-2 ring-gold/40' : ''}`} title={attendance ? `Present (${attendance.checkIn ? 'IN' : ''}${attendance.checkOut ? ' / OUT' : ''})` : leaveTypeForDay ? `${leaveTypeForDay.toUpperCase()} (approved)` : ''}>
+                          {cell.day}
+                          {attendance && (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-gold border border-white/60"></span>
+                          )}
+                          {leaveTypeForDay && (
+                            <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ${leaveTypeForDay === 'sick' ? 'bg-red-500' : 'bg-blue-500'} border border-white/60`}></span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
+                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gold"></span>Present</span>
+                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Leave</span>
+                    <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500"></span>Sick</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

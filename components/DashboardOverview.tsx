@@ -353,14 +353,23 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     <div className={`${panelClass} p-8`}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Approval Center</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Centre and Employee Reporting & Performance</h2>
           <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
-            Admins are exempt from daily reports and attendance. Approve mid-day checkouts in the system or via email links.
+            Admins review employee reports, attendance, and weekly performance. Admin accounts do not submit daily reports or clock in/out.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
           <button onClick={() => onNavigate('admin')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
-            Open Approvals
+            Open Admin Centre
+          </button>
+          <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            View Reports
+          </button>
+          <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            Check Attendance
+          </button>
+          <button onClick={() => onNavigate('performance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+            Weekly Reports
           </button>
           <button onClick={() => onNavigate('chat')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
             Open Chat
@@ -370,10 +379,10 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
 
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'settings' },
+          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'performance' },
           { label: 'Notices', value: 'View', icon: 'fa-bell', action: 'notices' },
           { label: 'Tasks', value: 'Manage', icon: 'fa-list', action: 'tasks' },
-          { label: 'Admin Console', value: 'Open', icon: 'fa-user-shield', action: 'admin' },
+          { label: 'Admin Centre', value: 'Open', icon: 'fa-user-shield', action: 'admin' },
         ].map((kpi) => (
           <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={`${tileClass} text-left`}>
             <div className="flex items-start justify-between">
@@ -419,8 +428,8 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
         {[
           { label: 'My Reports', value: myReportsCount.toString(), icon: 'fa-clipboard-list', action: 'dailyReports' },
           { label: 'Today Attendance', value: todayAttendance?.checkIn ? (todayAttendance.checkOut ? 'OUT' : 'IN') : 'NONE', icon: 'fa-user-clock', action: 'attendance' },
-          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'settings' },
-          { label: 'Weekly Reports', value: weeklyReportsCount.toString(), icon: 'fa-calendar-day', action: 'dailyReports' },
+          { label: 'Performance Reviews', value: `${Math.round(Number(user.performanceScore ?? 0))}/100`, icon: 'fa-star', action: 'performance' },
+          { label: 'Weekly Reports', value: weeklyReportsCount.toString(), icon: 'fa-calendar-day', action: 'performance' },
         ].map((kpi) => (
           <button key={kpi.label} onClick={() => onNavigate(kpi.action)} className={`${tileClass} text-left`}>
             <div className="flex items-start justify-between">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { DailyReport, SystemUser } from '../types';
+import { UserRole, type DailyReport, type SystemUser } from '../types';
 import { createDailyReport, fetchDailyReports, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface DailyReportsProps {
@@ -14,6 +14,11 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isSaving, setIsSaving] = useState(false);
+  const [filterUserId, setFilterUserId] = useState<string>('ALL');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+
+  const canSubmit = user.role !== UserRole.ADMIN;
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -68,6 +73,18 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
     }
   };
 
+  const filteredReports = useMemo(() => {
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+    const to = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
+    return reports.filter((r) => {
+      if (isAdmin && filterUserId !== 'ALL' && r.userId !== filterUserId) return false;
+      const createdAt = new Date(r.createdAt).getTime();
+      if (from !== null && createdAt < from) return false;
+      if (to !== null && createdAt > to) return false;
+      return true;
+    });
+  }, [reports, isAdmin, filterUserId, fromDate, toDate]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="liquid-panel p-6">
@@ -79,63 +96,102 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
           <div className="text-[10px] font-black uppercase tracking-widest text-gold">Reports</div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Title</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-              placeholder="What did you work on?"
-            />
+        {canSubmit ? (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                placeholder="What did you work on?"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">
+                <i className="fas fa-calendar-alt text-gold"></i>
+                <span>Date</span>
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full min-h-40 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+                placeholder="Describe outcomes, blockers, and next steps."
+              />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                disabled={isSaving}
+                onClick={handleCreate}
+                className="px-6 py-3 rounded-2xl bg-gold text-enterprise-blue font-black uppercase tracking-widest text-[10px] shadow-xl disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
+              >
+                {isSaving ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">
-              <i className="fas fa-calendar-alt text-gold"></i>
-              <span>Date</span>
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-            />
+        ) : (
+          <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+            <p className="text-sm font-semibold text-slate-600 dark:text-blue-200">Admins are exempt from daily report submission.</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Use the report list below to review employee KPIs and weekly performance.</p>
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full min-h-40 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
-              placeholder="Describe outcomes, blockers, and next steps."
-            />
-          </div>
-          <div className="md:col-span-2 flex justify-end">
-            <button
-              disabled={isSaving}
-              onClick={handleCreate}
-              className="px-6 py-3 rounded-2xl bg-gold text-enterprise-blue font-black uppercase tracking-widest text-[10px] shadow-xl disabled:opacity-60 border-b-4 border-black/10 hover:brightness-110 active:scale-[0.98]"
-            >
-              {isSaving ? 'Submitting...' : 'Submit Report'}
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="liquid-panel p-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Report List</h3>
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{reports.length} total</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{filteredReports.length} total</span>
         </div>
 
-        {reports.length === 0 ? (
+        {isAdmin && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select
+              value={filterUserId}
+              onChange={(e) => setFilterUserId(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+            >
+              <option value="ALL">All employees</option>
+              {users
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((u) => (
+                  <option key={`filter-${u.id}`} value={u.id}>{u.name}</option>
+                ))}
+            </select>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+              placeholder="From"
+            />
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
+              placeholder="To"
+            />
+          </div>
+        )}
+
+        {filteredReports.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-dashed border-slate-300/70 dark:border-blue-400/20 p-8 text-center">
             <p className="text-sm font-semibold text-slate-600 dark:text-blue-200">No reports yet.</p>
             <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Submit your first daily report above.</p>
           </div>
         ) : (
           <div className="mt-6 space-y-3">
-            {reports.map((r) => (
+            {filteredReports.map((r) => (
               <div key={r.id} className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/50 dark:bg-slate-950/30 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">

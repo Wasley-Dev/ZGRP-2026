@@ -59,7 +59,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   // On small screens default sidebar to closed
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia('(max-width: 1024px)');
     if (mq.matches) setIsSidebarOpen(false);
     const handler = (e: MediaQueryListEvent) => { if (e.matches) setIsSidebarOpen(false); };
     mq.addEventListener('change', handler);
@@ -105,7 +105,10 @@ const Layout: React.FC<LayoutProps> = ({
 
   const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const isAdmin = isSuperAdmin || user.role === UserRole.ADMIN;
-  const isEmployeeWorkflowsEnabled = user.role !== UserRole.ADMIN;
+  const isGeneralManager =
+    String(user.email || '').toLowerCase() === 'gm@zayagroupltd.com' ||
+    /general manager/i.test(String(user.jobTitle || ''));
+  const isEmployeeWorkflowsSubmitter = user.role !== UserRole.ADMIN;
   const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
   const hasSalesAccess = isAdmin || isSalesDept;
@@ -124,8 +127,9 @@ const Layout: React.FC<LayoutProps> = ({
     ...(isSalesManager ? [{ id: 'dashboard', label: 'Enterprise Dashboard', icon: 'fa-chart-line' }] : []),
 
     // Employee reporting & performance
-    ...(isEmployeeWorkflowsEnabled ? [{ id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' }] : []),
-    ...(isEmployeeWorkflowsEnabled ? [{ id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' }] : []),
+    { id: 'dailyReports', label: isEmployeeWorkflowsSubmitter ? 'Daily Reports' : 'Employee Reports', icon: 'fa-clipboard-list' },
+    { id: 'attendance', label: isEmployeeWorkflowsSubmitter ? 'Attendance' : 'Team Attendance', icon: 'fa-user-clock' },
+    { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' },
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
     ...(isAdmin ? [{ id: 'notices', label: 'Notices', icon: 'fa-bell' }] : []),
     ...(isAdmin ? [{ id: 'tasks', label: 'Tasks', icon: 'fa-list' }] : []),
@@ -143,10 +147,10 @@ const Layout: React.FC<LayoutProps> = ({
   ];
 
   const adminItems = [
-    { id: 'admin', label: 'Admin Console', icon: 'fa-user-shield' },
+    { id: 'admin', label: 'Admin Centre and Employee Reporting & Performance', icon: 'fa-user-shield' },
     { id: 'employment', label: 'Employment Management', icon: 'fa-id-badge' },
     ...(isSuperAdmin ? [{ id: 'machines', label: 'Machine Auth', icon: 'fa-laptop-code' }] : []),
-    ...(isSuperAdmin ? [{ id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' }] : []),
+    ...(isSuperAdmin || isGeneralManager ? [{ id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' }] : []),
   ];
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -167,7 +171,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
-    const validModules = new Set(['dashboard','salesDashboard','leads','salesTargets','invoices','dailyReports','attendance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
+    const validModules = new Set(['dashboard','salesDashboard','leads','salesTargets','invoices','dailyReports','attendance','performance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
     const restrictedForSales = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
     if (n.origin && validModules.has(n.origin) && !(isSalesRestrictedUser && restrictedForSales.has(n.origin))) onModuleChange(n.origin);
     setIsNotifOpen(false);

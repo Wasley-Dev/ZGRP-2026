@@ -55,6 +55,7 @@ const LeadsModule = React.lazy(() => import('./components/LeadsModule'));
 const SalesTargetsModule = React.lazy(() => import('./components/SalesTargetsModule'));
 const InvoicesModule = React.lazy(() => import('./components/InvoicesModule'));
 const EmploymentManagement = React.lazy(() => import('./components/EmploymentManagement'));
+const PerformanceReports = React.lazy(() => import('./components/PerformanceReports'));
 const RecruitmentHub = React.lazy(() => import('./components/RecruitmentHub'));
 const BookingModule = React.lazy(() => import('./components/BookingModule'));
 const BroadcastModule = React.lazy(() => import('./components/BroadcastModule'));
@@ -80,6 +81,11 @@ const isSalesManagerUser = (user: SystemUser): boolean => {
 const isSalesRepUser = (user: SystemUser): boolean => isSalesDeptUser(user) && user.role === UserRole.USER && !isSalesManagerUser(user);
 const hasSalesAccess = (user: SystemUser): boolean => user.role !== UserRole.USER || isSalesDeptUser(user);
 const getHomeModule = (user: SystemUser): string => (isSalesDeptUser(user) && user.role === UserRole.USER ? 'salesDashboard' : 'dashboard');
+const isGeneralManagerUser = (user: SystemUser): boolean => {
+  const email = String(user.email || '').toLowerCase();
+  const jobTitle = String(user.jobTitle || '');
+  return email === 'gm@zayagroupltd.com' || /general manager/i.test(jobTitle);
+};
 
 const mergeSeedUsers = (seedUsers: SystemUser[], remoteUsers: SystemUser[]): SystemUser[] => {
   const seedById = new Map(seedUsers.map((user) => [user.id, user]));
@@ -537,7 +543,7 @@ const App: React.FC = () => {
   };
 
   const validModules = useMemo(
-    () => new Set(['dashboard', 'salesDashboard', 'leads', 'salesTargets', 'invoices', 'dailyReports', 'attendance', 'chat', 'notices', 'tasks', 'payroll', 'employment', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
+    () => new Set(['dashboard', 'salesDashboard', 'leads', 'salesTargets', 'invoices', 'dailyReports', 'attendance', 'performance', 'chat', 'notices', 'tasks', 'payroll', 'employment', 'candidates', 'database', 'recruitment', 'booking', 'broadcast', 'settings', 'admin', 'machines', 'recovery', 'reports']),
     []
   );
 
@@ -784,7 +790,7 @@ const App: React.FC = () => {
 
       const systemMode = getSystemMode(systemConfig);
       if (systemMode === 'SAFE' && matched.role === UserRole.USER) { clearRememberedAuth(); return; }
-      if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) { clearRememberedAuth(); return; }
+      if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN && !isGeneralManagerUser(matched)) { clearRememberedAuth(); return; }
 
       const updatedUser = { ...matched, lastLogin: new Date().toISOString() };
       setAllUsers(userDirectory.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
@@ -956,7 +962,7 @@ const App: React.FC = () => {
     if (matched.password !== password) return 'Invalid enterprise credentials. Access denied.';
     const systemMode = getSystemMode(systemConfig);
     if (systemMode === 'SAFE' && matched.role === UserRole.USER) return 'Safe mode is active. User accounts are currently restricted.';
-    if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN) return 'Recovery mode is active. Only super admin has full access currently.';
+    if (systemMode === 'RECOVERY' && matched.role !== UserRole.SUPER_ADMIN && !isGeneralManagerUser(matched)) return 'Recovery mode is active. Only super admin and GM have access currently.';
     const updatedUser = { ...matched, lastLogin: new Date().toISOString() };
     setAllUsers(userDirectory.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
     setCurrentUser(updatedUser);
@@ -1203,6 +1209,8 @@ const App: React.FC = () => {
   const renderModule = () => {
     const isSuperAdmin = currentUser.role === UserRole.SUPER_ADMIN;
     const isAdmin = isSuperAdmin || currentUser.role === UserRole.ADMIN;
+    const isGeneralManager = isGeneralManagerUser(currentUser);
+    const canAccessRecovery = isSuperAdmin || isGeneralManager;
     const isSalesDept = isSalesDeptUser(currentUser);
     const isSalesRestrictedUser = isSalesDept && currentUser.role === UserRole.USER;
     const canAccessSales = hasSalesAccess(currentUser);
@@ -1254,38 +1262,11 @@ const App: React.FC = () => {
       case 'invoices':
         return <InvoicesModule user={currentUser} users={allUsers} />;
       case 'dailyReports':
-        if (currentUser.role === UserRole.ADMIN) {
-          return (
-            <div className="liquid-panel p-6">
-              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Daily Reports</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Admins are exempt from daily report submission.</p>
-              <button
-                onClick={() => setActiveModule('admin')}
-                className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
-              >
-                Open Admin Console
-              </button>
-            </div>
-          );
-        }
         return <DailyReports user={currentUser} isAdmin={isAdmin} users={allUsers} />;
       case 'attendance':
-        if (currentUser.role === UserRole.ADMIN) {
-          return (
-            <div className="liquid-panel p-6">
-              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Admins are exempt from attendance clock-in/out.</p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Use Admin Console to approve mid-day checkout requests when needed.</p>
-              <button
-                onClick={() => setActiveModule('admin')}
-                className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
-              >
-                Open Admin Console
-              </button>
-            </div>
-          );
-        }
         return <AttendanceModule user={currentUser} isAdmin={isAdmin} users={allUsers} onNavigate={setActiveModule} />;
+      case 'performance':
+        return <PerformanceReports user={currentUser} users={allUsers} />;
       case 'chat':
         return <TeamChat user={currentUser} users={allUsers} />;
       case 'notices':
@@ -1332,7 +1313,7 @@ const App: React.FC = () => {
             </div>
           );
         }
-        return <AdminConsole users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} systemConfig={systemConfig} setSystemConfig={setSystemConfig} />;
+        return <AdminConsole users={allUsers} currentUser={currentUser} onUpdateUsers={updateUsers} systemConfig={systemConfig} setSystemConfig={setSystemConfig} onNavigate={setActiveModule} />;
       case 'machines':
         if (!isSuperAdmin) {
           return (
@@ -1382,11 +1363,11 @@ const App: React.FC = () => {
           />
         );
       case 'recovery':
-        if (!isSuperAdmin) {
+        if (!canAccessRecovery) {
           return (
             <div className="liquid-panel p-6">
               <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">System Recovery</h2>
-              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to super admin.</p>
+              <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">Access restricted to super admin and GM.</p>
             </div>
           );
         }
@@ -1394,14 +1375,14 @@ const App: React.FC = () => {
           <SystemRecovery
             systemConfig={systemConfig} currentUser={currentUser}
             onSaveConfig={(nextConfig) => {
-              if (currentUser.role !== UserRole.SUPER_ADMIN) { pushNotification('Permission Denied', 'Only super admin can change system mode and maintenance policy.', 'WARNING', 'recovery'); return; }
+              if (!canAccessRecovery) { pushNotification('Permission Denied', 'Only super admin and GM can change system mode and maintenance policy.', 'WARNING', 'recovery'); return; }
               setSystemConfig(nextConfig);
               pushNotification('System Recovery Updated', 'Maintenance settings were synchronized.', 'INFO', 'recovery');
             }}
             onTriggerBackup={() => { pushNotification('Backup Triggered', 'Manual backup initiated by admin.', 'SUCCESS', 'recovery'); }}
             onRestoreBackup={() => { pushNotification('Backup Restore Started', 'Restore sequence initiated from previous backup point.', 'WARNING', 'recovery'); }}
             onSetRestrictedAccess={async (enabled) => {
-              if (currentUser.role !== UserRole.SUPER_ADMIN) return;
+              if (!canAccessRecovery) return;
               const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
               setSystemConfig((prev) => ({ ...prev, maintenanceMode: enabled, maintenanceMessage: enabled ? `[MODE:SAFE] ${base}` : `[MODE:STANDARD] ${base}`, maintenanceUpdatedBy: currentUser.name, maintenanceUpdatedAt: new Date().toISOString() }));
               if (enabled && hasRemoteSessionStore()) {
@@ -1418,21 +1399,21 @@ const App: React.FC = () => {
               pushNotification(enabled ? 'Restricted Access Enabled' : 'Restricted Access Disabled', enabled ? 'Non-admin sessions were forced out.' : 'Standard access policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
             onSetStandbyMode={async (enabled) => {
-              if (currentUser.role !== UserRole.SUPER_ADMIN) return;
+              if (!canAccessRecovery) return;
               const base = (systemConfig.maintenanceMessage || '').replace(/\[MODE:[A-Z]+\]/g, '').trim() || 'System policy updated.';
               setSystemConfig((prev) => ({ ...prev, maintenanceMode: enabled, maintenanceMessage: enabled ? `[MODE:RECOVERY] ${base}` : `[MODE:STANDARD] ${base}`, maintenanceUpdatedBy: currentUser.name, maintenanceUpdatedAt: new Date().toISOString() }));
               if (enabled && hasRemoteSessionStore()) {
                 const sessions = await fetchActiveSessions();
-                const superAdminIds = new Set(allUsers.filter((u) => u.role === UserRole.SUPER_ADMIN).map((u) => u.id));
+                const recoveryAdminIds = new Set(allUsers.filter((u) => u.role === UserRole.SUPER_ADMIN || isGeneralManagerUser(u)).map((u) => u.id));
                 const reason = `Forced out by system policy: RECOVERY mode enabled by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
                 await Promise.all(
                   sessions
                     .filter((s) => s.id !== sessionIdRef.current)
-                    .filter((s) => !superAdminIds.has(s.userId))
+                    .filter((s) => !recoveryAdminIds.has(s.userId))
                     .map((s) => updateSessionStatus(s.id, 'FORCED_OUT', reason))
                 );
               }
-              pushNotification(enabled ? 'Standby Mode Enabled' : 'Standby Mode Disabled', enabled ? 'Only super admin sessions remain active.' : 'Normal session policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
+              pushNotification(enabled ? 'Standby Mode Enabled' : 'Standby Mode Disabled', enabled ? 'Only super admin + GM sessions remain active.' : 'Normal session policy restored.', enabled ? 'WARNING' : 'SUCCESS', 'recovery');
             }}
             onQueueUpdate={(version, channel, notes) => { pushNotification('Update Rollout Queued', `${version} queued on ${channel.toUpperCase()} channel. ${notes}`, 'INFO', 'recovery'); }}
             onExportReports={() => { setActiveModule('reports'); pushNotification('Report Export Console', 'Redirected to reports module for download.', 'INFO', 'reports'); }}
