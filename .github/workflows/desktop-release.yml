@@ -39,7 +39,8 @@ jobs:
         shell: pwsh
         run: |
           npm run build
-          npx electron-builder --win nsis --publish never
+          # Build both 64-bit and 32-bit installers when supported.
+          npx electron-builder --win nsis --x64 --ia32 --publish never
 
       - name: Upload Windows release assets
         uses: softprops/action-gh-release@v2
@@ -47,7 +48,7 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
           files: |
-            release/latest.yml
+            release/latest*.yml
             release/*Setup-*.exe
             release/*Setup-*.exe.blockmap
           generate_release_notes: true
@@ -95,13 +96,21 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.mac_creds.outputs.enabled == 'true' && 'true' || 'false' }}
           SKIP_NOTARIZATION: ${{ steps.mac_creds.outputs.enabled == 'true' && '0' || '1' }}
         shell: bash
         run: |
           set -euo pipefail
           npm run build
-          npx electron-builder --mac dmg zip --publish never
+          if [ "${{ steps.mac_creds.outputs.enabled }}" = "true" ]; then
+            # Signed + notarized builds (recommended; avoids “App is damaged”).
+            npx electron-builder --mac dmg zip --x64 --arm64 --publish never
+          else
+            # Unsigned builds (temporary workaround). Disable hardened runtime + signing.
+            npx electron-builder --mac dmg zip --x64 --arm64 --publish never \
+              -c.mac.hardenedRuntime=false \
+              -c.mac.gatekeeperAssess=false \
+              -c.mac.identity=null
+          fi
 
       - name: Upload macOS release assets
         uses: softprops/action-gh-release@v2
@@ -109,7 +118,7 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
           files: |
-            release/latest-mac.yml
+            release/latest-mac*.yml
             release/*-mac.dmg
             release/*-mac.zip
             release/*-mac.zip.blockmap
