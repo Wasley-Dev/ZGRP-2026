@@ -10,7 +10,7 @@ interface SalesDashboardProps {
 const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => {
   const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
-  const canViewAllSales = user.role !== UserRole.USER || isSalesManager;
+  const canViewAllSales = user.role === UserRole.SUPER_ADMIN || isSalesManager;
   const [leads, setLeads] = useState<Lead[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [targets, setTargets] = useState<SalesTarget[]>([]);

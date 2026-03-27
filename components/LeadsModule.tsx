@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { type Lead, type LeadStatus, type SystemUser, UserRole } from '../types';
 import { createLead, fetchLeads, updateLead, updateLeadStatus } from '../services/salesService';
 
@@ -10,8 +12,8 @@ interface LeadsModuleProps {
 const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
-  const canViewAll = user.role !== UserRole.USER || isSalesManager;
-  const canAssign = user.role !== UserRole.USER || isSalesManager;
+  const canViewAll = user.role === UserRole.SUPER_ADMIN || isSalesManager;
+  const canAssign = user.role === UserRole.SUPER_ADMIN || isSalesManager;
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -21,9 +23,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   const [email, setEmail] = useState('');
   const [estimatedValue, setEstimatedValue] = useState('');
   const [notes, setNotes] = useState('');
+  const [followUpAt, setFollowUpAt] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
   const [assigneeId, setAssigneeId] = useState(user.id);
   const [editing, setEditing] = useState<Lead | null>(null);
-  const [editDraft, setEditDraft] = useState<{ name: string; company: string; phone: string; email: string; status: LeadStatus; estimatedValue: string; notes: string }>({
+  const [editDraft, setEditDraft] = useState<{ name: string; company: string; phone: string; email: string; status: LeadStatus; estimatedValue: string; notes: string; followUpAt: string; followUpNotes: string }>({
     name: '',
     company: '',
     phone: '',
@@ -31,6 +35,8 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
     status: 'new',
     estimatedValue: '',
     notes: '',
+    followUpAt: '',
+    followUpNotes: '',
   });
 
   const displayUsers = useMemo(() => users.filter((u) => u.status !== 'BANNED'), [users]);
@@ -58,9 +64,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
         status: 'new',
         estimatedValue: estimatedValue.trim() ? Number(estimatedValue) : undefined,
         notes: notes.trim() || undefined,
+        followUpAt: followUpAt.trim() || undefined,
+        followUpNotes: followUpNotes.trim() || undefined,
       });
       setLeads((prev) => [created, ...prev]);
-      setName(''); setCompany(''); setPhone(''); setEmail(''); setEstimatedValue(''); setNotes('');
+      setName(''); setCompany(''); setPhone(''); setEmail(''); setEstimatedValue(''); setNotes(''); setFollowUpAt(''); setFollowUpNotes('');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to create lead.');
     } finally {
@@ -87,6 +95,8 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
       status: lead.status,
       estimatedValue: lead.estimatedValue != null ? String(lead.estimatedValue) : '',
       notes: lead.notes || '',
+      followUpAt: lead.followUpAt || '',
+      followUpNotes: lead.followUpNotes || '',
     });
   };
 
@@ -100,6 +110,8 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
       status: editDraft.status,
       estimatedValue: editDraft.estimatedValue.trim() ? Number(editDraft.estimatedValue) : undefined,
       notes: editDraft.notes.trim() || undefined,
+      followUpAt: editDraft.followUpAt.trim() || undefined,
+      followUpNotes: editDraft.followUpNotes.trim() || undefined,
     };
     setLeads((prev) => prev.map((l) => (l.id === editing.id ? { ...l, ...patch } : l)));
     try {
@@ -132,6 +144,51 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
       ...rows.map((r) => headers.map((h) => escape((r as any)[h])).join(',')),
     ].join('\n');
     downloadBlob(filename, new Blob([lines], { type: 'text/csv;charset=utf-8' }));
+  };
+
+  const downloadLeadPdf = (lead: Lead) => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const colorBlue: [number, number, number] = [0, 51, 102];
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pdf.internal.pageSize.getHeight(), 'F');
+
+    pdf.setTextColor(...colorBlue);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.text('ZAYA GROUP — SALES LEAD', 14, 16);
+    pdf.setDrawColor(212, 175, 55);
+    pdf.setLineWidth(0.6);
+    pdf.line(14, 19, 196, 19);
+
+    const owner = users.find((u) => u.id === lead.userId)?.name || lead.userId;
+    autoTable(pdf, {
+      startY: 26,
+      theme: 'grid',
+      head: [['Field', 'Value']],
+      body: [
+        ['Lead ID', lead.id],
+        ['Owner', owner],
+        ['Name', lead.name || '-'],
+        ['Company', lead.company || '-'],
+        ['Phone', lead.phone || '-'],
+        ['Email', lead.email || '-'],
+        ['Status', lead.status || '-'],
+        ['Estimated Value', lead.estimatedValue != null ? `TZS ${Math.round(Number(lead.estimatedValue)).toLocaleString()}` : '-'],
+        ['Follow-up Date', lead.followUpAt || '-'],
+        ['Follow-up Notes', lead.followUpNotes || '-'],
+        ['Notes', lead.notes || '-'],
+        ['Created', lead.createdAt ? new Date(lead.createdAt).toLocaleString('en-GB') : '-'],
+      ],
+      styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    const safeName = String(lead.name || 'lead').replace(/\s+/g, '_').replace(/[^\w\-]/g, '');
+    pdf.save(`${safeName}_Lead.pdf`);
   };
 
   const printLead = (lead: Lead) => {
@@ -167,6 +224,10 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
             <div class="row" style="margin-top:12px;">
               <div class="col"><div class="k">Status</div><div class="v">${lead.status}</div></div>
               <div class="col"><div class="k">Estimated Value</div><div class="v">${lead.estimatedValue != null ? `TZS ${Math.round(Number(lead.estimatedValue)).toLocaleString()}` : ''}</div></div>
+            </div>
+            <div class="row" style="margin-top:12px;">
+              <div class="col"><div class="k">Follow-up Date</div><div class="v">${lead.followUpAt || ''}</div></div>
+              <div class="col"><div class="k">Follow-up Notes</div><div class="v">${(lead.followUpNotes || '').replace(/\n/g, '<br/>')}</div></div>
             </div>
             <div style="margin-top:12px;">
               <div class="k">Notes</div><div class="v">${(lead.notes || '').replace(/\n/g, '<br/>')}</div>
@@ -212,10 +273,12 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
               </select>
               <input value={editDraft.estimatedValue} onChange={(e) => setEditDraft((p) => ({ ...p, estimatedValue: e.target.value }))} className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Estimated value (TZS)" />
               <textarea value={editDraft.notes} onChange={(e) => setEditDraft((p) => ({ ...p, notes: e.target.value }))} className="md:col-span-2 w-full min-h-28 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Notes" />
+              <input value={editDraft.followUpAt} onChange={(e) => setEditDraft((p) => ({ ...p, followUpAt: e.target.value }))} type="date" className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" />
+              <textarea value={editDraft.followUpNotes} onChange={(e) => setEditDraft((p) => ({ ...p, followUpNotes: e.target.value }))} className="w-full min-h-28 p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" placeholder="Follow-up notes" />
             </div>
             <div className="p-6 border-t dark:border-slate-700 flex justify-between gap-3 bg-slate-50 dark:bg-slate-900/40">
-              <button onClick={() => { downloadBlob(`lead_${editing.id}.json`, new Blob([JSON.stringify(editing, null, 2)], { type: 'application/json' })); }} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Download
+              <button onClick={() => downloadLeadPdf({ ...editing, ...editDraft, estimatedValue: editDraft.estimatedValue ? Number(editDraft.estimatedValue) : undefined } as any)} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Download PDF
               </button>
               <div className="flex gap-3">
                 <button onClick={() => printLead({ ...editing, ...editDraft, estimatedValue: editDraft.estimatedValue ? Number(editDraft.estimatedValue) : undefined } as any)} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -275,6 +338,8 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
             <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none" placeholder="Email (optional)" />
             <input value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none" placeholder="Estimated value (TZS)" />
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="md:col-span-2 w-full min-h-24 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none" placeholder="Notes (optional)" />
+            <input value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} type="date" className="w-full p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none" />
+            <textarea value={followUpNotes} onChange={(e) => setFollowUpNotes(e.target.value)} className="w-full min-h-24 p-4 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none" placeholder="Follow-up notes (optional)" />
             <div className="md:col-span-2 flex justify-end">
               <button disabled={isSaving} onClick={() => void handleCreate()} className="px-6 py-3 rounded-2xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow disabled:opacity-60">
                 {isSaving ? 'Saving...' : 'Create Lead'}
@@ -301,6 +366,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
                     <p className="mt-2 text-xs text-slate-600 dark:text-blue-200 font-semibold">
                       {(l.phone || l.email) ? `${l.phone || ''}${l.phone && l.email ? ' • ' : ''}${l.email || ''}` : 'No contact details'}
                     </p>
+                    {l.followUpAt && (
+                      <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-300">
+                        Follow-up: {l.followUpAt}{l.followUpNotes ? ` • ${l.followUpNotes}` : ''}
+                      </p>
+                    )}
                     {l.notes && <p className="mt-2 text-sm text-slate-700 dark:text-blue-200 whitespace-pre-wrap">{l.notes}</p>}
                     {user.role === UserRole.USER && (
                       <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
@@ -332,10 +402,10 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
                       Print
                     </button>
                     <button
-                      onClick={() => downloadBlob(`lead_${l.id}.json`, new Blob([JSON.stringify(l, null, 2)], { type: 'application/json' }))}
+                      onClick={() => downloadLeadPdf(l)}
                       className="px-3 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
                     >
-                      Download
+                      Download PDF
                     </button>
                   </div>
                   {(['new','contacted','qualified','won','lost'] as LeadStatus[]).map((s) => (

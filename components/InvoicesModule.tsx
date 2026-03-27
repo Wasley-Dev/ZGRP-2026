@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { type Invoice, type InvoiceStatus, type SystemUser, UserRole } from '../types';
 import { createInvoice, fetchInvoices, updateInvoice, updateInvoiceStatus } from '../services/salesService';
 
@@ -10,8 +12,8 @@ interface InvoicesModuleProps {
 const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
   const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
-  const canViewAll = user.role !== UserRole.USER || isSalesManager;
-  const canAssign = user.role !== UserRole.USER || isSalesManager;
+  const canViewAll = user.role === UserRole.SUPER_ADMIN || isSalesManager;
+  const canAssign = user.role === UserRole.SUPER_ADMIN || isSalesManager;
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -106,6 +108,47 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
       ...rows.map((r) => headers.map((h) => escape((r as any)[h])).join(',')),
     ].join('\n');
     downloadBlob(filename, new Blob([lines], { type: 'text/csv;charset=utf-8' }));
+  };
+
+  const downloadInvoicePdf = (invoice: Invoice) => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const colorBlue: [number, number, number] = [0, 51, 102];
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pdf.internal.pageSize.getHeight(), 'F');
+
+    pdf.setTextColor(...colorBlue);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.text('ZAYA GROUP — INVOICE RECORD', 14, 16);
+    pdf.setDrawColor(212, 175, 55);
+    pdf.setLineWidth(0.6);
+    pdf.line(14, 19, 196, 19);
+
+    const owner = users.find((u) => u.id === invoice.userId)?.name || invoice.userId;
+    autoTable(pdf, {
+      startY: 26,
+      theme: 'grid',
+      head: [['Field', 'Value']],
+      body: [
+        ['Invoice ID', invoice.id],
+        ['Owner', owner],
+        ['Invoice No', invoice.invoiceNo || '-'],
+        ['Client', invoice.client || '-'],
+        ['Amount', `TZS ${Math.round(Number(invoice.amount || 0)).toLocaleString()}`],
+        ['Status', invoice.status || '-'],
+        ['Due Date', invoice.dueDate || '-'],
+        ['Created', invoice.createdAt ? new Date(invoice.createdAt).toLocaleString('en-GB') : '-'],
+      ],
+      styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    const safeNo = String(invoice.invoiceNo || 'invoice').replace(/\s+/g, '_').replace(/[^\w\-]/g, '');
+    pdf.save(`${safeNo}_Invoice.pdf`);
   };
 
   const printInvoice = (invoice: Invoice) => {
@@ -205,8 +248,8 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
               <input value={editDraft.dueDate} onChange={(e) => setEditDraft((p) => ({ ...p, dueDate: e.target.value }))} type="date" className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none" />
             </div>
             <div className="p-6 border-t dark:border-slate-700 flex justify-between gap-3 bg-slate-50 dark:bg-slate-900/40">
-              <button onClick={() => { downloadBlob(`invoice_${editing.id}.json`, new Blob([JSON.stringify(editing, null, 2)], { type: 'application/json' })); }} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Download
+              <button onClick={() => downloadInvoicePdf(editing)} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Download PDF
               </button>
               <div className="flex gap-3">
                 <button onClick={() => printInvoice({ ...editing, ...editDraft, amount: Number(editDraft.amount) } as any)} className="px-5 py-3 rounded-xl border dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-500">
@@ -310,10 +353,10 @@ const InvoicesModule: React.FC<InvoicesModuleProps> = ({ user, users }) => {
                       Print
                     </button>
                     <button
-                      onClick={() => downloadBlob(`invoice_${i.id}.json`, new Blob([JSON.stringify(i, null, 2)], { type: 'application/json' }))}
+                      onClick={() => downloadInvoicePdf(i)}
                       className="px-3 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
                     >
-                      Download
+                      Download PDF
                     </button>
                   </div>
                   {(['draft','sent','paid','overdue','void'] as InvoiceStatus[]).map((s) => (

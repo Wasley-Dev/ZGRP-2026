@@ -136,14 +136,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
 
                 <div>
                   <label className="mb-2 block text-xs font-black uppercase tracking-[0.28em] text-[#003366]/55">
-                    Enterprise Email
+                    Email or Username
                   </label>
                   <input
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-2xl border border-[#003366]/20 bg-white px-4 py-3.5 font-semibold text-[#1e293b] outline-none transition-all placeholder:text-slate-300 focus:border-[#003366] focus:ring-4 focus:ring-[#003366]/10"
-                    placeholder="username@zayagroupltd.com"
+                    placeholder="username@zayagroupltd.com or Christopher Martin"
                     required
                   />
                 </div>

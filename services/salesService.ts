@@ -65,6 +65,8 @@ const toLead = (row: any): Lead => ({
   status: String(row.status || 'new') as any,
   estimatedValue: row.estimated_value != null ? Number(row.estimated_value) : undefined,
   notes: row.notes ? String(row.notes) : undefined,
+  followUpAt: row.follow_up_at ? String(row.follow_up_at) : undefined,
+  followUpNotes: row.follow_up_notes ? String(row.follow_up_notes) : undefined,
   createdAt: String(row.created_at || ''),
 });
 
@@ -123,6 +125,8 @@ export const createLead = async (
     status: input.status,
     estimated_value: input.estimatedValue ?? null,
     notes: input.notes || null,
+    follow_up_at: input.followUpAt || null,
+    follow_up_notes: input.followUpNotes || null,
     created_at: nowIso(),
   };
   const { data, error } = await supabase.from('leads').insert(payload).select('*').single();
@@ -145,7 +149,7 @@ export const updateLeadStatus = async (leadId: string, status: Lead['status']): 
 
 export const updateLead = async (
   leadId: string,
-  patch: Partial<Pick<Lead, 'name' | 'company' | 'phone' | 'email' | 'status' | 'estimatedValue' | 'notes'>>
+  patch: Partial<Pick<Lead, 'name' | 'company' | 'phone' | 'email' | 'status' | 'estimatedValue' | 'notes' | 'followUpAt' | 'followUpNotes'>>
 ): Promise<void> => {
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray(
@@ -161,6 +165,8 @@ export const updateLead = async (
   if (patch.status != null) payload.status = patch.status;
   if (patch.estimatedValue !== undefined) payload.estimated_value = patch.estimatedValue ?? null;
   if (patch.notes !== undefined) payload.notes = patch.notes || null;
+  if (patch.followUpAt !== undefined) payload.follow_up_at = patch.followUpAt || null;
+  if (patch.followUpNotes !== undefined) payload.follow_up_notes = patch.followUpNotes || null;
   const { error } = await supabase.from('leads').update(payload).eq('id', leadId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
 };

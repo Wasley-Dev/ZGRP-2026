@@ -156,6 +156,8 @@ export interface Lead {
   status: LeadStatus;
   estimatedValue?: number;
   notes?: string;
+  followUpAt?: string; // YYYY-MM-DD
+  followUpNotes?: string;
   createdAt: string;
 }
 

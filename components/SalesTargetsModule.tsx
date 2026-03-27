@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { type Invoice, type Lead, type SalesTarget, type SystemConfig, type SystemUser, UserRole } from '../types';
 import { fetchInvoices, fetchLeads, fetchSalesTargets, upsertSalesTarget } from '../services/salesService';
 
@@ -11,9 +13,9 @@ interface SalesTargetsModuleProps {
 const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, systemConfig }) => {
   const isSalesDept = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
-  const canViewAllSales = user.role !== UserRole.USER || isSalesManager;
+  const canViewAllSales = user.role === UserRole.SUPER_ADMIN || isSalesManager;
   const canEditTargets = user.role === UserRole.SUPER_ADMIN || isSalesManager || (user.role === UserRole.ADMIN && Boolean(systemConfig.salesAdminWriteEnabled));
-  const canChooseAssignee = user.role !== UserRole.USER || isSalesManager;
+  const canChooseAssignee = user.role === UserRole.SUPER_ADMIN || isSalesManager;
   const now = useMemo(() => new Date(), []);
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -103,6 +105,46 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, sy
     window.setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
+  const downloadTargetsPdf = () => {
+    const targetName = users.find((u) => u.id === targetUserId)?.name || targetUserId;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const colorBlue: [number, number, number] = [0, 51, 102];
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(0, 0, pageWidth, pdf.internal.pageSize.getHeight(), 'F');
+
+    pdf.setTextColor(...colorBlue);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.text('ZAYA GROUP — SALES TARGETS / KPIs', 14, 16);
+    pdf.setDrawColor(212, 175, 55);
+    pdf.setLineWidth(0.6);
+    pdf.line(14, 19, 196, 19);
+
+    autoTable(pdf, {
+      startY: 26,
+      theme: 'grid',
+      head: [['Field', 'Value']],
+      body: [
+        ['Assignee', targetName],
+        ['Month/Year', `${month}/${year}`],
+        ['Leads Target', String(Number(leadsTarget || 0))],
+        ['Leads Progress', `${myLeadsCount} (${progress.leadsPct}%)`],
+        ['Revenue Target', `TZS ${Math.round(Number(revenueTarget || 0)).toLocaleString()}`],
+        ['Revenue Paid', `TZS ${Math.round(myRevenuePaid).toLocaleString()} (${progress.revenuePct}%)`],
+        ['Generated', new Date().toLocaleString('en-GB')],
+      ],
+      styles: { fontSize: 10, textColor: [0, 51, 102], cellPadding: 3 },
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 247, 252] },
+      margin: { left: 14, right: 14 },
+    });
+
+    const safeName = String(targetName).replace(/\s+/g, '_').replace(/[^\w\-]/g, '');
+    pdf.save(`${safeName}_Targets_${year}_${month}.pdf`);
+  };
+
   const printTargets = () => {
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return;
@@ -154,10 +196,10 @@ const SalesTargetsModule: React.FC<SalesTargetsModuleProps> = ({ user, users, sy
               Print
             </button>
             <button
-              onClick={() => downloadBlob(`sales_targets_${targetUserId}_${year}_${month}.json`, new Blob([JSON.stringify(myTarget || { userId: targetUserId, month, year, leadsTarget: Number(leadsTarget || 0), revenueTarget: Number(revenueTarget || 0) }, null, 2)], { type: 'application/json' }))}
+              onClick={downloadTargetsPdf}
               className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
             >
-              Download
+              Download PDF
             </button>
             <span className="text-[10px] font-black uppercase tracking-widest text-gold">{myTarget ? 'Configured' : 'Not set'}</span>
           </div>

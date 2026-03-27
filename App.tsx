@@ -984,20 +984,39 @@ const App: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [isLoggedIn, systemConfig.backupHour]);
 
+  const normalizeLoginKey = (value: string): string =>
+    value.trim().replace(/\s+/g, ' ').toLowerCase();
+
   const handleLogin = async (email: string, password: string, rememberMe: boolean): Promise<string | null> => {
-    const normalizedEmail = email.trim().toLowerCase();
+    const input = String(email || '');
+    const normalizedEmail = normalizeLoginKey(input);
     let userDirectory = allUsers;
-    let matched = userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
+
+    const findMatch = (directory: SystemUser[]): { user: SystemUser | null; matchType: 'email' | 'name' | null } => {
+      const byEmail = directory.find((u) => u.email.toLowerCase() === normalizedEmail);
+      if (byEmail) return { user: byEmail, matchType: 'email' };
+      if (normalizedEmail.includes('@')) return { user: null, matchType: null };
+      const byName = directory.find((u) => normalizeLoginKey(u.name) === normalizedEmail);
+      if (byName) return { user: byName, matchType: 'name' };
+      return { user: null, matchType: null };
+    };
+
+    let { user: matched, matchType } = findMatch(userDirectory);
     if (!matched && hasRemoteUserDirectory()) {
       const remoteUsers = normalizeUsers(await fetchRemoteUsers());
       if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(seedUsers, remoteUsers);
+        const merged = mergeSeedUsers(seedUsers, filterDisabledSeedUsers(remoteUsers), { includeMissingSeeds: false });
         userDirectory = merged;
         setAllUsers(merged);
-        matched = merged.find((u) => u.email.toLowerCase() === normalizedEmail);
+        const res = findMatch(merged);
+        matched = res.user;
+        matchType = res.matchType;
       }
     }
     if (!matched) return 'Account not found. Contact admin.';
+    if (matchType === 'name' && matched.role !== UserRole.USER) {
+      return 'Admins must sign in with their enterprise email address.';
+    }
     if (matched.status === 'BANNED') return 'This account is banned. Contact administrator.';
     if (matched.password !== password) return 'Invalid enterprise credentials. Access denied.';
     const systemMode = getSystemMode(systemConfig);
