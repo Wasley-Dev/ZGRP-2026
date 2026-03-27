@@ -39,8 +39,13 @@ jobs:
         shell: pwsh
         run: |
           npm run build
-          # Build both 64-bit and 32-bit installers when supported.
-          npx electron-builder --win nsis --x64 --ia32 --publish never
+          npx electron-builder --win nsis --x64 --publish never
+          try {
+            # 32-bit Windows builds may not be supported by newer Electron versions.
+            npx electron-builder --win nsis --ia32 --publish never
+          } catch {
+            Write-Host "32-bit (ia32) Windows build failed/skipped: $($_.Exception.Message)"
+          }
 
       - name: Upload Windows release assets
         uses: softprops/action-gh-release@v2
@@ -113,14 +118,23 @@ jobs:
               -c.mac.identity=null
           fi
 
-      - name: Upload macOS release assets
+      - name: Upload macOS ZIP + update metadata
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
           files: |
             release/latest-mac*.yml
-            release/*-mac.dmg
             release/*-mac.zip
             release/*-mac.zip.blockmap
+          generate_release_notes: false
+
+      - name: Upload macOS DMG (signed builds only)
+        if: ${{ steps.mac_creds.outputs.enabled == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            release/*-mac.dmg
           generate_release_notes: false

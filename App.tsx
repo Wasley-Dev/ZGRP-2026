@@ -87,7 +87,16 @@ const isGeneralManagerUser = (user: SystemUser): boolean => {
   return email === 'gm@zayagroupltd.com' || /general manager/i.test(jobTitle);
 };
 
-const mergeSeedUsers = (seedUsers: SystemUser[], remoteUsers: SystemUser[]): SystemUser[] => {
+const mergeSeedUsers = (
+  seedUsers: SystemUser[],
+  remoteUsers: SystemUser[],
+  options?: { includeMissingSeeds?: boolean }
+): SystemUser[] => {
+  const includeMissingSeeds = options?.includeMissingSeeds ?? false;
+  if (remoteUsers.length === 0) {
+    // First-run bootstrap (no remote directory / empty directory).
+    return [...seedUsers].sort((a, b) => a.name.localeCompare(b.name));
+  }
   const seedById = new Map(seedUsers.map((user) => [user.id, user]));
   const seedByEmail = new Map(seedUsers.map((user) => [user.email.toLowerCase(), user]));
   const seenIds = new Set<string>();
@@ -102,6 +111,10 @@ const mergeSeedUsers = (seedUsers: SystemUser[], remoteUsers: SystemUser[]): Sys
     if (remote.password && remote.password.trim().length > 0) return remote;
     return { ...remote, password: seedMatch.password };
   });
+
+  if (!includeMissingSeeds) {
+    return mergedRemote.sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   const missingSeeds = seedUsers.filter((seed) => {
     const emailKey = seed.email.toLowerCase();
@@ -285,9 +298,15 @@ const App: React.FC = () => {
       };
     });
 
+  const filterDisabledSeedUsers = (users: SystemUser[]): SystemUser[] => {
+    const blockedEmails = new Set(['s.miller@zayagroupltd.com', 'j.wilson@zayagroupltd.com']);
+    return users.filter((u) => !blockedEmails.has(String(u.email || '').toLowerCase()));
+  };
+
   const initialSharedState = useMemo(
-    () => loadSharedState({
-      bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
+    () => {
+      const loaded = loadSharedState({
+        bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
       systemConfig: {
         systemName: 'Zaya Group Portal',
         logoIcon: 'fa-z',
@@ -296,7 +315,16 @@ const App: React.FC = () => {
         backupHour: 15,
         salesAdminWriteEnabled: false,
       },
-    }), []
+      });
+
+      const cleanedUsers = filterDisabledSeedUsers(loaded.users || []);
+      if (typeof window !== 'undefined' && cleanedUsers.length !== (loaded.users || []).length) {
+        const cleaned = { ...loaded, users: cleanedUsers, updatedAt: Date.now(), updatedBy: 'migration' };
+        try { window.localStorage.setItem('zaya_shared_state_v2', JSON.stringify(cleaned)); } catch { /* ignore */ }
+        return cleaned;
+      }
+      return { ...loaded, users: cleanedUsers };
+    }, []
   );
 
   const clientIdRef = useRef(`client-${Math.random().toString(36).slice(2, 11)}`);
@@ -321,10 +349,11 @@ const App: React.FC = () => {
   const sessionsHashRef = useRef(0);
   // Track notification auto-dismiss timers so we can cancel them if manually dismissed
   const dismissTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  // Seed users must always exist even if a stored/shared snapshot is missing them (e.g., older clients publishing).
+  // Seed users are bootstrap accounts (super admin / GM / initial staff), but they should not overwrite
+  // the user directory once admins start managing staff.
   const seedUsers = useMemo(() => normalizeUsers(MOCK_USERS), []);
   const initialUsers = useMemo(
-    () => mergeSeedUsers(seedUsers, normalizeUsers(initialSharedState.users)),
+    () => mergeSeedUsers(seedUsers, normalizeUsers(initialSharedState.users), { includeMissingSeeds: false }),
     [seedUsers, initialSharedState.users]
   );
 
@@ -357,8 +386,14 @@ const App: React.FC = () => {
   });
   const DEMO_SEED_DISABLED_KEY = 'zaya_demo_seed_disabled_v1';
   const [demoSeedingEnabled, setDemoSeedingEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem(DEMO_SEED_DISABLED_KEY) !== '1';
+    if (typeof window === 'undefined') return false;
+    // Default is disabled for production unless explicitly enabled.
+    const stored = window.localStorage.getItem(DEMO_SEED_DISABLED_KEY);
+    if (stored === null) {
+      try { window.localStorage.setItem(DEMO_SEED_DISABLED_KEY, '1'); } catch { /* ignore */ }
+      return false;
+    }
+    return stored !== '1';
   });
   const [hasSeenInstallOrientation, setHasSeenInstallOrientation] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -598,7 +633,10 @@ const App: React.FC = () => {
       if (!snapshot || cancelled) return;
       if (snapshot.bookings?.length) setBookings(snapshot.bookings);
       if (snapshot.candidates?.length) setCandidates(snapshot.candidates);
-      if (snapshot.users?.length) setAllUsers(mergeSeedUsers(seedUsers, normalizeUsers(snapshot.users)));
+      if (snapshot.users?.length) {
+        const cleaned = filterDisabledSeedUsers(normalizeUsers(snapshot.users));
+        setAllUsers(mergeSeedUsers(seedUsers, cleaned, { includeMissingSeeds: false }));
+      }
       if (snapshot.systemConfig) setSystemConfig(snapshot.systemConfig);
     };
     hydrateLocal();
@@ -609,15 +647,17 @@ const App: React.FC = () => {
     let cancelled = false;
     const hydrateUsers = async () => {
       if (!hasRemoteUserDirectory()) { remoteHydratedRef.current = true; return; }
-      const remoteUsers = normalizeUsers(await fetchRemoteUsers());
+      const rawRemoteUsers = normalizeUsers(await fetchRemoteUsers());
+      const blockedEmails = new Set(['s.miller@zayagroupltd.com', 'j.wilson@zayagroupltd.com']);
+      const blockedIds = rawRemoteUsers.filter((u) => blockedEmails.has(String(u.email || '').toLowerCase())).map((u) => u.id);
+      const remoteUsers = filterDisabledSeedUsers(rawRemoteUsers);
       if (cancelled) return;
       if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(seedUsers, remoteUsers);
+        const merged = mergeSeedUsers(seedUsers, remoteUsers, { includeMissingSeeds: false });
         setAllUsers(merged);
         setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
-        if (merged.length !== remoteUsers.length) {
-          try { await syncRemoteUsers(merged); } catch { /* ignore */ }
-        }
+        // Ensure legacy demo users are removed remotely too.
+        if (blockedIds.length) { try { await removeRemoteUsers(blockedIds); } catch { /* ignore */ } }
       } else { await syncRemoteUsers(initialUsers); }
       remoteHydratedRef.current = true;
     };
