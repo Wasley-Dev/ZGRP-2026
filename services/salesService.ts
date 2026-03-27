@@ -1,13 +1,20 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { type Invoice, type Lead, type SalesTarget, type SystemUser } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
+let supabase: SupabaseClient | null = null;
+let supabaseConfigKey = '';
+const getSupabase = (): SupabaseClient | null => {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  const key = `${config.url}|${config.anonKey}`;
+  if (supabase && supabaseConfigKey === key) return supabase;
+  supabase = createClient(config.url, config.anonKey);
+  supabaseConfigKey = key;
+  return supabase;
+};
 
-const supabase: SupabaseClient | null =
-  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-
-export const hasSalesSupabase = () => Boolean(supabase);
+export const hasSalesSupabase = () => Boolean(getSupabase());
 
 const nowIso = () => new Date().toISOString();
 
@@ -67,6 +74,7 @@ const toLead = (row: any): Lead => ({
   notes: row.notes ? String(row.notes) : undefined,
   followUpAt: row.follow_up_at ? String(row.follow_up_at) : undefined,
   followUpNotes: row.follow_up_notes ? String(row.follow_up_notes) : undefined,
+  reminderSentAt: row.reminder_sent_at ? String(row.reminder_sent_at) : undefined,
   createdAt: String(row.created_at || ''),
 });
 
@@ -93,9 +101,10 @@ const toTarget = (row: any): SalesTarget => ({
 
 export const fetchLeads = async (user: SystemUser, canViewAll: boolean): Promise<Lead[]> => {
   const local = readLocalArray<Lead>('leads', []);
-  if (!supabase) return canViewAll ? local : local.filter((l) => l.userId === user.id);
+  const client = getSupabase();
+  if (!client) return canViewAll ? local : local.filter((l) => l.userId === user.id);
 
-  const q = supabase.from('leads').select('*').order('created_at', { ascending: false }).limit(300);
+  const q = client.from('leads').select('*').order('created_at', { ascending: false }).limit(300);
   const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     if (isSchemaError(error)) return canViewAll ? local : local.filter((l) => l.userId === user.id);
@@ -114,7 +123,8 @@ export const createLead = async (
   const local: Lead = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray('leads', [local, ...current].slice(0, 500));
-  if (!supabase) return local;
+  const client = getSupabase();
+  if (!client) return local;
 
   const payload = {
     user_id: targetUserId,
@@ -127,9 +137,10 @@ export const createLead = async (
     notes: input.notes || null,
     follow_up_at: input.followUpAt || null,
     follow_up_notes: input.followUpNotes || null,
+    reminder_sent_at: input.reminderSentAt || null,
     created_at: nowIso(),
   };
-  const { data, error } = await supabase.from('leads').insert(payload).select('*').single();
+  const { data, error } = await client.from('leads').insert(payload).select('*').single();
   if (error || !data) {
     if (isSchemaError(error)) return local;
     throw new Error(msg(error) || 'Failed to create lead.');
@@ -142,21 +153,23 @@ export const createLead = async (
 export const updateLeadStatus = async (leadId: string, status: Lead['status']): Promise<void> => {
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray('leads', current.map((l) => (l.id === leadId ? { ...l, status } : l)));
-  if (!supabase) return;
-  const { error } = await supabase.from('leads').update({ status }).eq('id', leadId);
+  const client = getSupabase();
+  if (!client) return;
+  const { error } = await client.from('leads').update({ status }).eq('id', leadId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
 };
 
 export const updateLead = async (
   leadId: string,
-  patch: Partial<Pick<Lead, 'name' | 'company' | 'phone' | 'email' | 'status' | 'estimatedValue' | 'notes' | 'followUpAt' | 'followUpNotes'>>
+  patch: Partial<Pick<Lead, 'name' | 'company' | 'phone' | 'email' | 'status' | 'estimatedValue' | 'notes' | 'followUpAt' | 'followUpNotes' | 'reminderSentAt'>>
 ): Promise<void> => {
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray(
     'leads',
     current.map((l) => (l.id === leadId ? { ...l, ...patch } : l))
   );
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const payload: any = {};
   if (patch.name != null) payload.name = patch.name;
   if (patch.company !== undefined) payload.company = patch.company || null;
@@ -167,15 +180,17 @@ export const updateLead = async (
   if (patch.notes !== undefined) payload.notes = patch.notes || null;
   if (patch.followUpAt !== undefined) payload.follow_up_at = patch.followUpAt || null;
   if (patch.followUpNotes !== undefined) payload.follow_up_notes = patch.followUpNotes || null;
-  const { error } = await supabase.from('leads').update(payload).eq('id', leadId);
+  if (patch.reminderSentAt !== undefined) payload.reminder_sent_at = patch.reminderSentAt || null;
+  const { error } = await client.from('leads').update(payload).eq('id', leadId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update lead.');
 };
 
 export const fetchInvoices = async (user: SystemUser, canViewAll: boolean): Promise<Invoice[]> => {
   const local = readLocalArray<Invoice>('invoices', []);
-  if (!supabase) return canViewAll ? local : local.filter((i) => i.userId === user.id);
+  const client = getSupabase();
+  if (!client) return canViewAll ? local : local.filter((i) => i.userId === user.id);
 
-  const q = supabase.from('invoices').select('*').order('created_at', { ascending: false }).limit(300);
+  const q = client.from('invoices').select('*').order('created_at', { ascending: false }).limit(300);
   const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     if (isSchemaError(error)) return canViewAll ? local : local.filter((i) => i.userId === user.id);
@@ -194,7 +209,8 @@ export const createInvoice = async (
   const local: Invoice = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
   const current = readLocalArray<Invoice>('invoices', []);
   writeLocalArray('invoices', [local, ...current].slice(0, 500));
-  if (!supabase) return local;
+  const client = getSupabase();
+  if (!client) return local;
 
   const payload = {
     user_id: targetUserId,
@@ -205,7 +221,7 @@ export const createInvoice = async (
     due_date: input.dueDate || null,
     created_at: nowIso(),
   };
-  const { data, error } = await supabase.from('invoices').insert(payload).select('*').single();
+  const { data, error } = await client.from('invoices').insert(payload).select('*').single();
   if (error || !data) {
     if (isSchemaError(error)) return local;
     throw new Error(msg(error) || 'Failed to create invoice.');
@@ -218,8 +234,9 @@ export const createInvoice = async (
 export const updateInvoiceStatus = async (invoiceId: string, status: Invoice['status']): Promise<void> => {
   const current = readLocalArray<Invoice>('invoices', []);
   writeLocalArray('invoices', current.map((i) => (i.id === invoiceId ? { ...i, status } : i)));
-  if (!supabase) return;
-  const { error } = await supabase.from('invoices').update({ status }).eq('id', invoiceId);
+  const client = getSupabase();
+  if (!client) return;
+  const { error } = await client.from('invoices').update({ status }).eq('id', invoiceId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update invoice.');
 };
 
@@ -232,22 +249,24 @@ export const updateInvoice = async (
     'invoices',
     current.map((i) => (i.id === invoiceId ? { ...i, ...patch } : i))
   );
-  if (!supabase) return;
+  const client = getSupabase();
+  if (!client) return;
   const payload: any = {};
   if (patch.invoiceNo != null) payload.invoice_no = patch.invoiceNo;
   if (patch.client != null) payload.client = patch.client;
   if (patch.amount != null) payload.amount = patch.amount;
   if (patch.status != null) payload.status = patch.status;
   if (patch.dueDate !== undefined) payload.due_date = patch.dueDate || null;
-  const { error } = await supabase.from('invoices').update(payload).eq('id', invoiceId);
+  const { error } = await client.from('invoices').update(payload).eq('id', invoiceId);
   if (error && !isSchemaError(error)) throw new Error(msg(error) || 'Failed to update invoice.');
 };
 
 export const fetchSalesTargets = async (user: SystemUser, canViewAll: boolean): Promise<SalesTarget[]> => {
   const local = readLocalArray<SalesTarget>('targets', []);
-  if (!supabase) return canViewAll ? local : local.filter((t) => t.userId === user.id);
+  const client = getSupabase();
+  if (!client) return canViewAll ? local : local.filter((t) => t.userId === user.id);
 
-  const q = supabase.from('sales_targets').select('*').order('created_at', { ascending: false }).limit(300);
+  const q = client.from('sales_targets').select('*').order('created_at', { ascending: false }).limit(300);
   const { data, error } = canViewAll ? await q : await q.eq('user_id', user.id);
   if (error || !data) {
     if (isSchemaError(error)) return canViewAll ? local : local.filter((t) => t.userId === user.id);
@@ -276,7 +295,8 @@ export const upsertSalesTarget = async (
   const current = readLocalArray<SalesTarget>('targets', []);
   const next = [local, ...current.filter((t) => !(t.userId === targetUserId && t.month === input.month && t.year === input.year))];
   writeLocalArray('targets', next.slice(0, 500));
-  if (!supabase) return local;
+  const client = getSupabase();
+  if (!client) return local;
 
   const payload = {
     user_id: targetUserId,
@@ -286,7 +306,7 @@ export const upsertSalesTarget = async (
     revenue_target: input.revenueTarget,
     created_at: nowIso(),
   };
-  const attempt = await supabase.from('sales_targets').upsert(payload as any, { onConflict: 'user_id,month,year' }).select('*').single();
+  const attempt = await client.from('sales_targets').upsert(payload as any, { onConflict: 'user_id,month,year' }).select('*').single();
   if (attempt.error || !attempt.data) {
     if (isSchemaError(attempt.error)) return local;
     throw new Error(msg(attempt.error) || 'Failed to save targets.');

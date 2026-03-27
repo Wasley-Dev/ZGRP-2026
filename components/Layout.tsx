@@ -113,12 +113,23 @@ const Layout: React.FC<LayoutProps> = ({
   const isSalesManager = isSalesDept && /manager|head|lead/i.test(String(user.jobTitle || ''));
   const hasSalesAccess = isAdmin || isSalesDept;
   const isSalesRestrictedUser = isSalesDept && user.role === UserRole.USER;
+  const isBasicUser = user.role === UserRole.USER;
   const showSalesHome = isSalesDept && user.role === UserRole.USER;
   const homeItem = showSalesHome
-    ? { id: 'salesDashboard', label: 'Sales Dashboard', icon: 'fa-chart-pie' }
+    ? { id: 'salesDashboard', label: 'Dashboard', icon: 'fa-chart-pie' }
     : { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' };
 
-  const navItems = [
+  const salesPersonnelNavItems = [
+    homeItem,
+    { id: 'leads', label: 'Leads', icon: 'fa-user-tag' },
+    { id: 'invoices', label: 'Invoices', icon: 'fa-file-invoice-dollar' },
+    { id: 'dailyReports', label: 'Daily Reports', icon: 'fa-clipboard-list' },
+    { id: 'attendance', label: 'Attendance', icon: 'fa-user-clock' },
+    { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
+    { id: 'settings', label: 'Settings', icon: 'fa-cog' },
+  ];
+
+  const navItems = isSalesRestrictedUser ? salesPersonnelNavItems : [
     homeItem,
 
     ...(hasSalesAccess ? [{ id: 'leads', label: 'Leads', icon: 'fa-user-tag' }] : []),
@@ -141,7 +152,7 @@ const Layout: React.FC<LayoutProps> = ({
     ...(!isSalesRestrictedUser ? [{ id: 'database', label: 'Candidates Registry', icon: 'fa-users' }] : []),
     ...(!isSalesRestrictedUser ? [{ id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' }] : []),
     { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
-    ...(!isSalesRestrictedUser ? [{ id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' }] : []),
+    ...(!isBasicUser && !isSalesRestrictedUser ? [{ id: 'reports', label: 'Exports & Reports', icon: 'fa-file-export' }] : []),
 
     { id: 'settings', label: 'Settings', icon: 'fa-cog' },
   ];
@@ -172,7 +183,7 @@ const Layout: React.FC<LayoutProps> = ({
   const handleNotificationClick = (n: Notification) => {
     onMarkRead(n.id);
     const validModules = new Set(['dashboard','salesDashboard','leads','salesTargets','invoices','dailyReports','attendance','performance','chat','notices','tasks','payroll','candidates','database','recruitment','booking','broadcast','settings','admin','employment','machines','recovery','reports']);
-    const restrictedForSales = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
+    const restrictedForSales = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports', 'salesTargets', 'performance']);
     if (n.origin && validModules.has(n.origin) && !(isSalesRestrictedUser && restrictedForSales.has(n.origin))) onModuleChange(n.origin);
     setIsNotifOpen(false);
   };
@@ -458,10 +469,10 @@ const Layout: React.FC<LayoutProps> = ({
         <nav className={`md:hidden shrink-0 border-t flex items-center justify-around px-2 py-2 z-20 liquid-bar ${isDark ? 'border-blue-400/20' : 'border-slate-200'}`}>
           {((showSalesHome
             ? [
-                { id: 'salesDashboard', icon: 'fa-chart-pie', label: 'sales' },
+                { id: 'salesDashboard', icon: 'fa-chart-pie', label: 'dashboard' },
                 { id: 'leads', icon: 'fa-user-tag', label: 'leads' },
+                { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'invoices' },
                 { id: 'chat', icon: 'fa-comments', label: 'chat' },
-                { id: 'attendance', icon: 'fa-user-clock', label: 'time' },
               ]
             : isEmployeeWorkflowsEnabled
             ? [

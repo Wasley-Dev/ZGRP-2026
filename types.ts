@@ -158,6 +158,7 @@ export interface Lead {
   notes?: string;
   followUpAt?: string; // YYYY-MM-DD
   followUpNotes?: string;
+  reminderSentAt?: string;
   createdAt: string;
 }
 

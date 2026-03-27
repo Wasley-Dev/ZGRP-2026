@@ -23,6 +23,7 @@ import {
   syncRemoteSystemConfig,
   syncRemoteUsers as syncPortalUsers,
 } from './services/remoteDataService';
+import { fetchLeads, updateLead } from './services/salesService';
 import {
   createLocalSessionId,
   deleteSession,
@@ -792,6 +793,61 @@ const App: React.FC = () => {
   }, [isLoggedIn, isOnline]);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+    if (!isSalesDeptUser(currentUser)) return;
+
+    const REMINDER_KEY_PREFIX = 'zaya_lead_reminder_sent_v1:';
+    const shouldRemind = (lead: any) => {
+      if (!lead?.id) return false;
+      if (lead.reminderSentAt) return false;
+      try {
+        if (window.localStorage.getItem(`${REMINDER_KEY_PREFIX}${lead.id}`) === '1') return false;
+      } catch {
+        // ignore
+      }
+
+      const base = lead.followUpAt
+        ? new Date(`${lead.followUpAt}T12:00:00Z`)
+        : lead.createdAt
+        ? new Date(new Date(lead.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000)
+        : null;
+      if (!base || Number.isNaN(base.getTime())) return false;
+      return Date.now() >= base.getTime();
+    };
+
+    const markLocal = (leadId: string) => {
+      try { window.localStorage.setItem(`${REMINDER_KEY_PREFIX}${leadId}`, '1'); } catch { /* ignore */ }
+    };
+
+    let cancelled = false;
+    const check = async () => {
+      if (cancelled) return;
+      const canViewAllSales = currentUser.role === UserRole.SUPER_ADMIN || isSalesManagerUser(currentUser);
+      const leads = await fetchLeads(currentUser, canViewAllSales);
+      if (cancelled) return;
+      for (const lead of leads) {
+        if (!shouldRemind(lead)) continue;
+        const followUp = lead.followUpAt || '';
+        pushNotificationDeduped(
+          `lead:followup:${lead.id}`,
+          'Lead Follow-up Reminder',
+          `Follow-up is due for ${lead.name || 'a lead'}${followUp ? ` (date: ${followUp})` : ''}.`,
+          'WARNING',
+          'leads',
+          6 * 60 * 60 * 1000
+        );
+        markLocal(String(lead.id));
+        // Persist reminder flag to Supabase so all machines stay consistent (best-effort).
+        try { await updateLead(String(lead.id), { reminderSentAt: new Date().toISOString() } as any); } catch { /* ignore */ }
+      }
+    };
+
+    void check();
+    const id = window.setInterval(check, 60 * 60 * 1000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [isLoggedIn, currentUser.id, currentUser.role, currentUser.department, currentUser.jobTitle]);
+
+  useEffect(() => {
     if (rememberAttemptedRef.current) return;
     if (isLoggedIn) { rememberAttemptedRef.current = true; return; }
     const remembered = readRememberedAuth();
@@ -1274,13 +1330,29 @@ const App: React.FC = () => {
     const isSalesRestrictedUser = isSalesDept && currentUser.role === UserRole.USER;
     const canAccessSales = hasSalesAccess(currentUser);
     const salesModules = new Set(['salesDashboard', 'leads', 'salesTargets', 'invoices']);
-    const salesRestricted = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports']);
+    const salesRestricted = new Set(['recruitment', 'candidates', 'database', 'booking', 'reports', 'salesTargets', 'performance']);
     if (isSalesRestrictedUser && salesRestricted.has(activeModule)) {
       return (
         <div className="liquid-panel p-6">
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">
-            This module is hidden for the Sales team. Use Sales Dashboard, Leads, Targets/KPIs, Invoices, Daily Reports, Attendance, Team Chat, and Settings.
+            This module is hidden for Sales personnel. Use Dashboard, Leads, Invoices, Daily Reports, Attendance, Team Chat, and Settings.
+          </p>
+          <button
+            onClick={() => setActiveModule(getHomeModule(currentUser))}
+            className="mt-4 px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      );
+    }
+    if (currentUser.role === UserRole.USER && activeModule === 'reports') {
+      return (
+        <div className="liquid-panel p-6">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Access Restricted</h2>
+          <p className="mt-2 text-sm text-slate-600 dark:text-blue-200">
+            Reports & exports are available to admins and managers only.
           </p>
           <button
             onClick={() => setActiveModule(getHomeModule(currentUser))}

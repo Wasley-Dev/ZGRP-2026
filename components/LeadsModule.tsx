@@ -54,6 +54,9 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   const handleCreate = async () => {
     const n = name.trim();
     if (!n) { alert('Lead name is required.'); return; }
+    const followUpDate = followUpAt.trim()
+      ? followUpAt.trim()
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     setIsSaving(true);
     try {
       const created = await createLead(user, assigneeId, {
@@ -64,7 +67,7 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
         status: 'new',
         estimatedValue: estimatedValue.trim() ? Number(estimatedValue) : undefined,
         notes: notes.trim() || undefined,
-        followUpAt: followUpAt.trim() || undefined,
+        followUpAt: followUpDate || undefined,
         followUpNotes: followUpNotes.trim() || undefined,
       });
       setLeads((prev) => [created, ...prev]);
