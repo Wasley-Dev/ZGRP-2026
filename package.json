@@ -3,7 +3,7 @@
   "description": "Zaya Group Portal desktop software",
   "author": "WIS & Asya",
   "private": true,
-  "version": "0.1.42",
+  "version": "0.1.43",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -76,7 +76,7 @@
         "nsis"
       ],
       "signAndEditExecutable": false,
-      "artifactName": "Zaya-Group-Portal-Setup-${version}.${ext}"
+      "artifactName": "Zaya-Group-Portal-Setup-${version}-${arch}.${ext}"
     },
     "mac": {
       "hardenedRuntime": true,
@@ -85,7 +85,7 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "Zaya-Group-Portal-${version}-mac.${ext}"
+      "artifactName": "Zaya-Group-Portal-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": [

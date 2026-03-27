@@ -106,7 +106,8 @@ jobs:
             npx electron-builder --mac dmg zip --x64 --arm64 --publish never
           else
             # Unsigned builds (temporary workaround). Disable hardened runtime + signing.
-            npx electron-builder --mac dmg zip --x64 --arm64 --publish never \
+            # Note: we build ZIP only here to avoid DMG tooling issues and because ZIP is what auto-update uses.
+            npx electron-builder --mac zip --x64 --arm64 --publish never \
               -c.mac.hardenedRuntime=false \
               -c.mac.gatekeeperAssess=false \
               -c.mac.identity=null
