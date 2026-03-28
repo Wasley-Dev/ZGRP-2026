@@ -162,6 +162,7 @@ const Layout: React.FC<LayoutProps> = ({
   ];
 
   const adminItems = [
+    { id: 'admin', label: 'Admin Console', icon: 'fa-user-shield' },
     { id: 'employment', label: 'Employment Management', icon: 'fa-id-badge' },
     ...(isSuperAdmin ? [{ id: 'machines', label: 'Machine Auth', icon: 'fa-laptop-code' }] : []),
     ...(isSuperAdmin || isGeneralManager ? [{ id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' }] : []),

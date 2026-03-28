@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AttendanceCheckoutRequest, AttendanceLog, LeaveRequest, SystemUser } from '../types';
+import { UserRole, type AttendanceCheckoutRequest, type AttendanceLog, type LeaveRequest, type SystemUser } from '../types';
 import {
   fetchAttendanceLogs,
   fetchLatestMiddayCheckoutRequest,
@@ -21,6 +21,7 @@ interface AttendanceModuleProps {
 }
 
 const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, users, onNavigate }) => {
+  const isExempt = user.role === UserRole.ADMIN;
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [today, setToday] = useState<AttendanceLog | null>(null);
   const [checkoutReason, setCheckoutReason] = useState('');
@@ -54,12 +55,46 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
   }, [users]);
 
   const summary = useMemo(() => {
+    const segmentsToWorkedMs = (log: AttendanceLog) => {
+      const segments = Array.isArray(log.segments) ? log.segments : [];
+      if (segments.length > 0) {
+        return segments.reduce((acc, s) => {
+          if (!s?.in || !s?.out) return acc;
+          const start = Date.parse(String(s.in));
+          const end = Date.parse(String(s.out));
+          if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return acc;
+          return acc + (end - start);
+        }, 0);
+      }
+      if (!log.checkIn || !log.checkOut) return 0;
+      const start = Date.parse(String(log.checkIn));
+      const end = Date.parse(String(log.checkOut));
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+      return end - start;
+    };
+
     const presentDays = new Set(logs.filter((l) => l.userId === user.id && l.checkIn).map((l) => l.date)).size;
     const approved = leaveRequests.filter((r) => r.userId === user.id && r.status === 'approved');
     const leaveDays = approved.filter((r) => r.type === 'leave').length;
     const sickDays = approved.filter((r) => r.type === 'sick').length;
-    return { presentDays, leaveDays, sickDays };
-  }, [logs, leaveRequests, user.id]);
+
+    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+    const expectedDailyHours = 8;
+    const overtimeHours = logs
+      .filter((l) => l.userId === user.id)
+      .filter((l) => {
+        const d = new Date(`${l.date}T12:00:00`);
+        return d >= monthStart && d <= monthEnd;
+      })
+      .reduce((acc, l) => {
+        if (!l.checkIn || !l.checkOut) return acc;
+        const workedHours = segmentsToWorkedMs(l) / (1000 * 60 * 60);
+        return acc + Math.max(0, workedHours - expectedDailyHours);
+      }, 0);
+
+    return { presentDays, leaveDays, sickDays, overtimeHours };
+  }, [logs, leaveRequests, user.id, calendarMonth]);
 
   const monthLabel = useMemo(
     () => calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
@@ -301,7 +336,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
             { label: 'Present Days', value: summary.presentDays.toString() },
             { label: 'Leave Requests (Approved)', value: summary.leaveDays.toString() },
             { label: 'Sick Requests (Approved)', value: summary.sickDays.toString() },
-            { label: 'Today', value: new Date().toISOString().slice(0, 10) },
+            { label: 'Overtime (Month)', value: `${summary.overtimeHours.toFixed(1)} hrs` },
           ].map((c) => (
             <div key={c.label} className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-4">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{c.label}</p>
@@ -311,7 +346,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
         </div>
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {!isAdmin && (
+          {!isExempt && (
             <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
               <div className="mt-4 space-y-3 text-sm">

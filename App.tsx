@@ -34,7 +34,7 @@ import {
   updateSessionStatus,
   upsertSessionHeartbeat,
 } from './services/sessionService';
-import { clockIn, fetchTodayAttendance } from './services/employeeSystemService';
+import { clockIn, clockOut, fetchTodayAttendance } from './services/employeeSystemService';
 import Login from './components/Login';
 import { ZAYA_LOGO_SRC } from './brand';
 
@@ -1044,6 +1044,49 @@ const App: React.FC = () => {
     }, 30000);
     return () => window.clearInterval(timer);
   }, [isLoggedIn, systemConfig.backupHour]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (currentUser.role !== UserRole.USER) return;
+    if (!isSalesDeptUser(currentUser)) return;
+
+    const keyFor = (dateIso: string) => `zaya_sales_autoclockout_${currentUser.id}_${dateIso}`;
+    const isCheckedInNow = (attendance: any): boolean => {
+      if (!attendance?.checkIn) return false;
+      if (attendance?.checkOut) return false;
+      const segments = Array.isArray(attendance?.segments) ? attendance.segments : [];
+      if (segments.length === 0) return true;
+      const last = segments[segments.length - 1];
+      return Boolean(last?.in && !last?.out);
+    };
+
+    const tick = async () => {
+      try {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun, 1=Mon
+        const afterFive = now.getHours() >= 17;
+        if (!afterFive) return;
+        if (![1, 2, 3, 4].includes(day)) return; // Mon–Thu
+
+        const todayIso = now.toISOString().slice(0, 10);
+        if (typeof window !== 'undefined') {
+          if (window.localStorage.getItem(keyFor(todayIso)) === '1') return;
+        }
+
+        const attendance = await fetchTodayAttendance(currentUser);
+        if (!attendance || !isCheckedInNow(attendance)) return;
+        const updated = await clockOut(currentUser, attendance);
+        if (typeof window !== 'undefined') window.localStorage.setItem(keyFor(todayIso), '1');
+        pushNotification('Auto Clock-Out', `Sales shift ended. Auto clock-out recorded at ${new Date(updated.checkOut || '').toLocaleTimeString('en-GB')}.`, 'INFO', 'attendance');
+      } catch (err) {
+        console.warn('Auto clock-out skipped:', err);
+      }
+    };
+
+    void tick();
+    const id = window.setInterval(() => void tick(), 60000);
+    return () => window.clearInterval(id);
+  }, [isLoggedIn, currentUser]);
 
   const normalizeLoginKey = (value: string): string =>
     value.trim().replace(/\s+/g, ' ').toLowerCase();
