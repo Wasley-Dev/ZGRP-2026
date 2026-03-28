@@ -105,13 +105,56 @@ const getOsName = () => {
   return 'Unknown';
 };
 
+const IP_CACHE_KEY = 'zaya_public_ip_v1';
+const GEO_CACHE_KEY = 'zaya_public_geo_v1';
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h
+const NETWORK_TIMEOUT_MS = 2500;
+
+const readCache = <T,>(key: string): { value: T; savedAt: number } | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { value: T; savedAt: number };
+    if (!parsed || typeof parsed.savedAt !== 'number') return null;
+    if (Date.now() - parsed.savedAt > CACHE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = <T,>(key: string, value: T) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ value, savedAt: Date.now() }));
+  } catch {
+    // ignore
+  }
+};
+
+const fetchJsonWithTimeout = async <T,>(url: string, timeoutMs = NETWORK_TIMEOUT_MS): Promise<T | null> => {
+  try {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
+    const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (timer) window.clearTimeout(timer);
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+};
+
 const fetchPublicIp = async (): Promise<string> => {
   try {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'Offline';
-    const response = await fetch('https://api.ipify.org?format=json');
-    if (!response.ok) return 'Unavailable';
-    const payload = (await response.json()) as { ip?: string };
-    return payload.ip || 'Unavailable';
+    const cached = readCache<{ ip?: string }>(IP_CACHE_KEY);
+    if (cached?.value?.ip) return cached.value.ip;
+    const payload = await fetchJsonWithTimeout<{ ip?: string }>('https://api.ipify.org?format=json');
+    const ip = payload?.ip || 'Unavailable';
+    if (ip !== 'Unavailable') writeCache(IP_CACHE_KEY, { ip });
+    return ip;
   } catch {
     return 'Unavailable';
   }
@@ -120,24 +163,28 @@ const fetchPublicIp = async (): Promise<string> => {
 const fetchGeoFromIp = async (): Promise<{ latitude?: number; longitude?: number; locationLabel?: string }> => {
   try {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return {};
-    const response = await fetch('https://ipapi.co/json/');
-    if (!response.ok) return {};
-    const payload = (await response.json()) as {
+    const cached = readCache<{ latitude?: number; longitude?: number; locationLabel?: string }>(GEO_CACHE_KEY);
+    if (cached?.value && (cached.value.latitude || cached.value.locationLabel)) return cached.value;
+
+    const payload = await fetchJsonWithTimeout<{
       latitude?: number;
       longitude?: number;
       city?: string;
       region?: string;
       country_name?: string;
-    };
+    }>('https://ipapi.co/json/');
+    if (!payload) return {};
     if (typeof payload.latitude !== 'number' || typeof payload.longitude !== 'number') return {};
     const latitude = Number(payload.latitude.toFixed(6));
     const longitude = Number(payload.longitude.toFixed(6));
     const area = [payload.city, payload.region, payload.country_name].filter(Boolean).join(', ');
-    return {
+    const geo = {
       latitude,
       longitude,
       locationLabel: area || `${latitude}, ${longitude}`,
     };
+    writeCache(GEO_CACHE_KEY, geo);
+    return geo;
   } catch {
     return {};
   }
