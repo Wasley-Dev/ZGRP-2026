@@ -474,7 +474,7 @@ const Layout: React.FC<LayoutProps> = ({
                 { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'invoices' },
                 { id: 'chat', icon: 'fa-comments', label: 'chat' },
               ]
-            : isEmployeeWorkflowsEnabled
+            : isEmployeeWorkflowsSubmitter
             ? [
                 { id: 'dashboard', icon: 'fa-chart-line', label: 'dashboard' },
                 { id: 'attendance', icon: 'fa-user-clock', label: 'attendance' },
