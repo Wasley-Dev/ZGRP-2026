@@ -71,6 +71,12 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
+            <button onClick={() => onNavigate('tasks')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+              Tasks
+            </button>
+            <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+              Notices
+            </button>
             <button onClick={() => onNavigate('leads')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
               Open Leads
             </button>
@@ -83,6 +89,64 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
           </div>
         </div>
       </div>
+
+      {canViewAllSales && (
+        <div className="liquid-panel p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Sales Team Performance</h3>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+                Aggregate progress for Sales targets and pipeline (current month).
+              </p>
+            </div>
+            <button onClick={() => onNavigate('salesTargets')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+              Review KPIs
+            </button>
+          </div>
+
+          {(() => {
+            const monthTargets = targets.filter((t) => t.month === monthKey.month && t.year === monthKey.year);
+            const leadsTargetTotal = monthTargets.reduce((acc, t) => acc + Number(t.leadsTarget || 0), 0);
+            const revenueTargetTotal = monthTargets.reduce((acc, t) => acc + Number(t.revenueTarget || 0), 0);
+            const monthStart = new Date(monthKey.year, monthKey.month - 1, 1);
+            const monthEnd = new Date(monthKey.year, monthKey.month, 0, 23, 59, 59, 999);
+            const monthLeads = leads.filter((l) => {
+              const d = new Date(l.createdAt);
+              return d >= monthStart && d <= monthEnd;
+            });
+            const leadsCount = monthLeads.length;
+            const paidRevenue = invoices
+              .filter((i) => i.status === 'paid')
+              .filter((i) => {
+                const d = new Date(i.createdAt);
+                return d >= monthStart && d <= monthEnd;
+              })
+              .reduce((acc, i) => acc + Number(i.amount || 0), 0);
+            const leadsPct = leadsTargetTotal ? Math.min(100, (leadsCount / leadsTargetTotal) * 100) : 0;
+            const revenuePct = revenueTargetTotal ? Math.min(100, (paidRevenue / revenueTargetTotal) * 100) : 0;
+
+            const meter = (label: string, value: string, pct: number) => (
+              <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">{label}</p>
+                <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{value}</p>
+                <div className="mt-4 h-2 rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
+                  <div className="h-full bg-gold" style={{ width: `${pct.toFixed(1)}%` }}></div>
+                </div>
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-100/70">
+                  {pct.toFixed(0)}% of target
+                </p>
+              </div>
+            );
+
+            return (
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {meter('Leads (This Month)', `${leadsCount.toLocaleString()} / ${leadsTargetTotal.toLocaleString()}`, leadsPct)}
+                {meter('Revenue Paid (This Month)', `TZS ${Math.round(paidRevenue).toLocaleString()} / ${Math.round(revenueTargetTotal).toLocaleString()}`, revenuePct)}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[

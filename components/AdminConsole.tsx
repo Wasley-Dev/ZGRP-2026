@@ -263,11 +263,42 @@ const AdminConsole: React.FC<AdminProps> = ({
     alert(enabled ? 'Admins can now edit Sales targets/KPIs.' : 'Sales targets/KPIs edits are now restricted to Super Admin and Sales Managers.');
   };
 
+  const isSalesPersonnelNameLogin =
+    inviteRole === UserRole.USER &&
+    /sales/i.test(`${inviteDepartment} ${inviteJobTitle}`) &&
+    /(executive|personnel|agent|rep|representative)/i.test(inviteJobTitle || '') &&
+    !/manager|head|lead/i.test(inviteJobTitle || '');
+
   const handleInviteUser = () => {
-    const normalizedEmail = inviteEmail.trim().toLowerCase();
+    const slugify = (value: string) =>
+      value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '.')
+        .replace(/^\.+|\.+$/g, '')
+        .slice(0, 48);
+
+    const generateInternalEmail = (fullName: string) => {
+      const base = slugify(fullName) || `user.${Date.now()}`;
+      let candidate = `${base}@zaya.local`;
+      let suffix = 1;
+      while (users.some((u) => String(u.email || '').toLowerCase() === candidate)) {
+        suffix += 1;
+        candidate = `${base}.${suffix}@zaya.local`;
+      }
+      return candidate;
+    };
+
+    const normalizedEmail = isSalesPersonnelNameLogin
+      ? generateInternalEmail(inviteName)
+      : inviteEmail.trim().toLowerCase();
     const normalizedPhone = invitePhone.trim();
-    if (!inviteName.trim() || !normalizedEmail || !invitePassword.trim() || !normalizedPhone) {
-      alert('Name, email, phone, and password are required.');
+    if (!inviteName.trim() || !invitePassword.trim() || !normalizedPhone) {
+      alert('Name, phone, and password are required.');
+      return;
+    }
+    if (!normalizedEmail) {
+      alert('Email is required for this user type.');
       return;
     }
     const exists = users.some((u) => u.email.toLowerCase() === normalizedEmail);
@@ -310,7 +341,10 @@ const AdminConsole: React.FC<AdminProps> = ({
     }
     const message =
       `System Credentials\n` +
-      `Email: ${targetUser.email}\n` +
+      `Name: ${targetUser.name}\n` +
+      (String(targetUser.email || '').toLowerCase().endsWith('@zaya.local')
+        ? ''
+        : `Email: ${targetUser.email}\n`) +
       `Password: ${targetUser.password}\n` +
       `Login: https://zgrp-portal-2026.vercel.app`;
     const smsUrl = `sms:${targetUser.phone}?body=${encodeURIComponent(message)}`;
@@ -333,7 +367,7 @@ const AdminConsole: React.FC<AdminProps> = ({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">
-              Admin Centre and Employee Reporting & Performance
+              Admin Console
             </h2>
             <p className="mt-1 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
               Approvals, user access control, and organization-wide reporting.
@@ -370,7 +404,7 @@ const AdminConsole: React.FC<AdminProps> = ({
           </div>
 
           <div className="p-8 space-y-4">
-            {!hasEmployeeSupabase() && (
+            {false && (
               <div className="p-5 rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 text-xs font-semibold">
                 Supabase is not configured on this device, so approvals can’t be loaded here. Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` and apply the latest migrations.
               </div>
@@ -860,12 +894,22 @@ const AdminConsole: React.FC<AdminProps> = ({
                 onChange={(e) => setInviteName(e.target.value)}
                 className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
               />
-              <input
-                placeholder="Email Address"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
-              />
+              {!isSalesPersonnelNameLogin ? (
+                <input
+                  placeholder="Email Address"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full p-4 rounded-2xl border dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none"
+                />
+              ) : (
+                <div className="w-full p-4 rounded-2xl border border-dashed dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold dark:text-white outline-none flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-blue-200/70 font-black">Login Method</p>
+                    <p className="text-xs text-slate-700 dark:text-white truncate">Name + Password (Sales Executive)</p>
+                  </div>
+                  <i className="fas fa-id-badge text-gold"></i>
+                </div>
+              )}
               <input
                 placeholder="Phone Number (SMS)"
                 value={invitePhone}

@@ -646,8 +646,36 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     );
   }
 
+  const isAdminConsoleUser = user.role === UserRole.SUPER_ADMIN || user.role === UserRole.ADMIN;
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-10 text-slate-900 dark:text-slate-100">
+      {isAdminConsoleUser && (
+        <div className={`${panelClass} p-6`}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Console</h2>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+                Approvals, user access control, and organization reporting.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => onNavigate('admin')}
+                className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow"
+              >
+                Open Admin Console
+              </button>
+              <button
+                onClick={() => onNavigate('employment')}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white"
+              >
+                Employment Management
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[

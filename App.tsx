@@ -1255,11 +1255,43 @@ const App: React.FC = () => {
             src={ZAYA_LOGO_SRC}
             alt="System logo"
             className="h-full w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+            style={{
+              animation: 'bootLogoShake 0.55s ease-in-out 0.15s 2, bootLogoZoom 0.85s ease-out 1.25s forwards',
+              willChange: 'transform',
+            }}
           />
         </div>
         <div className="w-64 h-1.5 bg-white/10 rounded-full overflow-hidden mb-8 border border-white/5">
           <div className="h-full bg-gold animate-[loading_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(212,175,55,0.8)]"></div>
         </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-8 max-w-xl">
+          {[
+            { icon: 'fa-chart-line', label: 'Dashboard' },
+            { icon: 'fa-comments', label: 'Team Chat' },
+            { icon: 'fa-file-invoice-dollar', label: 'Invoices' },
+            { icon: 'fa-user-clock', label: 'Attendance' },
+            { icon: 'fa-money-bill-wave', label: 'Payroll' },
+            { icon: 'fa-briefcase', label: 'Recruitment' },
+            { icon: 'fa-calendar-check', label: 'Bookings' },
+            { icon: 'fa-bullhorn', label: 'Broadcast' },
+            { icon: 'fa-database', label: 'Database' },
+            { icon: 'fa-bullseye', label: 'Targets' },
+          ].map((item, idx) => (
+            <div
+              key={item.label}
+              className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 opacity-0"
+              style={{
+                animation: `bootIconPop 0.9s ease-out ${0.15 + idx * 0.12}s forwards`,
+                willChange: 'transform, opacity',
+              }}
+            >
+              <i className={`fas ${item.icon} text-gold`}></i>
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/80">{item.label}</span>
+            </div>
+          ))}
+        </div>
+
         <p className="text-[10px] font-black tracking-[0.6em] uppercase text-gold">{systemConfig.systemName.toUpperCase()}</p>
         <p className="mt-3 text-xs font-medium tracking-[0.18em] uppercase text-white/70">Executive Operations Workspace</p>
       </div>

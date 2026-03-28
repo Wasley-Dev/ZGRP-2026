@@ -13,6 +13,7 @@ const WINDOW_ICON_PATH = path.join(
   process.platform === 'win32' ? 'app-icon.ico' : 'app-icon.png'
 );
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 60 * 4;
+const UPDATE_STARTUP_TIMEOUT_MS = 3500;
 
 let mainWindow = null;
 
@@ -170,11 +171,49 @@ function setupAutoUpdates() {
   setInterval(check, UPDATE_CHECK_INTERVAL_MS);
 }
 
-app.whenReady().then(() => {
+const checkAndInstallUpdatesBeforeLaunch = () => {
+  if (!app.isPackaged) return Promise.resolve(false);
+  if (process.env.DISABLE_AUTO_UPDATES === '1') return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      autoUpdater.removeListener('update-not-available', onNotAvailable);
+      autoUpdater.removeListener('update-downloaded', onDownloaded);
+      autoUpdater.removeListener('error', onError);
+      resolve(value);
+    };
+
+    const onNotAvailable = () => done(false);
+    const onError = () => done(false);
+    const onDownloaded = () => {
+      // Install immediately so users always start on the latest release.
+      done(true);
+      setTimeout(() => autoUpdater.quitAndInstall(true, true), 50);
+    };
+
+    autoUpdater.once('update-not-available', onNotAvailable);
+    autoUpdater.once('update-downloaded', onDownloaded);
+    autoUpdater.once('error', onError);
+
+    autoUpdater.checkForUpdates().catch(() => done(false));
+    setTimeout(() => done(false), UPDATE_STARTUP_TIMEOUT_MS);
+  });
+};
+
+app.whenReady().then(async () => {
   app.setName('Zaya Group Portal');
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_USER_MODEL_ID);
   }
+
+  // Check for updates before showing the main window (best-effort with timeout).
+  // If an update is already cached/downloaded, it will be installed immediately.
+  const installedNow = await checkAndInstallUpdatesBeforeLaunch();
+  if (installedNow) return;
+
   createMainWindow();
   setupAutoUpdates();
 

@@ -114,6 +114,7 @@ const Layout: React.FC<LayoutProps> = ({
   const hasSalesAccess = isAdmin || isSalesDept;
   const isSalesRestrictedUser = isSalesDept && user.role === UserRole.USER;
   const isBasicUser = user.role === UserRole.USER;
+  const shouldPrioritizeTasksNotices = isBasicUser && !isSalesRestrictedUser;
   const showSalesHome = isSalesDept && user.role === UserRole.USER;
   const homeItem = showSalesHome
     ? { id: 'salesDashboard', label: 'Dashboard', icon: 'fa-chart-pie' }
@@ -137,18 +138,21 @@ const Layout: React.FC<LayoutProps> = ({
     ...(hasSalesAccess ? [{ id: 'invoices', label: 'Invoices', icon: 'fa-file-invoice-dollar' }] : []),
     ...(isSalesManager ? [{ id: 'dashboard', label: 'Enterprise Dashboard', icon: 'fa-chart-line' }] : []),
 
+    ...(shouldPrioritizeTasksNotices ? [{ id: 'tasks', label: 'Tasks', icon: 'fa-list' }] : []),
+    ...(shouldPrioritizeTasksNotices ? [{ id: 'notices', label: 'Notices', icon: 'fa-bell' }] : []),
+
     // Employee reporting & performance
     { id: 'dailyReports', label: isEmployeeWorkflowsSubmitter ? 'Daily Reports' : 'Employee Reports', icon: 'fa-clipboard-list' },
     { id: 'attendance', label: isEmployeeWorkflowsSubmitter ? 'Attendance' : 'Team Attendance', icon: 'fa-user-clock' },
     { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' },
     { id: 'chat', label: 'Team Chat', icon: 'fa-comments' },
-    ...(isAdmin ? [{ id: 'notices', label: 'Notices', icon: 'fa-bell' }] : []),
-    ...(isAdmin ? [{ id: 'tasks', label: 'Tasks', icon: 'fa-list' }] : []),
+    ...(!shouldPrioritizeTasksNotices && isAdmin ? [{ id: 'notices', label: 'Notices', icon: 'fa-bell' }] : []),
+    ...(!shouldPrioritizeTasksNotices && isAdmin ? [{ id: 'tasks', label: 'Tasks', icon: 'fa-list' }] : []),
     ...(isAdmin ? [{ id: 'payroll', label: 'Payroll', icon: 'fa-money-bill-wave' }] : []),
 
     // Existing modules (kept from previous system)
     ...(!isSalesRestrictedUser ? [{ id: 'recruitment', label: 'Recruitment Hub', icon: 'fa-briefcase' }] : []),
-    ...(!isSalesRestrictedUser ? [{ id: 'candidates', label: 'Candidates', icon: 'fa-database' }] : []),
+    ...(!isSalesRestrictedUser ? [{ id: 'candidates', label: 'Database Registry', icon: 'fa-database' }] : []),
     ...(!isSalesRestrictedUser ? [{ id: 'database', label: 'Candidates Registry', icon: 'fa-users' }] : []),
     ...(!isSalesRestrictedUser ? [{ id: 'booking', label: 'Bookings', icon: 'fa-calendar-check' }] : []),
     { id: 'broadcast', label: 'Broadcast', icon: 'fa-bullhorn' },
@@ -158,7 +162,6 @@ const Layout: React.FC<LayoutProps> = ({
   ];
 
   const adminItems = [
-    { id: 'admin', label: 'Admin Centre and Employee Reporting & Performance', icon: 'fa-user-shield' },
     { id: 'employment', label: 'Employment Management', icon: 'fa-id-badge' },
     ...(isSuperAdmin ? [{ id: 'machines', label: 'Machine Auth', icon: 'fa-laptop-code' }] : []),
     ...(isSuperAdmin || isGeneralManager ? [{ id: 'recovery', label: 'System Recovery', icon: 'fa-undo-alt' }] : []),

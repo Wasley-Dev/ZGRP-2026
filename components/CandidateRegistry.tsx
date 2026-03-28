@@ -9,7 +9,7 @@ interface RegistryProps {
   onAdd: (c: Candidate) => void;
   onUpdate: (c: Candidate) => void;
   onDelete: (id: string) => void;
-  mode?: "registry" | "database";
+  mode?: "registry" | "database" | "candidates";
 }
 
 const CandidateRegistry: React.FC<RegistryProps> = ({
@@ -551,7 +551,9 @@ const CandidateRegistry: React.FC<RegistryProps> = ({
       {/* HEADER */}
       <div className="flex flex-col gap-4 bg-white dark:bg-[#0f1a2e] p-6 rounded-3xl border border-slate-200 dark:border-[#1e3a5f] shadow-sm print:hidden">
         <div className="flex justify-between items-center">
-           <h2 className="text-2xl font-black text-[#0f172a] dark:text-blue-200 uppercase tracking-tight">Candidate Registry</h2>
+           <h2 className="text-2xl font-black text-[#0f172a] dark:text-blue-200 uppercase tracking-tight">
+             {mode === "database" || mode === "candidates" ? "Database Registry" : "Candidate Registry"}
+           </h2>
            <div className="flex gap-2">
             {mode === "database" && (
               <>
