@@ -3,22 +3,11 @@
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [
-    {
-      "source": "/v1/messages/sms/status",
-      "destination": "/api/v1/messages/sms/status"
-    },
-    {
-      "source": "/v1/messages/sms",
-      "destination": "/api/v1/messages/sms"
-    },
-    {
-      "source": "/v1/messages/email",
-      "destination": "/api/v1/messages/email"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/v1/messages/sms/status", "dest": "/api/v1/messages/sms/status" },
+    { "src": "/v1/messages/sms", "dest": "/api/v1/messages/sms" },
+    { "src": "/v1/messages/email", "dest": "/api/v1/messages/email" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
