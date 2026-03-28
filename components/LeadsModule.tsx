@@ -135,12 +135,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
   };
 
   const downloadCsv = (filename: string, rows: Array<Record<string, any>>) => {
-    const headers = Array.from(
-      rows.reduce((acc, row) => {
-        Object.keys(row).forEach((k) => acc.add(k));
-        return acc;
-      }, new Set<string>())
-    );
+    const headerSet = new Set<string>();
+    rows.forEach((row) => {
+      Object.keys(row).forEach((key) => headerSet.add(key));
+    });
+    const headers = Array.from(headerSet);
     const escape = (v: any) => `"${String(v ?? '').replace(/\"/g, '""')}"`;
     const lines = [
       headers.join(','),
