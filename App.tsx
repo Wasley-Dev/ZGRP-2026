@@ -1310,16 +1310,16 @@ const App: React.FC = () => {
 
         <div className="flex flex-wrap items-center justify-center gap-3 mb-8 max-w-xl">
           {[
-            { icon: 'fa-chart-line', label: 'Dashboard' },
-            { icon: 'fa-comments', label: 'Team Chat' },
-            { icon: 'fa-file-invoice-dollar', label: 'Invoices' },
-            { icon: 'fa-user-clock', label: 'Attendance' },
-            { icon: 'fa-money-bill-wave', label: 'Payroll' },
-            { icon: 'fa-briefcase', label: 'Recruitment' },
-            { icon: 'fa-calendar-check', label: 'Bookings' },
-            { icon: 'fa-bullhorn', label: 'Broadcast' },
-            { icon: 'fa-database', label: 'Database' },
-            { icon: 'fa-bullseye', label: 'Targets' },
+            { icon: 'fa-chart-line', emoji: '📊', label: 'Dashboard' },
+            { icon: 'fa-comments', emoji: '💬', label: 'Team Chat' },
+            { icon: 'fa-file-invoice-dollar', emoji: '🧾', label: 'Invoices' },
+            { icon: 'fa-user-clock', emoji: '⏱️', label: 'Attendance' },
+            { icon: 'fa-money-bill-wave', emoji: '💵', label: 'Payroll' },
+            { icon: 'fa-briefcase', emoji: '💼', label: 'Recruitment' },
+            { icon: 'fa-calendar-check', emoji: '📅', label: 'Bookings' },
+            { icon: 'fa-bullhorn', emoji: '📣', label: 'Broadcast' },
+            { icon: 'fa-database', emoji: '🗄️', label: 'Database' },
+            { icon: 'fa-bullseye', emoji: '🎯', label: 'Targets' },
           ].map((item, idx) => (
             <div
               key={item.label}
@@ -1329,7 +1329,8 @@ const App: React.FC = () => {
                 willChange: 'transform, opacity',
               }}
             >
-              <i className={`fas ${item.icon} text-gold`}></i>
+              <i className={`fas ${item.icon} text-gold boot-fa`} aria-hidden="true"></i>
+              <span className="boot-emoji" aria-hidden="true">{item.emoji}</span>
               <span className="text-[10px] font-black uppercase tracking-widest text-white/80">{item.label}</span>
             </div>
           ))}

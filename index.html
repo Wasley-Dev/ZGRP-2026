@@ -372,6 +372,11 @@
             backdrop-filter: none;
           }
         }
+
+        /* Loading screen icon fallback (FontAwesome can load after React mounts) */
+        .boot-fa { width: 18px; text-align: center; }
+        .boot-emoji { font-size: 14px; line-height: 1; }
+        html.fa-ready .boot-emoji { display: none; }
     </style>
 <script>
   (function () {
@@ -386,6 +391,27 @@
     applyViewportMetrics();
     window.addEventListener('resize', applyViewportMetrics);
     window.addEventListener('orientationchange', applyViewportMetrics);
+  })();
+</script>
+<script>
+  (function () {
+    try {
+      if (!document.fonts || !document.fonts.ready) return;
+      document.fonts.ready.then(() => {
+        const families = [
+          'Font Awesome 6 Free',
+          'Font Awesome 6 Pro',
+          'Font Awesome 5 Free',
+          'Font Awesome 5 Pro',
+        ];
+        const ok = families.some((f) => {
+          try { return document.fonts.check(`16px "${f}"`); } catch { return false; }
+        });
+        if (ok) document.documentElement.classList.add('fa-ready');
+      });
+    } catch {
+      // ignore
+    }
   })();
 </script>
 </head>
