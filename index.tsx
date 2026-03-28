@@ -9,7 +9,9 @@ declare global {
   }
 }
 
-window.__APP_BOOTED__ = true;
+// `__APP_BOOTED__` is set by the React app *after* the first successful mount.
+// This keeps the HTML boot splash visible if React fails to render (instead of
+// showing an empty dark-blue screen).
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

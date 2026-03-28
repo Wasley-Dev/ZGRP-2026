@@ -168,6 +168,11 @@ const shouldQuickDismiss = (n: Notification): boolean => {
 };
 
 const App: React.FC = () => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.__APP_BOOTED__ = true;
+  }, []);
+
   const fnv1a = (hash: number, value: string) => {
     let h = hash;
     for (let i = 0; i < value.length; i += 1) {
