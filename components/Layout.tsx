@@ -116,6 +116,13 @@ const Layout: React.FC<LayoutProps> = ({
   const isBasicUser = user.role === UserRole.USER;
   const shouldPrioritizeTasksNotices = isBasicUser && !isSalesRestrictedUser;
   const showSalesHome = isSalesDept && user.role === UserRole.USER;
+  const userShortLabel = (() => {
+    const email = String(user.email || '').trim();
+    const name = String(user.name || '').trim();
+    if (email.includes('@')) return email.split('@')[0] || name || email;
+    if (name) return name.split(/\s+/)[0] || name;
+    return '';
+  })();
   const homeItem = showSalesHome
     ? { id: 'salesDashboard', label: 'Dashboard', icon: 'fa-chart-pie' }
     : { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' };
@@ -449,7 +456,7 @@ const Layout: React.FC<LayoutProps> = ({
             <button
               onClick={() => onModuleChange('settings')}
               className={`flex items-center gap-2 p-1.5 rounded-xl transition-colors border ${isDark ? 'hover:bg-white/10 border-blue-400/20' : 'hover:bg-slate-100 border-slate-200'}`}
-              title={user.name}
+              title={userShortLabel || user.name}
             >
               <img
                 src={user.avatar}
@@ -457,7 +464,7 @@ const Layout: React.FC<LayoutProps> = ({
                 alt="Avatar"
               />
               <div className="hidden md:block text-left">
-                <p className={`text-[10px] font-black truncate uppercase max-w-[100px] ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{user.name}</p>
+                <p className={`text-[10px] font-black truncate uppercase max-w-[100px] ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>{userShortLabel || user.name}</p>
                 <p className="text-[8px] text-gold font-bold truncate tracking-widest uppercase max-w-[100px]">{(user.jobTitle || user.role)}</p>
               </div>
             </button>

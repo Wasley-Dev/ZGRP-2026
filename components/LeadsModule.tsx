@@ -254,6 +254,11 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
     return 'text-amber-600 dark:text-amber-300';
   };
 
+  const userLabel = (id?: string, fallback?: string) => {
+    if (!id) return fallback || '';
+    return nameById.get(id) || fallback || id;
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {editing && (
@@ -374,11 +379,13 @@ const LeadsModule: React.FC<LeadsModuleProps> = ({ user, users }) => {
                       </p>
                     )}
                     {l.notes && <p className="mt-2 text-sm text-slate-700 dark:text-blue-200 whitespace-pre-wrap">{l.notes}</p>}
-                    {user.role === UserRole.USER && (
-                      <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
-                        Owner: {nameById.get(l.userId) || l.userId}
+                    <div className="mt-3 space-y-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-blue-300/60">
+                      <p>Owner: {userLabel(l.userId)}</p>
+                      <p>
+                        Created by:{' '}
+                        {userLabel(l.createdByUserId || l.userId, l.createdByName)}
                       </p>
-                    )}
+                    </div>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className={`text-[10px] font-black uppercase tracking-widest ${statusStyle(l.status)}`}>{l.status}</p>

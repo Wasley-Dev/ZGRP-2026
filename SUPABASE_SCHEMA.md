@@ -9,6 +9,8 @@ This update adds a new migration for the employee system:
 - `supabase/migrations/20260325000100_attendance_checkout_requests.sql` (GM approval requests)
 - `supabase/migrations/20260325000200_sales_modules.sql` (Leads, Invoices, Sales Targets/KPIs)
 - `supabase/migrations/20260325000300_messages_channel.sql` (adds `channel` to `messages` for Sales chat)
+- `supabase/migrations/20260327001000_sales_lead_followups.sql` (follow-up reminders for Sales leads)
+- `supabase/migrations/20260330000100_sales_leads_created_by.sql` (track who created a lead)
 
 It creates:
 
@@ -36,6 +38,8 @@ Option A (Supabase Dashboard SQL Editor):
    - `supabase/migrations/20260325000100_attendance_checkout_requests.sql`
    - `supabase/migrations/20260325000200_sales_modules.sql`
    - `supabase/migrations/20260325000300_messages_channel.sql`
+   - `supabase/migrations/20260327001000_sales_lead_followups.sql`
+   - `supabase/migrations/20260330000100_sales_leads_created_by.sql`
    - Important: do not run `20260324000200_attendance_segments.sql` before `20260324000100_employee_system.sql` or you will get `relation "public.attendance" does not exist`.
 3. If you still see “schema cache” errors, wait ~60 seconds then refresh, or run this in SQL Editor:
    - `notify pgrst, 'reload schema';`

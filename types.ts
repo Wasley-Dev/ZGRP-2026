@@ -149,6 +149,8 @@ export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'won' | 'lost';
 export interface Lead {
   id: string;
   userId: string;
+  createdByUserId?: string;
+  createdByName?: string;
   name: string;
   company?: string;
   phone?: string;

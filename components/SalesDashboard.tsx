@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { type Invoice, type Lead, type SalesTarget, type SystemUser, UserRole } from '../types';
+import { type Invoice, type Lead, type Notice, type SalesTarget, type SystemUser, type TaskItem, UserRole } from '../types';
 import { fetchInvoices, fetchLeads, fetchSalesTargets } from '../services/salesService';
+import { fetchNotices, fetchTasks, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface SalesDashboardProps {
   user: SystemUser;
@@ -14,6 +15,8 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [targets, setTargets] = useState<SalesTarget[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,6 +34,51 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
     void load();
     return () => { cancelled = true; };
   }, [user.id, canViewAllSales]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const [t, n] = await Promise.all([fetchTasks(user, false), fetchNotices()]);
+      if (cancelled) return;
+      setTasks(t);
+      setNotices(n);
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  useEffect(() => {
+    if (!hasEmployeeSupabase()) return;
+    const subTasks = subscribeToTableChanges('tasks', {
+      filter: `user_id=eq.${user.id}`,
+      onInsert: (row) => {
+        const next: TaskItem = {
+          id: String(row.id),
+          userId: String(row.user_id),
+          title: String(row.title || ''),
+          description: String(row.description || ''),
+          status: (String(row.status || 'pending').toLowerCase() === 'completed' ? 'completed' : 'pending') as TaskItem['status'],
+          createdAt: String(row.created_at || ''),
+        };
+        setTasks((prev) => (prev.some((t) => t.id === next.id) ? prev : [next, ...prev]));
+      },
+    });
+    const subNotices = subscribeToTableChanges('notices', {
+      onInsert: (row) => {
+        const next: Notice = {
+          id: String(row.id),
+          title: String(row.title || ''),
+          content: String(row.content || ''),
+          createdAt: String(row.created_at || ''),
+        };
+        setNotices((prev) => (prev.some((n) => n.id === next.id) ? prev : [next, ...prev]));
+      },
+    });
+    return () => {
+      subTasks.unsubscribe();
+      subNotices.unsubscribe();
+    };
+  }, [user.id]);
 
   const monthKey = useMemo(() => {
     const now = new Date();
@@ -71,12 +119,6 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
             </p>
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
-            <button onClick={() => onNavigate('tasks')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
-              Tasks
-            </button>
-            <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-              Notices
-            </button>
             <button onClick={() => onNavigate('leads')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
               Open Leads
             </button>
@@ -168,6 +210,75 @@ const SalesDashboard: React.FC<SalesDashboardProps> = ({ user, onNavigate }) => 
             </div>
           </button>
         ))}
+      </div>
+
+      <div className="liquid-panel p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Tasks &amp; Notices</h3>
+            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+              Read assigned tasks and company notices directly from your Sales dashboard.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 justify-end">
+            <button onClick={() => onNavigate('tasks')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+              Open Tasks
+            </button>
+            <button onClick={() => onNavigate('notices')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+              Open Notices
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">My Tasks</p>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold">{tasks.filter((t) => t.status !== 'completed').length}</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {tasks.slice(0, 5).map((t) => (
+                <div key={t.id} className="rounded-xl border border-slate-200/70 dark:border-blue-400/15 bg-white/70 dark:bg-slate-950/40 p-3">
+                  <p className="text-xs font-black text-slate-900 dark:text-white truncate">{t.title}</p>
+                  {t.description && (
+                    <p className="mt-1 text-[10px] text-slate-600 dark:text-blue-200 line-clamp-2">{t.description}</p>
+                  )}
+                  <p className={`mt-2 text-[9px] font-black uppercase tracking-widest ${t.status === 'completed' ? 'text-green-600 dark:text-green-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                    {t.status}
+                  </p>
+                </div>
+              ))}
+              {tasks.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-300/70 dark:border-blue-400/20 p-5 text-center text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+                  No tasks assigned yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-blue-300/60">Latest Notices</p>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold">{notices.length}</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              {notices.slice(0, 5).map((n) => (
+                <div key={n.id} className="rounded-xl border border-slate-200/70 dark:border-blue-400/15 bg-white/70 dark:bg-slate-950/40 p-3">
+                  <p className="text-xs font-black text-slate-900 dark:text-white truncate">{n.title}</p>
+                  <p className="mt-1 text-[10px] text-slate-600 dark:text-blue-200 line-clamp-2">{n.content}</p>
+                  <p className="mt-2 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-blue-300/50">
+                    {n.createdAt ? new Date(n.createdAt).toLocaleDateString('en-GB') : ''}
+                  </p>
+                </div>
+              ))}
+              {notices.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-300/70 dark:border-blue-400/20 p-5 text-center text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
+                  No notices published yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="liquid-panel p-6">

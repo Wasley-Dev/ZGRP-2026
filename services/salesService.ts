@@ -65,6 +65,8 @@ const isSchemaError = (err: unknown): boolean => {
 const toLead = (row: any): Lead => ({
   id: String(row.id),
   userId: String(row.user_id),
+  createdByUserId: row.created_by_user_id ? String(row.created_by_user_id) : undefined,
+  createdByName: row.created_by_name ? String(row.created_by_name) : undefined,
   name: String(row.name || ''),
   company: row.company ? String(row.company) : undefined,
   phone: row.phone ? String(row.phone) : undefined,
@@ -118,9 +120,16 @@ export const fetchLeads = async (user: SystemUser, canViewAll: boolean): Promise
 export const createLead = async (
   actor: SystemUser,
   targetUserId: string,
-  input: Omit<Lead, 'id' | 'userId' | 'createdAt'>
+  input: Omit<Lead, 'id' | 'userId' | 'createdAt' | 'createdByUserId' | 'createdByName'>
 ): Promise<Lead> => {
-  const local: Lead = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
+  const local: Lead = {
+    id: `local-${Date.now()}`,
+    userId: targetUserId,
+    createdByUserId: actor.id,
+    createdByName: actor.name,
+    createdAt: nowIso(),
+    ...input,
+  };
   const current = readLocalArray<Lead>('leads', []);
   writeLocalArray('leads', [local, ...current].slice(0, 500));
   const client = getSupabase();
@@ -128,6 +137,8 @@ export const createLead = async (
 
   const payload = {
     user_id: targetUserId,
+    created_by_user_id: actor.id,
+    created_by_name: actor.name,
     name: input.name,
     company: input.company || null,
     phone: input.phone || null,

@@ -143,7 +143,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-2xl border border-[#003366]/20 bg-white px-4 py-3.5 font-semibold text-[#1e293b] outline-none transition-all placeholder:text-slate-300 focus:border-[#003366] focus:ring-4 focus:ring-[#003366]/10"
-                    placeholder="username@zayagroupltd.com or Christopher Martin"
+                    placeholder="username"
                     required
                   />
                 </div>
