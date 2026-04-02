@@ -11,6 +11,10 @@ let autoUpdater = null;
 try {
   app.commandLine.appendSwitch('disable-crash-reporter');
   app.commandLine.appendSwitch('disable-features', 'Crashpad');
+  // Some PCs crash/close immediately due to GPU driver issues. Prefer reliability over GPU acceleration.
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.disableHardwareAcceleration();
 } catch {
   // ignore
 }
@@ -945,6 +949,9 @@ app.whenReady().then(async () => {
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_USER_MODEL_ID);
   }
+
+  // Keep process alive during the critical startup window even if the first window closes unexpectedly.
+  suppressAutoQuitUntil = Date.now() + 15000;
 
   setupFileLogging();
   logLine('info', 'app version', app.getVersion(), 'packaged', app.isPackaged);
