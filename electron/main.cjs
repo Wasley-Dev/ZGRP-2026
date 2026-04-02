@@ -84,6 +84,7 @@ let pendingUpdateInstall = false;
 let appStartedAt = Date.now();
 let earlyWindowFailures = 0;
 let portalProtocolReady = false;
+let suppressAutoQuitUntil = 0;
 
 const logLine = (level, ...args) => {
   const message = args.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join(' ');
@@ -876,6 +877,9 @@ function createMainWindow() {
       // Try to keep the app alive even if the first window closes immediately.
       // Avoid infinite loops by limiting retries.
       if (earlyWindowFailures <= 3) {
+        // Prevent the global `window-all-closed` handler from quitting the app
+        // before we get a chance to recreate the window.
+        suppressAutoQuitUntil = Date.now() + 5000;
         setTimeout(() => {
           if (!BrowserWindow.getAllWindows().length) {
             try {
@@ -1010,6 +1014,20 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  // If the first window closes during startup, keep the process alive briefly so we can recreate it.
+  // Otherwise Electron will quit immediately (looks like the app "crashes"/won't open).
+  if (Date.now() < suppressAutoQuitUntil) {
+    logLine('warn', '[app] window-all-closed suppressed; recreating window');
+    setTimeout(() => {
+      try {
+        if (!BrowserWindow.getAllWindows().length) createMainWindow();
+      } catch (err) {
+        logLine('error', '[app] recreate after suppressed quit failed:', err?.message || err);
+      }
+    }, 350);
+    return;
+  }
+
   Promise.resolve()
     .then(() => localServer?.close?.())
     .catch(() => {});
