@@ -15,6 +15,7 @@ export const MOCK_USER: SystemUser = {
   id: 'USR-001',
   name: 'George Wasley',
   email: 'it@zayagroupltd.com',
+  phone: '+255650787961',
   password: 'Kingsley06#',
   hasCompletedOrientation: false,
   role: UserRole.SUPER_ADMIN,

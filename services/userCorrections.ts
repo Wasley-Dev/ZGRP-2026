@@ -1,4 +1,4 @@
-import { type SystemUser } from '../types';
+import { type SystemUser, UserRole } from '../types';
 
 const normalizeText = (value: unknown) =>
   String(value || '')
@@ -16,12 +16,20 @@ const applyPatch = (user: SystemUser, patch: Partial<SystemUser>) => {
     next.name = patch.name;
     changed = true;
   }
+  if (typeof patch.role !== 'undefined' && patch.role !== user.role) {
+    next.role = patch.role;
+    changed = true;
+  }
   if (typeof patch.jobTitle === 'string' && patch.jobTitle !== user.jobTitle) {
     next.jobTitle = patch.jobTitle;
     changed = true;
   }
   if (typeof patch.baseSalary === 'number' && patch.baseSalary !== user.baseSalary) {
     next.baseSalary = patch.baseSalary;
+    changed = true;
+  }
+  if (typeof patch.phone === 'string' && patch.phone !== user.phone) {
+    next.phone = patch.phone;
     changed = true;
   }
 
@@ -47,7 +55,12 @@ export const applyUserCorrections = (users: SystemUser[]): { users: SystemUser[]
 
     // Canonical salaries / titles
     if (email === 'it@zayagroupltd.com') {
-      const res = applyPatch(current, { jobTitle: 'Head of Department', baseSalary: 500000 });
+      const res = applyPatch(current, {
+        role: UserRole.SUPER_ADMIN,
+        jobTitle: 'Head of Department',
+        baseSalary: 500000,
+        phone: '+255650787961',
+      });
       current = res.user;
       didChange ||= res.changed;
     }

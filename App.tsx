@@ -1459,16 +1459,16 @@ const App: React.FC = () => {
     setShowOrientation(shouldShowOrientation);
 
     // Auto clock-in on sign-in (all non-admin roles) to keep attendance consistent across devices.
-    try {
-      if (updatedUser.role !== UserRole.ADMIN) {
+    // Fire-and-forget to keep login UI snappy (avoid "freezing" on slow networks).
+    void (async () => {
+      try {
+        if (updatedUser.role === UserRole.ADMIN) return;
         const today = await fetchTodayAttendance(updatedUser);
-        if (!today?.checkIn) {
-          await clockIn(updatedUser);
-        }
+        if (!today?.checkIn) await clockIn(updatedUser);
+      } catch (err) {
+        console.warn('Auto clock-in skipped:', err);
       }
-    } catch (err) {
-      console.warn('Auto clock-in skipped:', err);
-    }
+    })();
     // Login notification uses 'machines-login' origin → auto-dismissed in 3s
     pushNotification('Login Success', `${updatedUser.name} signed in from this machine.`, 'SUCCESS', 'machines-login');
     try {
