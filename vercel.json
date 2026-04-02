@@ -7,6 +7,7 @@
     { "handle": "filesystem" },
     { "src": "/v1/messages/sms/status", "dest": "/api/v1/messages/sms/status" },
     { "src": "/v1/messages/sms", "dest": "/api/v1/messages/sms" },
+    { "src": "/v1/messages/whatsapp", "dest": "/api/v1/messages/whatsapp" },
     { "src": "/v1/messages/email", "dest": "/api/v1/messages/email" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

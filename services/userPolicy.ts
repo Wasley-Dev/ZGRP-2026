@@ -1,7 +1,7 @@
 import { type SystemUser } from '../types';
 
 const FORBIDDEN_EMAILS = new Set(['s.miller@zayagroupltd.com', 'j.wilson@zayagroupltd.com']);
-const FORBIDDEN_NAMES = new Set(['sarah miller', 'james wilson']);
+const FORBIDDEN_NAMES = new Set(['sarah miller', 'james wilson', 'christopher martin']);
 
 const normalizeName = (value: string) =>
   String(value || '')
@@ -25,4 +25,3 @@ export const assertAllowedUser = (user: Pick<SystemUser, 'name' | 'email'>) => {
     throw new Error('This account is permanently blocked and cannot be created or restored.');
   }
 };
-

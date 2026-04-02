@@ -54,6 +54,31 @@ export const sendTwilioSms = async ({ to, body }) => {
   return payload;
 };
 
+export const sendTwilioWhatsApp = async ({ to, body }) => {
+  const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const fromRaw = (process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_MESSAGING_FROM || '').trim();
+  const auth = toTwilioAuthHeader();
+  if (!sid || !fromRaw || !auth) {
+    throw new Error('Twilio WhatsApp is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM.');
+  }
+  const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
+  const toAddr = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
+  const form = new URLSearchParams({ To: toAddr, From: from, Body: body });
+  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      Authorization: auth,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form,
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.message || `Twilio WhatsApp send failed (${response.status})`);
+  }
+  return payload;
+};
+
 export const lookupTwilioStatus = async (providerMessageId) => {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
   const auth = toTwilioAuthHeader();

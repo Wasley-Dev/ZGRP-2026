@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, startTransition, useState, useEffect, useMemo, useRef } from 'react';
 import { MOCK_USER, MOCK_USERS } from './constants';
 import {
   BookingEntry,
@@ -11,7 +11,7 @@ import {
   UserRole,
 } from './types';
 import { createSharedSnapshot, loadSharedState, RealtimeSyncClient } from './services/realtimeSync';
-import { fetchRemoteUsers, fetchRemoteUsersWithStatus, hasRemoteUserDirectory, removeRemoteUsers, subscribeRemoteUsers, syncRemoteUsers } from './services/userDirectoryService';
+import { fetchRemoteUsers, fetchRemoteUsersWithStatus, hasRemoteUserDirectory, removeRemoteUsers, subscribeRemoteUserChanges, syncRemoteUsers } from './services/userDirectoryService';
 import { loadLocalSnapshot, saveLocalSnapshot, queueOutbox, flushOutbox, getOnlineState, saveOfflineUsers, hasOutboxItems, purgeOfflinePortalDataExceptUsers } from './services/offlineStore';
 import { filterForbiddenUsers, isForbiddenUser } from './services/userPolicy';
 import { applyUserCorrections } from './services/userCorrections';
@@ -889,28 +889,60 @@ const App: React.FC = () => {
       },
     });
 
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleSaveOffline = (users: SystemUser[]) => {
+      if (saveTimer) return;
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        void saveOfflineUsers(users).catch(() => {});
+      }, 900);
+    };
+
     const userSub = hasRemoteUserDirectory()
-      ? subscribeRemoteUsers(() => {
-          void (async () => {
-            const res = await fetchRemoteUsersWithStatus();
+      ? subscribeRemoteUserChanges({
+          onUpsert: (incoming) => {
             if (stopped) return;
-            if (!res.ok) return;
-            const normalized = normalizeUsers(filterForbiddenUsers(res.users));
-            const corrected = applyUserCorrections(normalized);
-            const merged = mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false });
-            const remoteUsersHash = hashUsers(merged);
-            if (remoteUsersHash === usersHashRef.current) return;
+
+            if (isForbiddenUser(incoming)) {
+              applyingRemoteUpdateRef.current = true;
+              startTransition(() => {
+                setAllUsers((prev) => prev.filter((u) => u.id !== incoming.id));
+              });
+              void removeRemoteUsers([incoming.id]).catch(() => {});
+              return;
+            }
+
+            const correctedSingle = applyUserCorrections([incoming]);
+            const user = correctedSingle.users[0];
+            if (correctedSingle.changed.length) {
+              void syncRemoteUsers(correctedSingle.changed).catch(() => {});
+            }
+
             applyingRemoteUpdateRef.current = true;
-            setAllUsers(merged);
-            void saveOfflineUsers(merged).catch(() => {});
-            setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
+            startTransition(() => {
+              setAllUsers((prev) => {
+                const next = mergeSeedUsers(seedUsers, filterForbiddenUsers([user, ...prev.filter((u) => u.id !== user.id)]), { includeMissingSeeds: false });
+                scheduleSaveOffline(next);
+                return next;
+              });
+              setCurrentUser((prev) => (prev.id === user.id ? { ...prev, ...user } : prev));
+            });
+
             if (isLoggedIn) {
               pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
             }
-            if (corrected.changed.length) {
-              void syncRemoteUsers(corrected.changed).catch(() => {});
-            }
-          })();
+          },
+          onDelete: (id) => {
+            if (stopped) return;
+            applyingRemoteUpdateRef.current = true;
+            startTransition(() => {
+              setAllUsers((prev) => {
+                const next = prev.filter((u) => u.id !== id);
+                scheduleSaveOffline(next);
+                return next;
+              });
+            });
+          },
         })
       : { unsubscribe: () => {} };
 
@@ -918,6 +950,7 @@ const App: React.FC = () => {
       stopped = true;
       portalSub.unsubscribe();
       userSub.unsubscribe();
+      if (saveTimer) clearTimeout(saveTimer);
     };
   }, [isOnline, isLoggedIn, seedUsers]);
 
@@ -1511,26 +1544,56 @@ const App: React.FC = () => {
   };
 
   const updateUsers = (updated: SystemUser[]) => {
-    const cleaned = filterForbiddenUsers(updated);
+    const cleaned: SystemUser[] = filterForbiddenUsers(updated);
     const removedIds = allUsers
       .map((u) => u.id)
       .filter((id) => !cleaned.some((next) => next.id === id));
-    const normalized = normalizeUsers(cleaned);
-    setAllUsers(normalized);
+    const normalized: SystemUser[] = normalizeUsers(cleaned);
+
+    const changedUsers = (() => {
+      const prevById = new Map<string, SystemUser>();
+      allUsers.forEach((u) => prevById.set(u.id, u));
+      const isDifferent = (a: SystemUser | undefined, b: SystemUser) => {
+        if (!a) return true;
+        return (
+          a.name !== b.name ||
+          a.email !== b.email ||
+          a.phone !== b.phone ||
+          a.password !== b.password ||
+          a.hasCompletedOrientation !== b.hasCompletedOrientation ||
+          a.role !== b.role ||
+          a.department !== b.department ||
+          a.jobTitle !== b.jobTitle ||
+          a.avatar !== b.avatar ||
+          a.lastLogin !== b.lastLogin ||
+          a.status !== b.status ||
+          a.baseSalary !== b.baseSalary ||
+          a.allowancesTotal !== b.allowancesTotal ||
+          a.deductionsTotal !== b.deductionsTotal ||
+          a.performanceScore !== b.performanceScore
+        );
+      };
+      return normalized.filter((u) => isDifferent(prevById.get(u.id), u));
+    })();
+
+    startTransition(() => {
+      setAllUsers(normalized);
+      const updatedMe = normalized.find((u) => u.id === currentUser.id);
+      if (updatedMe) setCurrentUser(updatedMe);
+    });
     void saveOfflineUsers(normalized).catch(() => {});
     // Ensure offline admin edits are pushed when the machine comes back online.
     if (!isOnline || !hasRemoteUserDirectory()) {
       void queueOutbox('users', normalized).catch(() => {});
     }
-    const updatedMe = normalized.find(u => u.id === currentUser.id);
-    if (updatedMe) setCurrentUser(updatedMe);
     if (removedIds.length > 0 && hasRemoteUserDirectory()) {
       void removeRemoteUsers(removedIds);
     }
     if (hasRemoteUserDirectory()) {
-      void syncRemoteUsers(normalized).catch((err) => {
+      const payload = changedUsers.length ? changedUsers : normalized;
+      void syncRemoteUsers(payload).catch((err) => {
         console.warn('Remote user sync failed:', err);
-        pushNotification('User Sync Failed', 'Users updated locally, but remote sync failed. Check Supabase portal_users table/RLS.', 'WARNING', 'admin');
+        pushNotificationDeduped('sync-users-error', 'User Sync Failed', 'Users updated locally, but remote sync failed. Check Supabase portal_users table/RLS or internet.', 'WARNING', 'admin', 60000);
       });
       pushNotification('User Directory Updated', 'Admin changes were saved and queued for sync.', 'INFO', 'admin');
     } else {

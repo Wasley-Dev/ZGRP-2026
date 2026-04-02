@@ -16,6 +16,7 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
   const [selectedId, setSelectedId] = useState<string>(() => users[0]?.id || currentUser.id);
   const [isEditing, setIsEditing] = useState(false);
   const [reviewMonth, setReviewMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
   const [dailyReports, setDailyReports] = useState<DailyReport[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -262,7 +263,8 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
     });
     onUpdateUsers(nextUsers);
     setIsEditing(false);
-    alert('Employee profile updated.');
+    setSaveNotice('Employee profile updated.');
+    window.setTimeout(() => setSaveNotice(null), 2200);
   };
 
   return (
@@ -275,6 +277,12 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
           </div>
           <span className="text-[10px] font-black uppercase tracking-widest text-gold">{users.length} employees</span>
         </div>
+
+        {saveNotice && (
+          <div className="mt-4 rounded-2xl border border-emerald-300/40 bg-emerald-500/10 p-4 text-sm text-emerald-800 dark:text-emerald-200 font-semibold">
+            {saveNotice}
+          </div>
+        )}
       </div>
 
       {isAdminViewer && (

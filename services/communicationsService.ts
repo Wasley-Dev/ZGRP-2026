@@ -189,6 +189,44 @@ export const sendSmsCampaign = async (
   };
 };
 
+export const sendWhatsAppCampaign = async (
+  recipients: string[],
+  body: string
+): Promise<DispatchCampaignResponse> => {
+  ensureConfigured();
+  const normalizedRecipients = normalizePhoneList(recipients);
+  if (!normalizedRecipients.length) {
+    throw new Error('No valid recipient phone numbers after normalization.');
+  }
+  const payload = {
+    channel: 'WhatsApp' as Channel,
+    to: normalizedRecipients,
+    body,
+  };
+
+  const response = await sendWithRetry<BackendDispatchResponse>(
+    `${API_URL}/v1/messages/whatsapp`,
+    {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+    },
+    3
+  );
+
+  const providerMessageIds =
+    response.results
+      ?.map((result) => result.providerMessageId)
+      .filter((id): id is string => Boolean(id)) || [];
+
+  return {
+    requestId: response.requestId || `wa-${Date.now()}`,
+    providerMessageIds,
+    accepted: response.accepted ?? providerMessageIds.length,
+    failed: response.failed ?? 0,
+  };
+};
+
 interface BackendStatusResponse {
   receipts?: Array<{
     providerMessageId: string;

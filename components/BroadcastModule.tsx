@@ -8,6 +8,7 @@ import {
   hasMessagingBackend,
   sendEmailCampaign,
   sendSmsCampaign,
+  sendWhatsAppCampaign,
 } from '../services/communicationsService';
 import { fetchLeads } from '../services/salesService';
 
@@ -175,8 +176,9 @@ const BroadcastModule: React.FC<{ candidates: Candidate[]; user: SystemUser }> =
         result,
       };
     }
-    const smsBody = selectedChannel === 'WhatsApp' ? `[WhatsApp] ${body}` : body;
-    const result = await sendSmsCampaign(phones, smsBody);
+    const result = selectedChannel === 'WhatsApp'
+      ? await sendWhatsAppCampaign(phones, body)
+      : await sendSmsCampaign(phones, body);
     return {
       channel: selectedChannel,
       result,

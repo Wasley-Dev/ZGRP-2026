@@ -244,6 +244,9 @@ export const fetchPendingMiddayCheckoutRequests = async (): Promise<AttendanceCh
     .limit(200);
   if (error || !data) {
     console.error('fetchPendingMiddayCheckoutRequests error:', error);
+    if (isNetworkError(error) || isOfflineNow()) {
+      return [];
+    }
     if (isSchemaOrPermissionError(error)) {
       throw asError(
         error,

@@ -153,3 +153,77 @@ export const subscribeRemoteUsers = (onChange: () => void): { unsubscribe: () =>
   };
 };
 
+export const subscribeRemoteUserChanges = (handlers: {
+  onUpsert: (user: SystemUser) => void;
+  onDelete?: (id: string) => void;
+}): { unsubscribe: () => void } => {
+  const client = getSupabase();
+  if (!client) return { unsubscribe: () => {} };
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const pendingUpserts = new Map<string, SystemUser>();
+  const pendingDeletes = new Set<string>();
+
+  const flush = () => {
+    timer = null;
+    // Deletes first so re-inserts in the same batch win if present.
+    if (pendingDeletes.size) {
+      const ids = Array.from(pendingDeletes);
+      pendingDeletes.clear();
+      ids.forEach((id) => handlers.onDelete?.(id));
+    }
+    if (pendingUpserts.size) {
+      const users = Array.from(pendingUpserts.values());
+      pendingUpserts.clear();
+      users.forEach((u) => handlers.onUpsert(u));
+    }
+  };
+
+  const schedule = () => {
+    if (timer) return;
+    timer = setTimeout(flush, 250);
+  };
+
+  const channel: RealtimeChannel = client
+    .channel(`${TABLE_NAME}-row-changes`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLE_NAME }, (payload: any) => {
+      try {
+        const row = payload?.new;
+        if (!row?.id) return;
+        pendingUpserts.set(String(row.id), toUser(row as PortalUserRow));
+        schedule();
+      } catch {
+        // ignore
+      }
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLE_NAME }, (payload: any) => {
+      try {
+        const row = payload?.new;
+        if (!row?.id) return;
+        pendingUpserts.set(String(row.id), toUser(row as PortalUserRow));
+        schedule();
+      } catch {
+        // ignore
+      }
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: TABLE_NAME }, (payload: any) => {
+      try {
+        const id = payload?.old?.id;
+        if (!id) return;
+        pendingDeletes.add(String(id));
+        schedule();
+      } catch {
+        // ignore
+      }
+    });
+
+  channel.subscribe();
+
+  return {
+    unsubscribe: () => {
+      if (timer) clearTimeout(timer);
+      client.removeChannel(channel);
+    },
+  };
+};
+
