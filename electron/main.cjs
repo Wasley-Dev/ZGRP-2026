@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, dialog } = require('electron');
+const { app, BrowserWindow, shell, dialog, protocol } = require('electron');
 const http = require('http');
 const https = require('https');
 const path = require('path');
@@ -11,6 +11,25 @@ let autoUpdater = null;
 try {
   app.commandLine.appendSwitch('disable-crash-reporter');
   app.commandLine.appendSwitch('disable-features', 'Crashpad');
+} catch {
+  // ignore
+}
+
+// Provide a stable offline origin without relying on a localhost port (more reliable on locked-down PCs).
+// Must be registered before app 'ready'.
+try {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: 'zgrp',
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+      },
+    },
+  ]);
 } catch {
   // ignore
 }
@@ -64,6 +83,7 @@ let logStream = null;
 let pendingUpdateInstall = false;
 let appStartedAt = Date.now();
 let earlyWindowFailures = 0;
+let portalProtocolReady = false;
 
 const logLine = (level, ...args) => {
   const message = args.map((v) => (typeof v === 'string' ? v : JSON.stringify(v))).join(' ');
@@ -374,6 +394,70 @@ const getCachedPortalDistDir = () => {
   }
 };
 
+const registerPortalProtocol = () =>
+  new Promise((resolve, reject) => {
+    if (!ALLOW_OFFLINE_FALLBACK) {
+      portalProtocolReady = false;
+      resolve(false);
+      return;
+    }
+    try {
+      protocol.registerBufferProtocol(
+        'zgrp',
+        (request, respond) => {
+          try {
+            const u = new URL(String(request?.url || 'zgrp://portal/'));
+            const host = String(u.hostname || '').toLowerCase();
+            if (host !== 'portal' && host !== 'action') {
+              respond({ statusCode: 404, data: Buffer.from('Not found'), mimeType: 'text/plain; charset=utf-8' });
+              return;
+            }
+
+            // Action URLs are handled in BrowserWindow's will-navigate.
+            if (host === 'action') {
+              respond({ statusCode: 204, data: Buffer.from(''), mimeType: 'text/plain; charset=utf-8' });
+              return;
+            }
+
+            const bundledDist = path.join(app.getAppPath(), 'dist');
+            const cachedDist = getCachedPortalDistDir();
+            const distDir = cachedDist || bundledDist;
+
+            let requestPath = decodeURIComponent(u.pathname || '/');
+            if (requestPath === '/') requestPath = '/index.html';
+            const safePath = path.normalize(requestPath).replace(/^([A-Za-z]:)?[\\/]+/, '');
+            let filePath = path.join(distDir, safePath);
+
+            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+              filePath = path.join(distDir, 'index.html');
+            }
+
+            const data = fs.readFileSync(filePath);
+            respond({ statusCode: 200, data, mimeType: guessMime(filePath) });
+          } catch (err) {
+            respond({
+              statusCode: 500,
+              data: Buffer.from(err?.message || 'protocol error'),
+              mimeType: 'text/plain; charset=utf-8',
+            });
+          }
+        },
+        (err) => {
+          if (err) {
+            portalProtocolReady = false;
+            reject(err);
+            return;
+          }
+          portalProtocolReady = true;
+          resolve(true);
+        }
+      );
+    } catch (err) {
+      portalProtocolReady = false;
+      reject(err);
+    }
+  });
+
 const downloadLivePortalToCache = async () => {
   const cacheRoot = PORTAL_CACHE_ROOT();
   const current = readJsonSafe(PORTAL_CACHE_CURRENT());
@@ -492,6 +576,20 @@ const buildLocalUrl = ({ baseUrl, accessToken }) => {
   }
 };
 
+const buildProtocolUrl = ({ accessToken }) => {
+  try {
+    const u = new URL('zgrp://portal/');
+    if (accessToken) u.searchParams.set('access', accessToken);
+    u.searchParams.set('client', 'desktop');
+    u.searchParams.set('v', app.getVersion());
+    u.searchParams.set('t', String(Date.now()));
+    return u.toString();
+  } catch {
+    const q = accessToken ? `?access=${encodeURIComponent(accessToken)}` : '?';
+    return `zgrp://portal/${q}${accessToken ? '&' : ''}client=desktop&v=${encodeURIComponent(app.getVersion())}&t=${Date.now()}`;
+  }
+};
+
 const resolveBundledToken = () => {
   try {
     const pkgPath = path.join(app.getAppPath(), 'package.json');
@@ -600,26 +698,43 @@ function createMainWindow() {
   });
 
   win.webContents.on('will-navigate', (event, url) => {
+    const raw = String(url || '');
+    if (raw.startsWith('zgrp://action/')) {
+      event.preventDefault();
+      handleNavAction(raw).catch(() => {});
+      return;
+    }
+
     const isAllowed =
-      url.startsWith(LIVE_ORIGIN) ||
-      url.startsWith('http://127.0.0.1:') ||
-      url.startsWith('http://127.0.0.1:4173');
+      raw.startsWith(LIVE_ORIGIN) ||
+      raw.startsWith('http://127.0.0.1:') ||
+      raw.startsWith('http://127.0.0.1:4173') ||
+      raw.startsWith('zgrp://portal/');
     if (!isAllowed) {
       event.preventDefault();
-      shell.openExternal(url);
+      shell.openExternal(raw);
     }
   });
 
   const token = ACCESS_TOKEN || resolveBundledToken();
-  const localBaseUrl = localServer?.url || 'http://127.0.0.1:0';
-  const localUrl = buildLocalUrl({ baseUrl: localBaseUrl, accessToken: token });
-  const liveUrl = buildLiveUrl({ accessToken: token });
+  const getLocalUrl = () => buildLocalUrl({ baseUrl: localServer?.url || 'http://127.0.0.1:0', accessToken: token });
+  const getProtocolUrl = () => buildProtocolUrl({ accessToken: token });
+  const getLiveUrl = () => buildLiveUrl({ accessToken: token });
   const hasDevUrl = Boolean(process.env.ELECTRON_START_URL);
   const localBuild = path.join(app.getAppPath(), 'dist', 'index.html');
 
   const showOffline = async () => {
-    const safeLocal = String(localUrl).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const safeLive = String(liveUrl).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeLocal = String(getLocalUrl()).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeProtocol = String(getProtocolUrl()).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const safeLive = String(getLiveUrl()).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const logsPath = (() => {
+      try {
+        return path.join(app.getPath('userData'), 'logs', 'main.log');
+      } catch {
+        return '';
+      }
+    })();
+    const safeLogs = String(logsPath).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const html =
       `<!doctype html><html><head><meta charset="utf-8" />` +
       `<meta name="viewport" content="width=device-width, initial-scale=1" />` +
@@ -630,11 +745,15 @@ function createMainWindow() {
       `a{color:#93c5fd;word-break:break-all}</style></head><body>` +
       `<div class="card">` +
       `<h2 style="margin:0 0 10px 0">Unable to Start</h2>` +
-      `<p style="margin:0 0 14px 0;opacity:0.9">The desktop portal failed to load. You can retry, or open the live portal in a browser.</p>` +
+      `<p style="margin:0 0 14px 0;opacity:0.9">The desktop portal failed to load. You can retry, reset local cache, or open the live portal in a browser.</p>` +
+      `<p style="margin:0 0 14px 0;opacity:0.85">Offline portal: <a href="${safeProtocol}">${safeProtocol}</a></p>` +
       `<p style="margin:0 0 14px 0;opacity:0.9">Local app: <a href="${safeLocal}">${safeLocal}</a></p>` +
       `<p style="margin:0 0 14px 0;opacity:0.9">Live portal: <a href="${safeLive}">${safeLive}</a></p>` +
+      (safeLogs ? `<p style="margin:0 0 14px 0;opacity:0.75">Logs: <code>${safeLogs}</code></p>` : '') +
       `<div style="display:flex;gap:10px;flex-wrap:wrap">` +
-      `<button onclick="location.reload()">Retry</button>` +
+      `<button onclick="location.href='zgrp://action/retry'">Retry</button>` +
+      `<button onclick="location.href='zgrp://action/reset'">Reset & Retry</button>` +
+      `<button onclick="location.href='zgrp://action/open-local'">Open Offline Portal</button>` +
       `<button onclick="window.open('${safeLive}')">Open Live In Browser</button>` +
       `</div>` +
       `</div>` +
@@ -649,9 +768,11 @@ function createMainWindow() {
   }
 
   const loadLocal = async () => {
-    // Prefer the local HTTP server (stable IndexedDB). If it isn't available, fall back to loadFile.
-    if (localServer?.url) {
-      await win.loadURL(localUrl);
+    // Prefer the custom protocol (stable origin, no ports). If unavailable, fall back to HTTP server then loadFile.
+    if (portalProtocolReady) {
+      await win.loadURL(getProtocolUrl());
+    } else if (localServer?.url) {
+      await win.loadURL(getLocalUrl());
     } else if (fs.existsSync(localBuild)) {
       const q = token ? { query: { access: token, client: 'desktop' } } : { query: { client: 'desktop' } };
       await win.loadFile(localBuild, q);
@@ -663,7 +784,7 @@ function createMainWindow() {
   };
 
   const loadLive = async () => {
-    await win.loadURL(liveUrl);
+    await win.loadURL(getLiveUrl());
     currentMode = 'live';
   };
 
@@ -679,10 +800,51 @@ function createMainWindow() {
     }
   };
 
+  const handleNavAction = async (rawUrl) => {
+    const action = String(rawUrl || '').replace('zgrp://action/', '').split(/[?#]/)[0];
+
+    if (action === 'open-live') {
+      shell.openExternal(getLiveUrl());
+      return;
+    }
+
+    if (action === 'open-local') {
+      await loadLocal();
+      return;
+    }
+
+    const reset = action === 'reset';
+    if (reset) {
+      await clearHttpCacheBestEffort(win);
+      await clearStorageBestEffort(win);
+      try {
+        fs.rmSync(PORTAL_CACHE_ROOT(), { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
+      try {
+        if (ALLOW_OFFLINE_FALLBACK) {
+          const bundledDist = path.join(app.getAppPath(), 'dist');
+          localServer = await startLocalStaticServer(bundledDist);
+          localServer.distDir = bundledDist;
+        }
+      } catch (err) {
+        logLine('error', '[local-server] reset restart failed:', err?.message || err);
+      }
+    }
+
+    // Prefer live first so UI updates appear; fall back to local if offline.
+    try {
+      await loadWithTimeout(loadLive, 8000);
+    } catch {
+      await loadLocal().catch(() => {});
+    }
+  };
+
   // Prefer live (Vercel) so UI updates appear immediately; fall back to local so offline still works.
   // IMPORTANT: Use a stable local origin so IndexedDB/localStorage (offline cache + outbox) are consistent.
   // The app still syncs data via Supabase when online, matching what the live portal shows.
-  loadWithTimeout(loadLive, 3500).catch(() => loadLocal().catch(showOffline));
+  loadWithTimeout(loadLive, 8000).catch(() => loadLocal().catch(showOffline));
 
   win.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     if (!isMainFrame) return;
@@ -787,6 +949,15 @@ app.whenReady().then(async () => {
   app.on('quit', () => logLine('info', 'quit', pendingUpdateInstall ? '(update-ready)' : ''));
 
   try {
+    await registerPortalProtocol();
+    if (portalProtocolReady) {
+      logLine('info', '[protocol] zgrp://portal registered');
+    }
+  } catch (err) {
+    logLine('error', '[protocol] register failed:', err?.message || err);
+  }
+
+  try {
     if (ALLOW_OFFLINE_FALLBACK) {
       const bundledDist = path.join(app.getAppPath(), 'dist');
       const cachedDist = getCachedPortalDistDir();
@@ -819,9 +990,10 @@ app.whenReady().then(async () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           // Reload into local mode so the offline cache immediately matches the live portal version.
           const token = ACCESS_TOKEN || resolveBundledToken();
-          const localBaseUrl = localServer?.url || 'http://127.0.0.1:0';
-          const localUrl = buildLocalUrl({ baseUrl: localBaseUrl, accessToken: token });
-          mainWindow.loadURL(localUrl).catch(() => {});
+          const nextUrl = portalProtocolReady
+            ? buildProtocolUrl({ accessToken: token })
+            : buildLocalUrl({ baseUrl: localServer?.url || 'http://127.0.0.1:0', accessToken: token });
+          mainWindow.loadURL(nextUrl).catch(() => {});
         }
       } catch (err) {
         logLine('error', '[portal-cache] update failed:', err?.message || err);
