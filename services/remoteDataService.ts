@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { BookingEntry, Candidate, SystemConfig, SystemUser } from '../types';
 import { getSupabaseConfig } from './supabaseConfig';
 
@@ -69,6 +69,8 @@ type PortalUserRow = {
   avatar: string | null;
   last_login: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
+  base_salary?: number | null;
+  performance_score?: number | null;
 };
 type BookingRow = {
   id: string;
@@ -84,15 +86,15 @@ type BookingRow = {
 
 const nowIso = () => new Date().toISOString();
 
-export const fetchRemoteCandidates = async (): Promise<Candidate[]> => {
+export const fetchRemoteCandidatesWithStatus = async (): Promise<{ items: Candidate[]; ok: boolean }> => {
   const client = getSupabase();
-  if (!client) return [];
+  if (!client) return { items: [], ok: false };
   const { data, error } = await client.from('portal_candidates').select('*');
   if (error || !data) {
     console.error('Remote candidates fetch error:', error);
-    return [];
+    return { items: [], ok: false };
   }
-  return (data as CandidateRow[]).map((row) => ({
+  const items = (data as CandidateRow[]).map((row) => ({
     id: row.id,
     fullName: row.full_name,
     gender: row.gender as Candidate['gender'],
@@ -112,6 +114,12 @@ export const fetchRemoteCandidates = async (): Promise<Candidate[]> => {
     notes: row.notes || undefined,
     source: (row.source as Candidate['source']) || undefined,
   }));
+  return { items, ok: true };
+};
+
+export const fetchRemoteCandidates = async (): Promise<Candidate[]> => {
+  const res = await fetchRemoteCandidatesWithStatus();
+  return res.items;
 };
 
 export const syncRemoteCandidates = async (candidates: Candidate[]): Promise<void> => {
@@ -216,16 +224,27 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
     avatar: u.avatar ?? null,
     last_login: u.lastLogin,
     status: u.status,
+    base_salary: typeof u.baseSalary === 'number' ? u.baseSalary : null,
+    performance_score: typeof u.performanceScore === 'number' ? u.performanceScore : null,
   }));
   const attempt = await client.from('portal_users').upsert(rows, { onConflict: 'id' });
   if (!attempt.error) return;
 
   const message = String(attempt.error?.message || '');
-  if (!/job_title/i.test(message)) {
+  const missingJobTitle = /job_title/i.test(message);
+  const missingBaseSalary = /base_salary/i.test(message);
+  const missingPerformance = /performance_score/i.test(message);
+  if (!missingJobTitle && !missingBaseSalary && !missingPerformance) {
     console.error('Remote users upsert error:', attempt.error);
     throw attempt.error;
   }
-  const legacyRows = rows.map(({ job_title, ...rest }) => rest);
+  const legacyRows = rows.map((row: any) => {
+    const next = { ...row };
+    if (missingJobTitle) delete next.job_title;
+    if (missingBaseSalary) delete next.base_salary;
+    if (missingPerformance) delete next.performance_score;
+    return next;
+  });
   const retry = await client.from('portal_users').upsert(legacyRows as any, { onConflict: 'id' });
   if (retry.error) {
     console.error('Remote users upsert error (legacy retry):', retry.error);
@@ -233,15 +252,15 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   }
 };
 
-export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
+export const fetchRemoteBookingsWithStatus = async (): Promise<{ items: BookingEntry[]; ok: boolean }> => {
   const client = getSupabase();
-  if (!client) return [];
+  if (!client) return { items: [], ok: false };
   const { data, error } = await client.from('portal_bookings').select('*').order('created_at', { ascending: false });
   if (error || !data) {
     console.error('Remote bookings fetch error:', error);
-    return [];
+    return { items: [], ok: false };
   }
-  return (data as BookingRow[]).map((row) => ({
+  const items = (data as BookingRow[]).map((row) => ({
     id: row.id,
     booker: row.booker,
     date: row.date || row.created_at.slice(0, 10),
@@ -251,6 +270,12 @@ export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
     createdAt: row.created_at,
     createdByUserId: row.created_by_user_id,
   }));
+  return { items, ok: true };
+};
+
+export const fetchRemoteBookings = async (): Promise<BookingEntry[]> => {
+  const res = await fetchRemoteBookingsWithStatus();
+  return res.items;
 };
 
 export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void> => {
@@ -272,4 +297,81 @@ export const syncRemoteBookings = async (bookings: BookingEntry[]): Promise<void
     console.error('Remote bookings upsert error:', error);
     throw error;
   }
+};
+
+export const purgeRemotePortalDataExceptUsers = async (): Promise<void> => {
+  const client = getSupabase();
+  if (!client) return;
+  const targets = ['portal_candidates', 'portal_bookings'];
+  for (const table of targets) {
+    try {
+      const attempt = await client.from(table).delete().not('id', 'is', null);
+      if (attempt.error) {
+        console.error(`purgeRemotePortalDataExceptUsers error (${table}):`, attempt.error);
+      }
+    } catch (err) {
+      console.error(`purgeRemotePortalDataExceptUsers exception (${table}):`, err);
+    }
+  }
+};
+
+export const subscribeRemotePortalData = (handlers: {
+  onCandidates?: (items: Candidate[]) => void;
+  onBookings?: (items: BookingEntry[]) => void;
+  onSystemConfig?: (config: SystemConfig | null) => void;
+}): { unsubscribe: () => void } => {
+  const client = getSupabase();
+  if (!client) return { unsubscribe: () => {} };
+
+  let candidatesTimer: ReturnType<typeof setTimeout> | null = null;
+  let bookingsTimer: ReturnType<typeof setTimeout> | null = null;
+  let configTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const scheduleCandidates = () => {
+    if (!handlers.onCandidates) return;
+    if (candidatesTimer) return;
+    candidatesTimer = setTimeout(async () => {
+      candidatesTimer = null;
+      const res = await fetchRemoteCandidatesWithStatus();
+      if (!res.ok) return;
+      handlers.onCandidates?.(res.items);
+    }, 600);
+  };
+
+  const scheduleBookings = () => {
+    if (!handlers.onBookings) return;
+    if (bookingsTimer) return;
+    bookingsTimer = setTimeout(async () => {
+      bookingsTimer = null;
+      const res = await fetchRemoteBookingsWithStatus();
+      if (!res.ok) return;
+      handlers.onBookings?.(res.items);
+    }, 600);
+  };
+
+  const scheduleConfig = () => {
+    if (!handlers.onSystemConfig) return;
+    if (configTimer) return;
+    configTimer = setTimeout(async () => {
+      configTimer = null;
+      handlers.onSystemConfig?.(await fetchRemoteSystemConfig());
+    }, 600);
+  };
+
+  const channel: RealtimeChannel = client
+    .channel('portal-data-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_candidates' }, scheduleCandidates)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_bookings' }, scheduleBookings)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_system_config' }, scheduleConfig);
+
+  channel.subscribe();
+
+  return {
+    unsubscribe: () => {
+      if (candidatesTimer) clearTimeout(candidatesTimer);
+      if (bookingsTimer) clearTimeout(bookingsTimer);
+      if (configTimer) clearTimeout(configTimer);
+      client.removeChannel(channel);
+    },
+  };
 };

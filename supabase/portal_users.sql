@@ -7,9 +7,12 @@ create table if not exists public.portal_users (
   has_completed_orientation boolean not null default false,
   role text not null,
   department text not null,
+  job_title text,
   avatar text,
   last_login text not null default 'Never',
   status text not null default 'ACTIVE',
+  base_salary numeric,
+  performance_score numeric,
   updated_at timestamptz not null default now()
 );
 

@@ -1,16 +1,24 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { MachineSession, SystemUser } from '../types';
+import { getSupabaseConfig } from './supabaseConfig';
 
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
 const TABLE_NAME = 'portal_sessions';
 const LOCAL_SESSIONS_KEY = 'zaya_local_sessions_v1';
 
-const supabase =
-  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let supabase: SupabaseClient | null = null;
+let supabaseConfigKey = '';
+const getSupabase = (): SupabaseClient | null => {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  const key = `${config.url}|${config.anonKey}`;
+  if (supabase && supabaseConfigKey === key) return supabase;
+  supabase = createClient(config.url, config.anonKey);
+  supabaseConfigKey = key;
+  return supabase;
+};
 
 const useLocalSessionStore = () =>
-  !supabase || (typeof navigator !== 'undefined' && navigator.onLine === false);
+  !getSupabase() || (typeof navigator !== 'undefined' && navigator.onLine === false);
 
 type SessionRow = {
   id: string;
@@ -212,7 +220,7 @@ const fetchBrowserGeo = async (): Promise<{ latitude?: number; longitude?: numbe
   }
 };
 
-export const hasRemoteSessionStore = () => Boolean(supabase);
+export const hasRemoteSessionStore = () => Boolean(getSupabase());
 
 export const createLocalSessionId = () =>
   `SES-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -243,12 +251,17 @@ export const upsertSessionHeartbeat = async (
     writeLocalSessions(next.slice(0, 100));
     return;
   }
+  const client = getSupabase();
+  if (!client) return;
   const [ip, browserGeo, ipGeo] = await Promise.all([fetchPublicIp(), fetchBrowserGeo(), fetchGeoFromIp()]);
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await client
     .from(TABLE_NAME)
     .select('*')
     .eq('id', sessionId)
     .maybeSingle();
+  if (existingError) {
+    console.warn('Session existing lookup error:', existingError);
+  }
   const existingSession = existing as SessionRow | null;
   const forcedOrRevoked = existingSession?.status === 'FORCED_OUT' || existingSession?.status === 'REVOKED';
   const effectiveStatus = forceStatus || (forcedOrRevoked ? existingSession!.status : 'ACTIVE');
@@ -269,7 +282,10 @@ export const upsertSessionHeartbeat = async (
     forceLogoutReason: existingSession?.force_logout_reason ?? undefined,
     forcedOutAt: existingSession?.forced_out_at ?? undefined,
   };
-  await supabase.from(TABLE_NAME).upsert(toRow(session), { onConflict: 'id' });
+  const upsert = await client.from(TABLE_NAME).upsert(toRow(session), { onConflict: 'id' });
+  if (upsert.error) {
+    console.warn('Session heartbeat upsert error:', upsert.error);
+  }
 };
 
 export const markSessionOffline = async (sessionId: string) => {
@@ -281,10 +297,15 @@ export const markSessionOffline = async (sessionId: string) => {
     writeLocalSessions(next);
     return;
   }
-  await supabase
+  const client = getSupabase();
+  if (!client) return;
+  const res = await client
     .from(TABLE_NAME)
     .update({ is_online: false, last_seen_at: nowIso() })
     .eq('id', sessionId);
+  if (res.error) {
+    console.warn('Session mark offline error:', res.error);
+  }
 };
 
 export const fetchActiveSessions = async (): Promise<MachineSession[]> => {
@@ -293,7 +314,9 @@ export const fetchActiveSessions = async (): Promise<MachineSession[]> => {
       .sort((a, b) => String(b.last_seen_at).localeCompare(String(a.last_seen_at)))
       .map(toSession);
   }
-  const { data, error } = await supabase.from(TABLE_NAME).select('*').order('last_seen_at', { ascending: false });
+  const client = getSupabase();
+  if (!client) return [];
+  const { data, error } = await client.from(TABLE_NAME).select('*').order('last_seen_at', { ascending: false });
   if (error || !data) {
     console.error('Session fetch error:', error);
     return [];
@@ -319,6 +342,8 @@ export const updateSessionStatus = async (
     writeLocalSessions(next);
     return;
   }
+  const client = getSupabase();
+  if (!client) return;
   const payload: Record<string, unknown> = {
     status,
     last_seen_at: nowIso(),
@@ -328,10 +353,13 @@ export const updateSessionStatus = async (
     payload.force_logout_reason = reason || 'This machine was signed out because a newer login became active.';
     payload.forced_out_at = nowIso();
   }
-  await supabase
+  const res = await client
     .from(TABLE_NAME)
     .update(payload)
     .eq('id', sessionId);
+  if (res.error) {
+    throw res.error;
+  }
 };
 
 export const deleteSession = async (sessionId: string): Promise<void> => {
@@ -340,7 +368,12 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
     writeLocalSessions(rows.filter((r) => r.id !== sessionId));
     return;
   }
-  await supabase.from(TABLE_NAME).delete().eq('id', sessionId);
+  const client = getSupabase();
+  if (!client) return;
+  const res = await client.from(TABLE_NAME).delete().eq('id', sessionId);
+  if (res.error) {
+    throw res.error;
+  }
 };
 
 export const enforceSingleSessionPerUser = async (
@@ -366,8 +399,10 @@ export const enforceSingleSessionPerUser = async (
     writeLocalSessions(next);
     return;
   }
+  const client = getSupabase();
+  if (!client) return;
   const reason = 'You were signed out because your account logged in on another machine. Only the latest login stays online.';
-  await supabase
+  const res = await client
     .from(TABLE_NAME)
     .update({
       status: 'FORCED_OUT',
@@ -379,4 +414,33 @@ export const enforceSingleSessionPerUser = async (
     .eq('user_id', userId)
     .neq('id', keepSessionId)
     .eq('status', 'ACTIVE');
+  if (res.error) {
+    console.warn('Session enforcement error:', res.error);
+  }
+};
+
+export const subscribeSessionChanges = (onChange: () => void): { unsubscribe: () => void } => {
+  const client = getSupabase();
+  if (!client) return { unsubscribe: () => {} };
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const schedule = () => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      onChange();
+    }, 500);
+  };
+
+  const channel: RealtimeChannel = client
+    .channel(`${TABLE_NAME}-changes`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME }, schedule);
+  channel.subscribe();
+
+  return {
+    unsubscribe: () => {
+      if (timer) clearTimeout(timer);
+      client.removeChannel(channel);
+    },
+  };
 };

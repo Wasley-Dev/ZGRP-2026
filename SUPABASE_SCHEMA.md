@@ -11,6 +11,7 @@ This update adds a new migration for the employee system:
 - `supabase/migrations/20260325000300_messages_channel.sql` (adds `channel` to `messages` for Sales chat)
 - `supabase/migrations/20260327001000_sales_lead_followups.sql` (follow-up reminders for Sales leads)
 - `supabase/migrations/20260330000100_sales_leads_created_by.sql` (track who created a lead)
+- `supabase/migrations/20260401000100_portal_users_profile_fields.sql` (adds `job_title`, `base_salary`, `performance_score` to `portal_users`)
 
 It creates:
 

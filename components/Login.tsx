@@ -17,6 +17,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const isLegacyTitle = systemConfig.loginShowcaseTitle === 'Corporate intelligence for teams that build with discipline.';
@@ -66,6 +67,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setNotice('');
     setTimeout(async () => {
       try {
         if (typeof window !== 'undefined') {
@@ -81,6 +83,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
       setIsLoading(false);
     }, 250);
   };
+
+  // Offline login is automatic: once a device has been online at least once, the user directory is cached locally.
 
   const renderLogo = (sizeClass: string) => {
     const logoSource = isCustomLogoSource(systemConfig.logoIcon) ? systemConfig.logoIcon : ZAYA_LOGO_SRC;
@@ -133,6 +137,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                     <span>{error}</span>
                   </div>
                 )}
+                {notice && (
+                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-700">
+                    <i className="fas fa-circle-check shrink-0"></i>
+                    <span>{notice}</span>
+                  </div>
+                )}
 
                 <div>
                   <label className="mb-2 block text-xs font-black uppercase tracking-[0.28em] text-[#003366]/55">
@@ -183,7 +193,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, systemConfig }) => {
                     />
                     <span>Remember me</span>
                   </label>
-                  <span className="font-semibold text-gold">Password support</span>
                 </div>
 
                 <div>

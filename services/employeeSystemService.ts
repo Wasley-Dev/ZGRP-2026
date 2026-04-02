@@ -3,7 +3,10 @@ import { UserRole, type AttendanceCheckoutRequest, type AttendanceLog, type Dail
 import { getSupabaseConfig } from './supabaseConfig';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
-const DEFAULT_API_BASE_URL = 'https://zgrp-portal-2026.vercel.app';
+const DEFAULT_API_BASE_URL =
+  typeof window !== 'undefined' && window.location?.protocol !== 'file:'
+    ? window.location.origin
+    : 'https://zgrp-portal-2026.vercel.app';
 
 const SUPABASE_CONFIG = getSupabaseConfig();
 const supabase: SupabaseClient | null = SUPABASE_CONFIG ? createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey) : null;
@@ -11,8 +14,78 @@ const supabase: SupabaseClient | null = SUPABASE_CONFIG ? createClient(SUPABASE_
 export const hasEmployeeSupabase = () => Boolean(supabase);
 
 const nowIso = () => new Date().toISOString();
+const isOfflineNow = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+const isNetworkError = (err: unknown) => {
+  const msg = (() => {
+    if (!err) return '';
+    if (err instanceof Error) return String(err.message || '');
+    const anyErr = err as any;
+    if (typeof anyErr?.message === 'string') return anyErr.message;
+    if (typeof anyErr?.error === 'string') return anyErr.error;
+    if (typeof anyErr?.details === 'string') return anyErr.details;
+    return String(err);
+  })().toLowerCase();
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('network') ||
+    msg.includes('fetch') ||
+    msg.includes('timeout') ||
+    msg.includes('econnreset') ||
+    msg.includes('enotfound') ||
+    msg.includes('eai_again')
+  );
+};
+
+const uuid = (): string => {
+  try {
+    // Most modern Chromium/Electron builds support this.
+    const anyCrypto = globalThis.crypto as any;
+    if (anyCrypto?.randomUUID) return anyCrypto.randomUUID();
+  } catch {
+    // ignore
+  }
+  // RFC4122-ish fallback (not cryptographically strong, but stable enough for offline ids).
+  const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1);
+  return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
+};
 
 const toDateOnly = (iso: string) => iso.slice(0, 10);
+
+const minutesSinceMidnight = (d: Date) => d.getHours() * 60 + d.getMinutes();
+const formatClock = (minutes: number) => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const getWorkingWindow = (d: Date): { enabled: boolean; startMin: number; endMin: number } => {
+  const day = d.getDay(); // 0=Sun
+  if (day === 0) return { enabled: false, startMin: 0, endMin: 0 };
+  if (day === 6) return { enabled: true, startMin: 8 * 60 + 30, endMin: 14 * 60 };
+  return { enabled: true, startMin: 8 * 60 + 30, endMin: 17 * 60 };
+};
+
+const enforceClockInWindow = (now: Date) => {
+  const window = getWorkingWindow(now);
+  if (!window.enabled) throw new Error('Sundays are off. Clock-in is not available.');
+  const minutes = minutesSinceMidnight(now);
+  if (minutes < window.startMin) throw new Error(`Clock-in starts at ${formatClock(window.startMin)}.`);
+  if (minutes > window.endMin) throw new Error(`Clock-in closes at ${formatClock(window.endMin)}.`);
+};
+
+const isSalesDeptUser = (user: SystemUser): boolean => {
+  return /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
+};
+
+const isAttendanceExempt = (user: SystemUser): boolean => user.role === UserRole.ADMIN;
+
+const canSalesSelfMiddayCheckout = (user: SystemUser, now: Date): boolean => {
+  if (user.role !== UserRole.USER) return false;
+  if (!isSalesDeptUser(user)) return false;
+  const day = now.getDay(); // 0=Sun, 1=Mon
+  return [1, 2, 3, 4].includes(day); // Mon–Thu
+};
 
 const LOCAL_KEY_PREFIX = 'zaya_local_employee_v1:';
 
@@ -232,11 +305,9 @@ export const createDailyReport = async (
   user: SystemUser,
   input: { title: string; description: string; date?: string }
 ): Promise<DailyReport> => {
-  if (user.role === UserRole.ADMIN) {
-    throw new Error('Admins are exempt from daily report submission.');
-  }
+  const reportId = uuid();
   const localReport: DailyReport = {
-    id: `local-${Date.now()}`,
+    id: reportId,
     userId: user.id,
     title: input.title,
     description: input.description,
@@ -248,6 +319,7 @@ export const createDailyReport = async (
     return localReport;
   }
   const payload = {
+    id: reportId,
     user_id: user.id,
     title: input.title,
     description: input.description,
@@ -321,13 +393,13 @@ export const fetchTodayAttendance = async (user: SystemUser): Promise<Attendance
 };
 
 export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
-  if (user.role === UserRole.ADMIN) {
-    throw new Error('Admins are exempt from attendance clock-in/out.');
-  }
+  if (isAttendanceExempt(user)) throw new Error('Admins are exempt from attendance.');
+  const localNow = new Date();
+  enforceClockInWindow(localNow);
   const today = toDateOnly(nowIso());
   const localStore = readLocalArray<AttendanceLog>('attendance', []);
   const localExisting = localStore.find((l) => l.userId === user.id && l.date === today) || null;
-  if (!supabase) {
+  if (!supabase || isOfflineNow()) {
     if (localExisting?.checkOut) throw new Error('You already completed attendance for today.');
     const now = nowIso();
     if (!localExisting) {
@@ -359,7 +431,7 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
         .single();
       if (legacyAttempt.error || !legacyAttempt.data) {
         console.error('clockIn legacy insert error:', legacyAttempt.error);
-        if (isSchemaOrPermissionError(legacyAttempt.error)) {
+        if (isSchemaOrPermissionError(legacyAttempt.error) || isNetworkError(legacyAttempt.error)) {
           const fallback: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: now, segments: [{ in: now }] };
           writeLocalArray('attendance', [fallback, ...localStore].slice(0, 500));
           return fallback;
@@ -379,7 +451,7 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
     }
     if (attempt.error || !attempt.data) {
       console.error('clockIn insert error:', attempt.error);
-      if (isSchemaOrPermissionError(attempt.error)) {
+      if (isSchemaOrPermissionError(attempt.error) || isNetworkError(attempt.error)) {
         const fallback: AttendanceLog = { id: `local-${Date.now()}`, userId: user.id, date: today, checkIn: now, segments: [{ in: now }] };
         writeLocalArray('attendance', [fallback, ...localStore].slice(0, 500));
         return fallback;
@@ -442,8 +514,19 @@ export const clockIn = async (user: SystemUser): Promise<AttendanceLog> => {
 };
 
 export const requestClockOutApproval = async (user: SystemUser, attendance: AttendanceLog, reason: string): Promise<AttendanceCheckoutRequest> => {
-  if (user.role === UserRole.ADMIN) {
-    throw new Error('Admins are exempt from attendance clock-in/out.');
+  if (isAttendanceExempt(user)) throw new Error('Admins are exempt from attendance.');
+  if (canSalesSelfMiddayCheckout(user, new Date())) {
+    const now = nowIso();
+    return {
+      id: `self-${attendance.id}`,
+      attendanceId: attendance.id,
+      userId: user.id,
+      date: attendance.date,
+      reason: reason || undefined,
+      status: 'approved',
+      requestedAt: now,
+      decidedAt: now,
+    };
   }
   if (!supabase) {
     throw new Error('GM approval requires an online connection (Supabase).');
@@ -513,24 +596,32 @@ export const requestClockOutApproval = async (user: SystemUser, attendance: Atte
 };
 
 export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
-  if (user.role === UserRole.ADMIN) {
-    throw new Error('Admins are exempt from attendance clock-in/out.');
-  }
+  if (isAttendanceExempt(user)) throw new Error('Admins are exempt from attendance.');
   if (!attendance.checkIn) throw new Error('You must clock in first.');
   if (attendance.checkOut) throw new Error('You already completed attendance for today.');
   if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
-  if (!supabase) throw new Error('Mid-day checkout requires GM approval (online connection required).');
 
-  const latest = await fetchLatestMiddayCheckoutRequest(attendance.id);
-  if (!latest) throw new Error('No approval request found. Request mid-day approval first.');
-  if (latest.status === 'pending') throw new Error('Approval pending. Await GM response.');
-  if (latest.status !== 'approved') throw new Error('Approval denied. Contact GM for assistance.');
+  const allowSelfCheckout = canSalesSelfMiddayCheckout(user, new Date());
+  if (!allowSelfCheckout) {
+    if (!supabase) throw new Error('Mid-day checkout requires GM approval (online connection required).');
+    const latest = await fetchLatestMiddayCheckoutRequest(attendance.id);
+    if (!latest) throw new Error('No approval request found. Request mid-day approval first.');
+    if (latest.status === 'pending') throw new Error('Approval pending. Await GM response.');
+    if (latest.status !== 'approved') throw new Error('Approval denied. Contact GM for assistance.');
+  }
 
   const now = nowIso();
   const segments = (attendance.segments || [{ in: attendance.checkIn }]).slice();
   const last = segments[segments.length - 1];
   if (!last?.in || last?.out) throw new Error('Mid-day checkout not available.');
   last.out = now;
+
+  if (!supabase) {
+    const localStore = readLocalArray<AttendanceLog>('attendance', []);
+    const updated = { ...attendance, segments };
+    writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
+    return updated;
+  }
 
   const { data, error } = await supabase.from('attendance').update({ segments }).eq('id', attendance.id).select('*').single();
   if (error && /segments/i.test(String(error.message || ''))) {
@@ -548,9 +639,7 @@ export const midDayClockOut = async (user: SystemUser, attendance: AttendanceLog
 };
 
 export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Promise<AttendanceLog> => {
-  if (user.role === UserRole.ADMIN) {
-    throw new Error('Admins are exempt from attendance clock-in/out.');
-  }
+  if (isAttendanceExempt(user)) throw new Error('Admins are exempt from attendance.');
   if (!attendance.checkIn) throw new Error('You must clock in first.');
   if (attendance.checkOut) throw new Error('You already completed attendance for today.');
   if (!isCheckedIn(attendance)) throw new Error('You are not currently checked in.');
@@ -561,7 +650,7 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
   if (!last?.in || last?.out) throw new Error('Clock out not available.');
   last.out = now;
 
-  if (!supabase) {
+  if (!supabase || isOfflineNow()) {
     const updated = { ...attendance, checkOut: now, segments };
     const localStore = readLocalArray<AttendanceLog>('attendance', []);
     writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
@@ -583,7 +672,7 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
       .single();
     if (legacyAttempt.error || !legacyAttempt.data) {
       console.error('clockOut legacy update error:', legacyAttempt.error);
-      if (isSchemaOrPermissionError(legacyAttempt.error)) {
+      if (isSchemaOrPermissionError(legacyAttempt.error) || isNetworkError(legacyAttempt.error)) {
         const updated = { ...attendance, checkOut: now, segments };
         const localStore = readLocalArray<AttendanceLog>('attendance', []);
         writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
@@ -605,7 +694,7 @@ export const clockOut = async (user: SystemUser, attendance: AttendanceLog): Pro
   }
   if (attempt.error || !attempt.data) {
     console.error('clockOut update error:', attempt.error);
-    if (isSchemaOrPermissionError(attempt.error)) {
+    if (isSchemaOrPermissionError(attempt.error) || isNetworkError(attempt.error)) {
       const updated = { ...attendance, checkOut: now, segments };
       const localStore = readLocalArray<AttendanceLog>('attendance', []);
       writeLocalArray('attendance', [updated, ...localStore.filter((l) => l.id !== updated.id)].slice(0, 500));
@@ -645,15 +734,15 @@ export const fetchNotices = async (): Promise<Notice[]> => {
 };
 
 export const createNotice = async (input: { title: string; content: string }): Promise<Notice> => {
-  const local: Notice = { id: `local-${Date.now()}`, title: input.title, content: input.content, createdAt: nowIso() };
-  if (!supabase) {
+  const local: Notice = { id: uuid(), title: input.title, content: input.content, createdAt: nowIso() };
+  if (!supabase || isOfflineNow()) {
     writeLocalArray('notices', [local, ...readLocalArray<Notice>('notices', [])].slice(0, 400));
     return local;
   }
   const { data, error } = await supabase.from('notices').insert({ ...input, created_at: nowIso() }).select('*').single();
   if (error || !data) {
     console.error('createNotice error:', error);
-    if (isSchemaOrPermissionError(error)) {
+    if (isSchemaOrPermissionError(error) || isNetworkError(error)) {
       writeLocalArray('notices', [local, ...readLocalArray<Notice>('notices', [])].slice(0, 400));
       return local;
     }
@@ -690,8 +779,8 @@ export const fetchTasks = async (user: SystemUser, isAdmin: boolean): Promise<Ta
 };
 
 export const createTask = async (input: { userId: string; title: string; description: string }): Promise<TaskItem> => {
-  const local: TaskItem = { id: `local-${Date.now()}`, userId: input.userId, title: input.title, description: input.description, status: 'pending', createdAt: nowIso() };
-  if (!supabase) {
+  const local: TaskItem = { id: uuid(), userId: input.userId, title: input.title, description: input.description, status: 'pending', createdAt: nowIso() };
+  if (!supabase || isOfflineNow()) {
     writeLocalArray('tasks', [local, ...readLocalArray<TaskItem>('tasks', [])].slice(0, 800));
     return local;
   }
@@ -704,7 +793,7 @@ export const createTask = async (input: { userId: string; title: string; descrip
   }).select('*').single();
   if (error || !data) {
     console.error('createTask error:', error);
-    if (isSchemaOrPermissionError(error)) {
+    if (isSchemaOrPermissionError(error) || isNetworkError(error)) {
       writeLocalArray('tasks', [local, ...readLocalArray<TaskItem>('tasks', [])].slice(0, 800));
       return local;
     }
@@ -727,11 +816,11 @@ export const setTaskStatus = async (taskId: string, status: 'pending' | 'complet
   if (local.length) {
     writeLocalArray('tasks', local.map((t) => (t.id === taskId ? { ...t, status } : t)));
   }
-  if (!supabase) return;
+  if (!supabase || isOfflineNow()) return;
   const { error } = await supabase.from('tasks').update({ status }).eq('id', taskId);
   if (error) {
     console.error('setTaskStatus error:', error);
-    if (isSchemaOrPermissionError(error)) return;
+    if (isSchemaOrPermissionError(error) || isNetworkError(error)) return;
     throw asError(error, 'Update task failed');
   }
 };
@@ -770,8 +859,8 @@ export const fetchChatMessages = async (channel?: string): Promise<TeamMessage[]
 
 export const sendChatMessage = async (sender: SystemUser, message: string, channel: string = 'org'): Promise<TeamMessage> => {
   const normalizedChannel = normalizeChatChannel(channel);
-  const local: TeamMessage = { id: `local-${Date.now()}`, senderId: sender.id, message, channel: normalizedChannel, createdAt: nowIso() };
-  if (!supabase) {
+  const local: TeamMessage = { id: uuid(), senderId: sender.id, message, channel: normalizedChannel, createdAt: nowIso() };
+  if (!supabase || isOfflineNow()) {
     writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
     return local;
   }
@@ -797,7 +886,7 @@ export const sendChatMessage = async (sender: SystemUser, message: string, chann
 
   if (error || !data) {
     console.error('sendChatMessage error:', error);
-    if (isSchemaOrPermissionError(error)) {
+    if (isSchemaOrPermissionError(error) || isNetworkError(error)) {
       writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), local].slice(-500));
       return local;
     }
@@ -812,6 +901,96 @@ export const sendChatMessage = async (sender: SystemUser, message: string, chann
   };
   writeLocalArray('messages', [...readLocalArray<TeamMessage>('messages', []), created].slice(-500));
   return created;
+};
+
+export const syncLocalEmployeeData = async (): Promise<void> => {
+  if (!supabase) return;
+  if (isOfflineNow()) return;
+
+  const isUuid = (value: string): boolean =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+
+  // Daily reports: upsert by id (uuid).
+  const localReports = readLocalArray<DailyReport>('reports', []);
+  if (localReports.length) {
+    const rows = localReports
+      .filter((r) => isUuid(String(r.id)) && r.userId && r.title)
+      .map((r) => ({ id: r.id, user_id: r.userId, title: r.title, description: r.description, created_at: r.createdAt }));
+    if (rows.length) {
+      await supabase.from('reports').upsert(rows as any, { onConflict: 'id' });
+    }
+  }
+
+  // Attendance: upsert by (user_id, date) so offline updates reconcile cleanly.
+  const localAttendance = readLocalArray<AttendanceLog>('attendance', []);
+  if (localAttendance.length) {
+    const rows = localAttendance
+      .filter((a) => a.userId && a.date && a.checkIn)
+      .map((a) => ({
+        user_id: a.userId,
+        date: a.date,
+        check_in: a.checkIn,
+        check_out: a.checkOut || null,
+        segments: a.segments || null,
+      }));
+    if (rows.length) {
+      const attempt = await supabase.from('attendance').upsert(rows as any, { onConflict: 'user_id,date' });
+      if (attempt.error && /segments/i.test(String(attempt.error.message || ''))) {
+        const legacyRows = rows.map(({ segments, ...rest }) => rest);
+        await supabase.from('attendance').upsert(legacyRows as any, { onConflict: 'user_id,date' });
+      }
+    }
+  }
+
+  // Notices: upsert by id (uuid).
+  const localNotices = readLocalArray<Notice>('notices', []);
+  if (localNotices.length) {
+    const rows = localNotices
+      .filter((n) => n.id && n.title)
+      .map((n) => ({ id: n.id, title: n.title, content: n.content, created_at: n.createdAt }));
+    if (rows.length) {
+      await supabase.from('notices').upsert(rows as any, { onConflict: 'id' });
+    }
+  }
+
+  // Tasks: upsert by id (uuid).
+  const localTasks = readLocalArray<TaskItem>('tasks', []);
+  if (localTasks.length) {
+    const rows = localTasks
+      .filter((t) => t.id && t.userId && t.title)
+      .map((t) => ({
+        id: t.id,
+        user_id: t.userId,
+        title: t.title,
+        description: t.description,
+        status: t.status || 'pending',
+        created_at: t.createdAt,
+      }));
+    if (rows.length) {
+      await supabase.from('tasks').upsert(rows as any, { onConflict: 'id' });
+    }
+  }
+
+  // Messages: upsert by id (uuid). Handle legacy schema without `channel`.
+  const localMessages = readLocalArray<TeamMessage>('messages', []);
+  if (localMessages.length) {
+    const rows = localMessages
+      .filter((m) => m.id && m.senderId && m.message)
+      .map((m) => ({
+        id: m.id,
+        sender_id: m.senderId,
+        message: m.message,
+        channel: normalizeChatChannel(m.channel),
+        created_at: m.createdAt,
+      }));
+    if (rows.length) {
+      const attempt = await supabase.from('messages').upsert(rows as any, { onConflict: 'id' });
+      if (attempt.error && /channel/i.test(String(attempt.error.message || ''))) {
+        const legacyRows = rows.map(({ channel, ...rest }) => rest);
+        await supabase.from('messages').upsert(legacyRows as any, { onConflict: 'id' });
+      }
+    }
+  }
 };
 
 export const subscribeToTableInserts = (
@@ -1128,4 +1307,60 @@ export const fetchPayslipByPayrollId = async (payrollId: string): Promise<Paysli
   const local = readLocalArray<PayslipRecord>('payslips', []);
   writeLocalArray('payslips', [mapped, ...local.filter((p) => p.id !== mapped.id)].slice(0, 800));
   return mapped;
+};
+
+export const purgeLocalEmployeeData = (): void => {
+  if (typeof window === 'undefined') return;
+  const keys = [
+    'reports',
+    'attendance',
+    'attendance_checkout_requests',
+    'messages',
+    'notices',
+    'tasks',
+    'payroll',
+    'payslips',
+    'leave_requests',
+    'leads',
+    'invoices',
+    'sales_targets',
+  ];
+  keys.forEach((k) => {
+    try {
+      window.localStorage.removeItem(`${LOCAL_KEY_PREFIX}${k}`);
+    } catch {
+      // ignore
+    }
+  });
+};
+
+export const purgeRemoteEmployeeData = async (): Promise<void> => {
+  if (!supabase) return;
+  if (isOfflineNow()) return;
+
+  const tables = [
+    'reports',
+    'attendance',
+    'attendance_checkout_requests',
+    'messages',
+    'notices',
+    'tasks',
+    'payroll',
+    'payslips',
+    'leave_requests',
+    'leads',
+    'invoices',
+    'sales_targets',
+  ];
+
+  for (const table of tables) {
+    try {
+      const attempt = await supabase.from(table).delete().not('id', 'is', null);
+      if (attempt.error && !isSchemaOrPermissionError(attempt.error) && !isNetworkError(attempt.error)) {
+        console.error(`purgeRemoteEmployeeData error (${table}):`, attempt.error);
+      }
+    } catch (err) {
+      console.error(`purgeRemoteEmployeeData exception (${table}):`, err);
+    }
+  }
 };

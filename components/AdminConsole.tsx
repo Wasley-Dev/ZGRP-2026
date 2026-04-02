@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { AttendanceCheckoutRequest, SystemUser, UserRole, SystemConfig } from '../types';
 import { ZAYA_LOGO_SRC } from '../brand';
 import { decideMiddayCheckoutRequest, fetchPendingMiddayCheckoutRequests, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
+import { assertAllowedUser } from '../services/userPolicy';
+import { fetchRemoteUsersWithStatus, hasRemoteUserDirectory, syncRemoteUsers } from '../services/userDirectoryService';
 import attendanceCheckoutRequestsMigration from '../supabase/migrations/20260325000100_attendance_checkout_requests.sql?raw';
 import employeeSystemMigration from '../supabase/migrations/20260324000100_employee_system.sql?raw';
 import attendanceSegmentsMigration from '../supabase/migrations/20260324000200_attendance_segments.sql?raw';
@@ -49,11 +51,71 @@ const AdminConsole: React.FC<AdminProps> = ({
     user.role === UserRole.SUPER_ADMIN || user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
   const canManageLoginExperience = isSuperAdmin(currentUser);
   const canApproveMidday = currentUser.role !== UserRole.USER;
+  const canSyncUsersCloud = isSuperAdmin(currentUser);
 
   const [pendingMiddayRequests, setPendingMiddayRequests] = useState<AttendanceCheckoutRequest[]>([]);
   const [middayError, setMiddayError] = useState('');
   const [middayBusyId, setMiddayBusyId] = useState<string | null>(null);
   const [copiedMigration, setCopiedMigration] = useState(false);
+  const [userCloudBusy, setUserCloudBusy] = useState(false);
+  const [userCloudStatus, setUserCloudStatus] = useState<string>('');
+
+  const pushUsersToCloud = async () => {
+    if (!canSyncUsersCloud) return;
+    if (!hasRemoteUserDirectory()) {
+      alert('Cloud user directory is not configured. Check Supabase configuration.');
+      return;
+    }
+    setUserCloudBusy(true);
+    try {
+      await syncRemoteUsers(users);
+      setUserCloudStatus(`Pushed ${users.length} users to the cloud directory.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to push users to cloud.');
+    } finally {
+      setUserCloudBusy(false);
+    }
+  };
+
+  const pullUsersFromCloud = async () => {
+    if (!canSyncUsersCloud) return;
+    if (!hasRemoteUserDirectory()) {
+      alert('Cloud user directory is not configured. Check Supabase configuration.');
+      return;
+    }
+    setUserCloudBusy(true);
+    try {
+      const res = await fetchRemoteUsersWithStatus();
+      if (!res.ok) {
+        alert('Failed to fetch users from cloud. Check Supabase portal_users table/RLS.');
+        return;
+      }
+      onUpdateUsers(res.users);
+      setUserCloudStatus(`Pulled ${res.users.length} users from the cloud directory.`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to pull users from cloud.');
+    } finally {
+      setUserCloudBusy(false);
+    }
+  };
+
+  const exportUsersJson = () => {
+    try {
+      const payload = JSON.stringify({ exportedAt: new Date().toISOString(), users }, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `zgrp-users-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 15000);
+      setUserCloudStatus('Exported user list. Use it to enable offline login on other machines.');
+    } catch {
+      alert('Export failed.');
+    }
+  };
 
   useEffect(() => {
     if (!canApproveMidday) return;
@@ -301,6 +363,12 @@ const AdminConsole: React.FC<AdminProps> = ({
       alert('Email is required for this user type.');
       return;
     }
+    try {
+      assertAllowedUser({ name: inviteName.trim(), email: normalizedEmail });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'This account is blocked.');
+      return;
+    }
     const exists = users.some((u) => u.email.toLowerCase() === normalizedEmail);
     if (exists) {
       alert('A user with this email already exists.');
@@ -339,6 +407,7 @@ const AdminConsole: React.FC<AdminProps> = ({
       alert('No phone number saved for this user.');
       return;
     }
+    const loginUrl = typeof window !== 'undefined' ? window.location.origin : 'https://zgrp-portal-2026.vercel.app';
     const message =
       `System Credentials\n` +
       `Name: ${targetUser.name}\n` +
@@ -346,7 +415,7 @@ const AdminConsole: React.FC<AdminProps> = ({
         ? ''
         : `Email: ${targetUser.email}\n`) +
       `Password: ${targetUser.password}\n` +
-      `Login: https://zgrp-portal-2026.vercel.app`;
+      `Login: ${loginUrl}`;
     const smsUrl = `sms:${targetUser.phone}?body=${encodeURIComponent(message)}`;
     window.open(smsUrl, '_self');
   };
@@ -372,23 +441,55 @@ const AdminConsole: React.FC<AdminProps> = ({
             <p className="mt-1 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
               Approvals, user access control, and organization-wide reporting.
             </p>
+            {userCloudStatus && (
+              <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
+                {userCloudStatus}
+              </p>
+            )}
           </div>
-          {onNavigate && (
-            <div className="flex flex-wrap gap-2 justify-end">
-              <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
-                View Reports
-              </button>
-              <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-                Check Attendance
-              </button>
-              <button onClick={() => onNavigate('performance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-                Weekly Reports
-              </button>
-              <button onClick={() => onNavigate('employment')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
-                Employee Mgmt
-              </button>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-3">
+            {canSyncUsersCloud && (
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button
+                  disabled={userCloudBusy}
+                  onClick={pullUsersFromCloud}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white disabled:opacity-50"
+                >
+                  Pull Cloud Users
+                </button>
+                <button
+                  disabled={userCloudBusy}
+                  onClick={pushUsersToCloud}
+                  className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow disabled:opacity-50"
+                >
+                  Push Users To Cloud
+                </button>
+                <button
+                  disabled={userCloudBusy}
+                  onClick={exportUsersJson}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white disabled:opacity-50"
+                >
+                  Export Users
+                </button>
+              </div>
+            )}
+            {onNavigate && (
+              <div className="flex flex-wrap gap-2 justify-end">
+                <button onClick={() => onNavigate('dailyReports')} className="px-4 py-2 rounded-xl bg-gold text-enterprise-blue text-[10px] font-black uppercase tracking-widest shadow">
+                  View Reports
+                </button>
+                <button onClick={() => onNavigate('attendance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                  Check Attendance
+                </button>
+                <button onClick={() => onNavigate('performance')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                  Weekly Reports
+                </button>
+                <button onClick={() => onNavigate('employment')} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-blue-400/20 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-white">
+                  Employee Mgmt
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

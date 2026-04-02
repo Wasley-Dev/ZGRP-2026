@@ -2,6 +2,7 @@
 node_modules
 release
 dist
+tmp_asar*
 *.log
 .env
 desktop-macos-latest

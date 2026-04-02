@@ -3,15 +3,15 @@
   "description": "Zaya Group Portal desktop software",
   "author": "WIS & Asya",
   "private": true,
-  "version": "0.1.52",
+  "version": "0.1.72",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "desktop:dev": "cross-env ELECTRON_START_URL=http://127.0.0.1:4173 ELECTRON_ACCESS_TOKEN=Kingsley06# electron .",
-    "desktop:prod": "cross-env ELECTRON_ACCESS_TOKEN=Kingsley06# electron .",
+    "desktop:dev": "cross-env ELECTRON_START_URL=http://127.0.0.1:4173 ELECTRON_ACCESS_TOKEN=\"Kingsley06#\" electron .",
+    "desktop:prod": "cross-env ELECTRON_ACCESS_TOKEN=\"Kingsley06#\" electron .",
     "desktop:pack": "npm run build && electron-builder --dir",
     "desktop:dist": "npm run build && electron-builder",
     "desktop:publish": "npm run build && electron-builder --publish always"
@@ -73,7 +73,13 @@
         "Asya"
       ],
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ],
       "signAndEditExecutable": false,
       "artifactName": "Zaya-Group-Portal-Setup-${version}-${arch}.${ext}"

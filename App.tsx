@@ -11,19 +11,25 @@ import {
   UserRole,
 } from './types';
 import { createSharedSnapshot, loadSharedState, RealtimeSyncClient } from './services/realtimeSync';
-import { fetchRemoteUsers, hasRemoteUserDirectory, removeRemoteUsers, syncRemoteUsers } from './services/userDirectoryService';
-import { loadLocalSnapshot, saveLocalSnapshot, queueOutbox, flushOutbox, getOnlineState } from './services/offlineStore';
+import { fetchRemoteUsers, fetchRemoteUsersWithStatus, hasRemoteUserDirectory, removeRemoteUsers, subscribeRemoteUsers, syncRemoteUsers } from './services/userDirectoryService';
+import { loadLocalSnapshot, saveLocalSnapshot, queueOutbox, flushOutbox, getOnlineState, saveOfflineUsers, hasOutboxItems, purgeOfflinePortalDataExceptUsers } from './services/offlineStore';
+import { filterForbiddenUsers, isForbiddenUser } from './services/userPolicy';
+import { applyUserCorrections } from './services/userCorrections';
 import {
   fetchRemoteBookings,
+  fetchRemoteBookingsWithStatus,
   fetchRemoteCandidates,
+  fetchRemoteCandidatesWithStatus,
   fetchRemoteSystemConfig,
   hasRemoteData,
+  purgeRemotePortalDataExceptUsers,
+  subscribeRemotePortalData,
   syncRemoteBookings,
   syncRemoteCandidates,
   syncRemoteSystemConfig,
   syncRemoteUsers as syncPortalUsers,
 } from './services/remoteDataService';
-import { fetchLeads, updateLead } from './services/salesService';
+import { fetchLeads, purgeLocalSalesData, syncLocalSalesData, updateLead } from './services/salesService';
 import {
   createLocalSessionId,
   deleteSession,
@@ -31,10 +37,11 @@ import {
   fetchActiveSessions,
   hasRemoteSessionStore,
   markSessionOffline,
+  subscribeSessionChanges,
   updateSessionStatus,
   upsertSessionHeartbeat,
 } from './services/sessionService';
-import { clockIn, clockOut, fetchTodayAttendance } from './services/employeeSystemService';
+import { clockIn, clockOut, fetchTodayAttendance, purgeLocalEmployeeData, purgeRemoteEmployeeData, subscribeToTableInserts, syncLocalEmployeeData } from './services/employeeSystemService';
 import Login from './components/Login';
 import { ZAYA_LOGO_SRC } from './brand';
 
@@ -124,6 +131,41 @@ const mergeSeedUsers = (
 
   return [...mergedRemote, ...missingSeeds].sort((a, b) => a.name.localeCompare(b.name));
 };
+
+// These accounts must exist across all machines (and in the live portal user directory).
+// If they're missing from Supabase `portal_users`, the app will add them once online.
+const REQUIRED_CLOUD_USERS: SystemUser[] = [
+  {
+    id: 'USR-006',
+    name: 'Fatma Mbarouk Khamis',
+    email: 'fatma.mbarouk.khamis@zaya.local',
+    phone: '+255679407790',
+    password: 'Zaya@123',
+    hasCompletedOrientation: false,
+    role: UserRole.USER,
+    department: 'Sales',
+    jobTitle: 'Sales Executive',
+    lastLogin: 'Never',
+    avatar: 'https://ui-avatars.com/api/?name=Fatma%20Mbarouk%20Khamis',
+    status: 'ACTIVE',
+    baseSalary: 200000,
+  },
+  {
+    id: 'USR-007',
+    name: 'Suhaib Abdallah Saleh',
+    email: 'suhaib.abdallah.saleh@zaya.local',
+    phone: '+255650914037',
+    password: 'Zaya@123',
+    hasCompletedOrientation: false,
+    role: UserRole.USER,
+    department: 'Sales',
+    jobTitle: 'Sales Executive',
+    lastLogin: 'Never',
+    avatar: 'https://ui-avatars.com/api/?name=Suhaib%20Abdallah%20Saleh',
+    status: 'ACTIVE',
+    baseSalary: 200000,
+  },
+];
 const GENERATED_NAME_POOL = [
   'Alex Morgan', 'Riley Carter', 'Jordan Bennett', 'Taylor Morgan', 'Casey Adams',
   'Jamie Wilson', 'Avery Thomas', 'Cameron Scott', 'Parker Reed', 'Quinn Blake',
@@ -200,7 +242,10 @@ const App: React.FC = () => {
   const hashCandidates = (items: Candidate[]) =>
     hashList(items as unknown as Record<string, unknown>[], ['id', 'status', 'createdAt'] as any);
   const hashUsers = (items: SystemUser[]) =>
-    hashList(items as unknown as Record<string, unknown>[], ['id', 'email', 'role', 'status', 'lastLogin'] as any);
+    hashList(
+      items as unknown as Record<string, unknown>[],
+      ['id', 'email', 'name', 'department', 'jobTitle', 'phone', 'role', 'status', 'baseSalary', 'performanceScore', 'lastLogin'] as any
+    );
   const hashSessions = (items: MachineSession[]) =>
     hashList(items as unknown as Record<string, unknown>[], ['id', 'userId', 'status', 'isOnline', 'lastSeenAt'] as any);
   const hashConfig = (value: SystemConfig | null | undefined) => {
@@ -304,26 +349,36 @@ const App: React.FC = () => {
       };
     });
 
-  const filterDisabledSeedUsers = (users: SystemUser[]): SystemUser[] => {
-    const blockedEmails = new Set(['s.miller@zayagroupltd.com', 'j.wilson@zayagroupltd.com']);
-    return users.filter((u) => !blockedEmails.has(String(u.email || '').toLowerCase()));
-  };
-
   const initialSharedState = useMemo(
     () => {
-      const loaded = loadSharedState({
-        bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
-      systemConfig: {
+      const defaultConfig = {
         systemName: 'Zaya Group Portal',
         logoIcon: 'fa-z',
         loginHeroImages: [],
         maintenanceMode: false,
         backupHour: 15,
         salesAdminWriteEnabled: false,
-      },
+      };
+
+      // When Supabase remote data is configured, start from a clean slate and hydrate from live data.
+      if (hasRemoteData()) {
+        return {
+          bookings: [],
+          candidates: [],
+          users: [],
+          notifications: [],
+          systemConfig: defaultConfig,
+          updatedAt: Date.now(),
+          updatedBy: 'bootstrap-remote',
+        };
+      }
+
+      const loaded = loadSharedState({
+        bookings: [], candidates: [], users: MOCK_USERS, notifications: [],
+        systemConfig: defaultConfig,
       });
 
-      const cleanedUsers = filterDisabledSeedUsers(loaded.users || []);
+      const cleanedUsers = filterForbiddenUsers(loaded.users || []);
       if (typeof window !== 'undefined' && cleanedUsers.length !== (loaded.users || []).length) {
         const cleaned = { ...loaded, users: cleanedUsers, updatedAt: Date.now(), updatedBy: 'migration' };
         try { window.localStorage.setItem('zaya_shared_state_v2', JSON.stringify(cleaned)); } catch { /* ignore */ }
@@ -338,6 +393,7 @@ const App: React.FC = () => {
   const bookingsRef = useRef<BookingEntry[]>([]);
   const candidatesRef = useRef<Candidate[]>([]);
   const usersRef = useRef<SystemUser[]>([]);
+  const activeModuleRef = useRef<string>('dashboard');
   const configRef = useRef<SystemConfig | null>(null);
   const sessionsRef = useRef<MachineSession[]>([]);
   const lastSyncNoticeRef = useRef<Record<string, number>>({});
@@ -345,6 +401,7 @@ const App: React.FC = () => {
   const applyingRemoteUpdateRef = useRef(false);
   const initializedSyncRef = useRef(false);
   const remoteHydratedRef = useRef(false);
+  const persistTimerRef = useRef<number | null>(null);
   const isRevokedRef = useRef(false);
   const maintenanceNotifiedRef = useRef(false);
   const sessionDigestRef = useRef<Record<string, { status: string; isOnline: boolean; userName: string }>>({});
@@ -393,6 +450,10 @@ const App: React.FC = () => {
   const DEMO_SEED_DISABLED_KEY = 'zaya_demo_seed_disabled_v1';
   const [demoSeedingEnabled, setDemoSeedingEnabled] = useState(() => {
     if (typeof window === 'undefined') return false;
+    if (hasRemoteData()) {
+      try { window.localStorage.setItem(DEMO_SEED_DISABLED_KEY, '1'); } catch { /* ignore */ }
+      return false;
+    }
     // Default is disabled for production unless explicitly enabled.
     const stored = window.localStorage.getItem(DEMO_SEED_DISABLED_KEY);
     if (stored === null) {
@@ -597,6 +658,10 @@ const App: React.FC = () => {
         if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
         if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
       }).then(() => {
+        // Best-effort: push any ERP data created while offline (attendance/messages/tasks/notices) to Supabase.
+        void syncLocalEmployeeData().catch(() => {});
+        // Best-effort: push any Sales module data created while offline (leads/invoices/targets) to Supabase.
+        void syncLocalSalesData().catch(() => {});
         pushNotificationDeduped('sync:reconnect', 'Sync Complete', 'Offline updates were synchronized after reconnect.', 'SUCCESS', 'dashboard', 15000);
       }).catch(() => {
         pushNotificationDeduped('sync:reconnect:error', 'Sync Pending', 'Reconnected, but some offline updates are still queued.', 'WARNING', 'dashboard', 15000);
@@ -635,13 +700,15 @@ const App: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     const hydrateLocal = async () => {
+      if (hasRemoteData() && isOnline) return;
       const snapshot = await loadLocalSnapshot();
       if (!snapshot || cancelled) return;
       if (snapshot.bookings?.length) setBookings(snapshot.bookings);
       if (snapshot.candidates?.length) setCandidates(snapshot.candidates);
       if (snapshot.users?.length) {
-        const cleaned = filterDisabledSeedUsers(normalizeUsers(snapshot.users));
-        setAllUsers(mergeSeedUsers(seedUsers, cleaned, { includeMissingSeeds: false }));
+        const cleaned = filterForbiddenUsers(normalizeUsers(snapshot.users));
+        const corrected = applyUserCorrections(cleaned);
+        setAllUsers(mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false }));
       }
       if (snapshot.systemConfig) setSystemConfig(snapshot.systemConfig);
     };
@@ -653,18 +720,48 @@ const App: React.FC = () => {
     let cancelled = false;
     const hydrateUsers = async () => {
       if (!hasRemoteUserDirectory()) { remoteHydratedRef.current = true; return; }
-      const rawRemoteUsers = normalizeUsers(await fetchRemoteUsers());
-      const blockedEmails = new Set(['s.miller@zayagroupltd.com', 'j.wilson@zayagroupltd.com']);
-      const blockedIds = rawRemoteUsers.filter((u) => blockedEmails.has(String(u.email || '').toLowerCase())).map((u) => u.id);
-      const remoteUsers = filterDisabledSeedUsers(rawRemoteUsers);
+      const res = await fetchRemoteUsersWithStatus();
+      if (cancelled) return;
+      if (!res.ok) { remoteHydratedRef.current = true; return; }
+      const rawRemoteUsers = normalizeUsers(res.users);
+      const blockedIds = rawRemoteUsers.filter((u) => isForbiddenUser(u)).map((u) => u.id);
+      const remoteUsers = filterForbiddenUsers(rawRemoteUsers);
       if (cancelled) return;
       if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(seedUsers, remoteUsers, { includeMissingSeeds: false });
+        const remoteEmails = new Set(remoteUsers.map((u) => u.email.toLowerCase()));
+        const requiredMissing = REQUIRED_CLOUD_USERS
+          .map((u) => normalizeUsers([u])[0])
+          .map((u) => ({ ...u, email: String(u.email || '').trim() }))
+          .filter((u) => u.email && !remoteEmails.has(u.email.toLowerCase()))
+          .filter((u) => !isForbiddenUser(u));
+
+        const withRequired = [...remoteUsers, ...requiredMissing];
+        const corrected = applyUserCorrections(withRequired);
+
+        // Add required staff and persist any canonical corrections (best-effort).
+        try {
+          if (requiredMissing.length) {
+            await syncRemoteUsers(corrected.users);
+          } else if (corrected.changed.length) {
+            await syncRemoteUsers(corrected.changed);
+          }
+        } catch {
+          // best-effort
+        }
+
+        const merged = mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false });
         setAllUsers(merged);
+        void saveOfflineUsers(merged).catch(() => {});
         setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
         // Ensure legacy demo users are removed remotely too.
         if (blockedIds.length) { try { await removeRemoteUsers(blockedIds); } catch { /* ignore */ } }
-      } else { await syncRemoteUsers(initialUsers); }
+      } else {
+        // Remote directory is authoritative; do not auto-seed it from local machines.
+        // Keep a minimal local seed only for emergency access on first-run setups.
+        const seeded = mergeSeedUsers(seedUsers, [], { includeMissingSeeds: false });
+        setAllUsers(seeded);
+        void saveOfflineUsers(seeded).catch(() => {});
+      }
       remoteHydratedRef.current = true;
     };
     hydrateUsers();
@@ -674,12 +771,13 @@ const App: React.FC = () => {
   useEffect(() => {
     bookingsRef.current = bookings; candidatesRef.current = candidates;
     usersRef.current = allUsers; configRef.current = systemConfig; sessionsRef.current = activeSessions;
+    activeModuleRef.current = activeModule;
     bookingsHashRef.current = hashBookings(bookings);
     candidatesHashRef.current = hashCandidates(candidates);
     usersHashRef.current = hashUsers(allUsers);
     configHashRef.current = hashConfig(systemConfig);
     sessionsHashRef.current = hashSessions(activeSessions);
-  }, [bookings, candidates, allUsers, systemConfig, activeSessions]);
+  }, [bookings, candidates, allUsers, systemConfig, activeSessions, activeModule]);
 
   useEffect(() => {
     if (!demoSeedingEnabled) return;
@@ -736,66 +834,164 @@ const App: React.FC = () => {
     if (!hasRemoteData() || !isOnline) return;
     let cancelled = false;
     const hydrateRemoteData = async () => {
-      const [remoteBookings, remoteCandidates, remoteConfig] = await Promise.all([fetchRemoteBookings(), fetchRemoteCandidates(), fetchRemoteSystemConfig()]);
+      const [bookingsRes, candidatesRes, remoteConfig] = await Promise.all([
+        fetchRemoteBookingsWithStatus(),
+        fetchRemoteCandidatesWithStatus(),
+        fetchRemoteSystemConfig(),
+      ]);
       if (cancelled) return;
-      const remoteBookingsHash = hashBookings(remoteBookings);
-      const remoteCandidatesHash = hashCandidates(remoteCandidates);
+      const remoteBookingsHash = bookingsRes.ok ? hashBookings(bookingsRes.items) : null;
+      const remoteCandidatesHash = candidatesRes.ok ? hashCandidates(candidatesRes.items) : null;
       const remoteConfigHash = hashConfig(remoteConfig);
-      if (remoteBookingsHash !== bookingsHashRef.current) setBookings(remoteBookings);
-      if (remoteCandidatesHash !== candidatesHashRef.current) setCandidates(remoteCandidates);
-      if (remoteConfig && remoteConfigHash !== configHashRef.current) setSystemConfig(remoteConfig);
+      if (remoteBookingsHash !== null && remoteBookingsHash !== bookingsHashRef.current) { applyingRemoteUpdateRef.current = true; setBookings(bookingsRes.items); }
+      if (remoteCandidatesHash !== null && remoteCandidatesHash !== candidatesHashRef.current) { applyingRemoteUpdateRef.current = true; setCandidates(candidatesRes.items); }
+      if (remoteConfig && remoteConfigHash !== configHashRef.current) { applyingRemoteUpdateRef.current = true; setSystemConfig(remoteConfig); }
     };
     hydrateRemoteData();
     return () => { cancelled = true; };
   }, [isOnline]);
 
   useEffect(() => {
+    if (!isOnline || !hasRemoteData()) return;
+    let stopped = false;
+
+    const portalSub = subscribeRemotePortalData({
+      onBookings: (remoteBookings) => {
+        if (stopped) return;
+        const remoteBookingsHash = hashBookings(remoteBookings);
+        if (remoteBookingsHash === bookingsHashRef.current) return;
+        applyingRemoteUpdateRef.current = true;
+        setBookings(remoteBookings);
+        if (isLoggedIn) {
+          pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${remoteBookings.length} entries).`, 'INFO', 'booking', 60000);
+        }
+      },
+      onCandidates: (remoteCandidates) => {
+        if (stopped) return;
+        const remoteCandidatesHash = hashCandidates(remoteCandidates);
+        if (remoteCandidatesHash === candidatesHashRef.current) return;
+        applyingRemoteUpdateRef.current = true;
+        setCandidates(remoteCandidates);
+        if (isLoggedIn) {
+          pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${remoteCandidates.length} records).`, 'INFO', 'database', 120000);
+        }
+      },
+      onSystemConfig: (remoteConfig) => {
+        if (stopped) return;
+        if (!remoteConfig) return;
+        const remoteConfigHash = hashConfig(remoteConfig);
+        if (remoteConfigHash === configHashRef.current) return;
+        applyingRemoteUpdateRef.current = true;
+        setSystemConfig(remoteConfig);
+        if (isLoggedIn) {
+          pushNotificationDeduped('sync-config', 'System Policy Sync', 'Maintenance or recovery settings changed and were synced.', 'WARNING', 'recovery', 120000);
+        }
+      },
+    });
+
+    const userSub = hasRemoteUserDirectory()
+      ? subscribeRemoteUsers(() => {
+          void (async () => {
+            const res = await fetchRemoteUsersWithStatus();
+            if (stopped) return;
+            if (!res.ok) return;
+            const normalized = normalizeUsers(filterForbiddenUsers(res.users));
+            const corrected = applyUserCorrections(normalized);
+            const merged = mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false });
+            const remoteUsersHash = hashUsers(merged);
+            if (remoteUsersHash === usersHashRef.current) return;
+            applyingRemoteUpdateRef.current = true;
+            setAllUsers(merged);
+            void saveOfflineUsers(merged).catch(() => {});
+            setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
+            if (isLoggedIn) {
+              pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
+            }
+            if (corrected.changed.length) {
+              void syncRemoteUsers(corrected.changed).catch(() => {});
+            }
+          })();
+        })
+      : { unsubscribe: () => {} };
+
+    return () => {
+      stopped = true;
+      portalSub.unsubscribe();
+      userSub.unsubscribe();
+    };
+  }, [isOnline, isLoggedIn, seedUsers]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isOnline) return;
+    let stopped = false;
+
+    const sub = subscribeToTableInserts('messages', (row) => {
+      if (stopped) return;
+      const id = String(row?.id || '');
+      if (!id) return;
+      const senderId = String(row?.sender_id || row?.senderId || '');
+      if (senderId && senderId === currentUser.id) return;
+      if (activeModuleRef.current === 'chat') return;
+
+      const sender = usersRef.current.find((u) => u.id === senderId);
+      const senderName = sender?.name ? `${sender.name}: ` : '';
+      const message = String(row?.message || '').trim();
+      const preview = message.length > 120 ? `${message.slice(0, 117)}...` : message;
+      pushNotificationDeduped(`chat:${id}`, 'New Team Chat Message', `${senderName}${preview}`, 'INFO', 'chat', 30000);
+    });
+
+    return () => {
+      stopped = true;
+      sub.unsubscribe();
+    };
+  }, [isLoggedIn, isOnline, currentUser.id]);
+
+  useEffect(() => {
     if (!isLoggedIn || !isOnline || !hasRemoteData()) return;
     let stopped = false;
     const syncFromRemote = async () => {
-      const [remoteUsers, remoteBookings, remoteCandidates, remoteConfig, sessions] = await Promise.all([
-        hasRemoteUserDirectory() ? fetchRemoteUsers() : Promise.resolve([]),
-        fetchRemoteBookings(), fetchRemoteCandidates(), fetchRemoteSystemConfig(),
-        hasRemoteSessionStore() ? fetchActiveSessions() : Promise.resolve([]),
+      const [remoteUsersRes, bookingsRes, candidatesRes, remoteConfig] = await Promise.all([
+        hasRemoteUserDirectory() ? fetchRemoteUsersWithStatus() : Promise.resolve({ users: [], ok: false }),
+        fetchRemoteBookingsWithStatus(),
+        fetchRemoteCandidatesWithStatus(),
+        fetchRemoteSystemConfig(),
       ]);
       if (stopped) return;
-      const remoteBookingsHash = hashBookings(remoteBookings);
-      const remoteCandidatesHash = hashCandidates(remoteCandidates);
-      const hadBookingChange = remoteBookingsHash !== bookingsHashRef.current;
-      const hadCandidateChange = remoteCandidatesHash !== candidatesHashRef.current;
-      if (hadBookingChange) { setBookings(remoteBookings); pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${remoteBookings.length} entries).`, 'INFO', 'booking', 60000); }
-      if (hadCandidateChange) { setCandidates(remoteCandidates); pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${remoteCandidates.length} records).`, 'INFO', 'database', 120000); }
-      if (remoteUsers.length > 0) {
-        const normalized = normalizeUsers(remoteUsers);
-        const remoteUsersHash = hashUsers(normalized);
+      const hadBookingChange = bookingsRes.ok && hashBookings(bookingsRes.items) !== bookingsHashRef.current;
+      const hadCandidateChange = candidatesRes.ok && hashCandidates(candidatesRes.items) !== candidatesHashRef.current;
+      if (hadBookingChange) { applyingRemoteUpdateRef.current = true; setBookings(bookingsRes.items); pushNotificationDeduped('sync-bookings', 'Booking Sync', `Booking calendar updated (${bookingsRes.items.length} entries).`, 'INFO', 'booking', 60000); }
+      if (hadCandidateChange) { applyingRemoteUpdateRef.current = true; setCandidates(candidatesRes.items); pushNotificationDeduped('sync-candidates', 'Candidate Sync', `Candidate data refreshed (${candidatesRes.items.length} records).`, 'INFO', 'database', 120000); }
+      if (remoteUsersRes.ok) {
+        const normalized = normalizeUsers(filterForbiddenUsers(remoteUsersRes.users));
+        const corrected = applyUserCorrections(normalized);
+        const merged = mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false });
+        const remoteUsersHash = hashUsers(merged);
         const hadUserChange = remoteUsersHash !== usersHashRef.current;
         if (hadUserChange) {
-          setAllUsers(normalized);
-          setCurrentUser((prev) => normalized.find((u) => u.id === prev.id) || prev);
+          applyingRemoteUpdateRef.current = true;
+          setAllUsers(merged);
+          void saveOfflineUsers(merged).catch(() => {});
+          setCurrentUser((prev) => merged.find((u) => u.id === prev.id) || prev);
           pushNotificationDeduped('sync-users', 'User Directory Sync', 'User accounts/permissions updated from another device.', 'INFO', 'admin', 60000);
+        }
+        if (corrected.changed.length) {
+          void syncRemoteUsers(corrected.changed).catch(() => {});
         }
       }
       if (remoteConfig) {
         const remoteConfigHash = hashConfig(remoteConfig);
         const hadConfigChange = remoteConfigHash !== configHashRef.current;
         if (hadConfigChange) {
+          applyingRemoteUpdateRef.current = true;
           setSystemConfig(remoteConfig);
           pushNotificationDeduped('sync-config', 'System Policy Sync', 'Maintenance or recovery settings changed and were synced.', 'WARNING', 'recovery', 120000);
         }
       }
-      if (sessions.length) {
-        const remoteSessionsHash = hashSessions(sessions);
-        const hadSessionChange = remoteSessionsHash !== sessionsHashRef.current;
-        if (hadSessionChange) {
-          setActiveSessions(sessions);
-          pushNotificationDeduped('sync-sessions', 'Machine Presence Updated', 'Active machine/session list changed in real time.', 'INFO', 'machines', 60000);
-        }
-      }
     };
     syncFromRemote();
-    const id = window.setInterval(syncFromRemote, 12000);
+    const id = window.setInterval(syncFromRemote, 60000);
     return () => { stopped = true; window.clearInterval(id); };
-  }, [isLoggedIn, isOnline]);
+  }, [isLoggedIn, isOnline, seedUsers]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -866,15 +1062,36 @@ const App: React.FC = () => {
         userDirectory.find((u) => u.id === remembered.userId) ||
         userDirectory.find((u) => u.email.toLowerCase() === normalizedEmail);
 
-      if (!matched && hasRemoteUserDirectory()) {
-        const remoteUsers = normalizeUsers(await fetchRemoteUsers());
-        if (remoteUsers.length > 0) {
-          const merged = mergeSeedUsers(seedUsers, remoteUsers);
-          userDirectory = merged;
-          setAllUsers(merged);
-          matched =
-            merged.find((u) => u.id === remembered.userId) ||
-            merged.find((u) => u.email.toLowerCase() === normalizedEmail);
+      if (!matched) {
+        try {
+          const snapshot = await loadLocalSnapshot();
+          const cachedUsers = normalizeUsers(filterForbiddenUsers(snapshot?.users || []));
+          if (cachedUsers.length > 0) {
+            const merged = mergeSeedUsers(seedUsers, cachedUsers, { includeMissingSeeds: false });
+            userDirectory = merged;
+            setAllUsers(merged);
+            matched =
+              merged.find((u) => u.id === remembered.userId) ||
+              merged.find((u) => u.email.toLowerCase() === normalizedEmail);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!matched && isOnline && hasRemoteUserDirectory()) {
+        try {
+          const remoteUsers = normalizeUsers(await fetchRemoteUsers());
+          if (remoteUsers.length > 0) {
+            const merged = mergeSeedUsers(seedUsers, remoteUsers, { includeMissingSeeds: false });
+            userDirectory = merged;
+            setAllUsers(merged);
+            matched =
+              merged.find((u) => u.id === remembered.userId) ||
+              merged.find((u) => u.email.toLowerCase() === normalizedEmail);
+          }
+        } catch {
+          // ignore
         }
       }
 
@@ -917,12 +1134,13 @@ const App: React.FC = () => {
   }, [allUsers, isLoggedIn, systemConfig, initialUsers, seedUsers]);
 
   useEffect(() => {
+    if (hasRemoteData()) return;
     const syncClient = new RealtimeSyncClient({
       clientId: clientIdRef.current,
       onSnapshot: (snapshot) => {
         applyingRemoteUpdateRef.current = true;
         setBookings(snapshot.bookings); setCandidates(snapshot.candidates);
-        const mergedUsers = mergeSeedUsers(seedUsers, normalizeUsers(snapshot.users));
+        const mergedUsers = mergeSeedUsers(seedUsers, normalizeUsers(filterForbiddenUsers(snapshot.users)));
         setAllUsers(mergedUsers); setNotifications(snapshot.notifications);
         setSystemConfig(snapshot.systemConfig);
         setCurrentUser((prev) => mergedUsers.find((u) => u.id === prev.id) || prev);
@@ -935,6 +1153,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!syncClientRef.current) return;
+    if (hasRemoteData()) return;
     if (!initializedSyncRef.current) { initializedSyncRef.current = true; return; }
     if (applyingRemoteUpdateRef.current) { applyingRemoteUpdateRef.current = false; return; }
     const snapshot = createSharedSnapshot({ bookings, candidates, users: allUsers, notifications, systemConfig }, currentUser.id || clientIdRef.current);
@@ -942,93 +1161,129 @@ const App: React.FC = () => {
   }, [bookings, candidates, allUsers, notifications, systemConfig, currentUser.id]);
 
   useEffect(() => {
-    if (!remoteHydratedRef.current || !hasRemoteUserDirectory()) return;
-    const timer = setTimeout(() => {
-      void syncRemoteUsers(allUsers).catch((err) => {
-        console.warn('Remote user sync failed:', err);
-        pushNotificationDeduped('sync:users:failed', 'User Sync Failed', 'User directory sync failed. Check Supabase portal_users table/RLS.', 'WARNING', 'admin', 20000);
-      });
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [allUsers]);
-
-  useEffect(() => {
-    const persist = async () => {
-      await saveLocalSnapshot({ bookings, candidates, users: allUsers, systemConfig });
-      await queueOutbox('bookings', bookings); await queueOutbox('candidates', candidates);
-      await queueOutbox('users', allUsers); await queueOutbox('systemConfig', systemConfig);
+    const shouldQueueOutbox = !applyingRemoteUpdateRef.current;
+    if (applyingRemoteUpdateRef.current) applyingRemoteUpdateRef.current = false;
+    if (typeof window === 'undefined') return;
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = window.setTimeout(() => {
+      void (async () => {
+        await saveLocalSnapshot({ bookings, candidates, systemConfig });
+        if (shouldQueueOutbox) {
+          await queueOutbox('bookings', bookings);
+          await queueOutbox('candidates', candidates);
+          await queueOutbox('systemConfig', systemConfig);
+        }
+      })();
+    }, 1200);
+    return () => {
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
     };
-    persist();
-  }, [bookings, candidates, allUsers, systemConfig]);
+  }, [bookings, candidates, systemConfig]);
 
   useEffect(() => {
     if (!isOnline || !hasRemoteData()) return;
+    let stopped = false;
     let running = false;
     const sync = async () => {
-      if (running) return; running = true;
-      await flushOutbox(async (item) => {
-        if (item.type === 'bookings') await syncRemoteBookings(JSON.parse(item.payload));
-        if (item.type === 'candidates') await syncRemoteCandidates(JSON.parse(item.payload));
-        if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
-        if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
-      });
-      running = false;
+      if (stopped) return;
+      if (running) return;
+      const pending = await hasOutboxItems();
+      if (!pending) return;
+      running = true;
+      try {
+        await flushOutbox(async (item) => {
+          if (item.type === 'bookings') await syncRemoteBookings(JSON.parse(item.payload));
+          if (item.type === 'candidates') await syncRemoteCandidates(JSON.parse(item.payload));
+          if (item.type === 'users') await syncPortalUsers(JSON.parse(item.payload));
+          if (item.type === 'systemConfig') await syncRemoteSystemConfig(JSON.parse(item.payload));
+        });
+      } finally {
+        running = false;
+      }
     };
-    sync();
-  }, [isOnline, bookings, candidates, allUsers, systemConfig]);
+    void sync();
+    const id = window.setInterval(() => void sync(), 15000);
+    return () => { stopped = true; window.clearInterval(id); };
+  }, [isOnline]);
+
+  // When starting online, also push any local ERP/Sales caches that were created offline.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (!isOnline) return;
+    if (!hasRemoteData()) return;
+    const id = window.setTimeout(() => {
+      void syncLocalEmployeeData().catch(() => {});
+      void syncLocalSalesData().catch(() => {});
+    }, 2000);
+    return () => window.clearTimeout(id);
+  }, [isLoggedIn, isOnline]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
     let stopped = false;
-    const heartbeat = async () => {
-      if (stopped) return;
-      await upsertSessionHeartbeat(sessionIdRef.current, currentUser);
-      const sessions = await fetchActiveSessions();
-      if (stopped) return;
-      const prevDigest = sessionDigestRef.current;
-      const nextDigest: Record<string, { status: string; isOnline: boolean; userName: string }> = {};
-      sessions.forEach((session) => {
-        nextDigest[session.id] = { status: session.status, isOnline: session.isOnline, userName: session.userName };
-        const prev = prevDigest[session.id];
-        if (!prev) {
-          if (session.id !== sessionIdRef.current) {
-            // New machine connected — use machines-active origin for fast dismiss
-            pushNotificationDeduped(`session:new:${session.id}`, 'Machine Active', `${session.userName} connected from ${session.machineName}.`, 'INFO', 'machines-active', 15000);
+
+    const refreshSessions = async () => {
+      try {
+        const sessions = await fetchActiveSessions();
+        if (stopped) return;
+        const prevDigest = sessionDigestRef.current;
+        const nextDigest: Record<string, { status: string; isOnline: boolean; userName: string }> = {};
+        sessions.forEach((session) => {
+          nextDigest[session.id] = { status: session.status, isOnline: session.isOnline, userName: session.userName };
+          const prev = prevDigest[session.id];
+          if (!prev) {
+            if (session.id !== sessionIdRef.current) {
+              pushNotificationDeduped(`session:new:${session.id}`, 'Machine Active', `${session.userName} connected from ${session.machineName}.`, 'INFO', 'machines-active', 15000);
+            }
+            return;
           }
-          return;
+          if (prev.status !== session.status || prev.isOnline !== session.isOnline) {
+            pushNotificationDeduped(
+              `session:update:${session.id}:${session.status}:${session.isOnline ? 'online' : 'offline'}`,
+              'Session Updated',
+              `${session.userName} is now ${session.status} ${session.isOnline ? '(ONLINE)' : '(OFFLINE)'}.`,
+              session.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING', 'machines', 10000
+            );
+          }
+        });
+        Object.keys(prevDigest).forEach((sessionId) => {
+          if (!nextDigest[sessionId]) {
+            pushNotificationDeduped(`session:removed:${sessionId}`, 'Session Removed', `Machine session ${sessionId} was removed from active records.`, 'INFO', 'machines', 15000);
+          }
+        });
+        sessionDigestRef.current = nextDigest;
+        setActiveSessions(sessions);
+        const mine = sessions.find((s) => s.id === sessionIdRef.current);
+        if (!mine) return;
+        if ((mine.status === 'FORCED_OUT' || mine.status === 'REVOKED') && !isRevokedRef.current) {
+          isRevokedRef.current = true;
+          const reason = mine.forceLogoutReason
+            ? `Reason: ${mine.forceLogoutReason}`
+            : mine.status === 'FORCED_OUT'
+            ? 'Reason: Another newer login for your account became active, so this machine was signed out.'
+            : 'Reason: Your session was revoked by an administrator.';
+          alert(`You have been signed out.\n\n${reason}`);
+          handleLogout();
         }
-        if (prev.status !== session.status || prev.isOnline !== session.isOnline) {
-          pushNotificationDeduped(
-            `session:update:${session.id}:${session.status}:${session.isOnline ? 'online' : 'offline'}`,
-            'Session Updated',
-            `${session.userName} is now ${session.status} ${session.isOnline ? '(ONLINE)' : '(OFFLINE)'}.`,
-            session.status === 'ACTIVE' ? 'SUCCESS' : 'WARNING', 'machines', 10000
-          );
-        }
-      });
-      Object.keys(prevDigest).forEach((sessionId) => {
-        if (!nextDigest[sessionId]) {
-          pushNotificationDeduped(`session:removed:${sessionId}`, 'Session Removed', `Machine session ${sessionId} was removed from active records.`, 'INFO', 'machines', 15000);
-        }
-      });
-      sessionDigestRef.current = nextDigest;
-      setActiveSessions(sessions);
-      const mine = sessions.find((s) => s.id === sessionIdRef.current);
-      if (!mine) return;
-      if ((mine.status === 'FORCED_OUT' || mine.status === 'REVOKED') && !isRevokedRef.current) {
-        isRevokedRef.current = true;
-        const reason = mine.forceLogoutReason
-          ? `Reason: ${mine.forceLogoutReason}`
-          : mine.status === 'FORCED_OUT'
-          ? 'Reason: Another newer login for your account became active, so this machine was signed out.'
-          : 'Reason: Your session was revoked by an administrator.';
-        alert(`You have been signed out.\n\n${reason}`);
-        handleLogout();
+      } catch (err) {
+        console.warn('Session refresh failed:', err);
       }
     };
+
+    const heartbeat = async () => {
+      if (stopped) return;
+      try {
+        await upsertSessionHeartbeat(sessionIdRef.current, currentUser);
+      } catch (err) {
+        console.warn('Session heartbeat failed:', err);
+      }
+      await refreshSessions();
+    };
+
     heartbeat();
     const id = window.setInterval(heartbeat, 15000);
-    return () => { stopped = true; window.clearInterval(id); };
+    const sub = hasRemoteSessionStore() ? subscribeSessionChanges(() => void refreshSessions()) : { unsubscribe: () => {} };
+    return () => { stopped = true; window.clearInterval(id); sub.unsubscribe(); };
   }, [isLoggedIn, currentUser]);
 
   useEffect(() => {
@@ -1064,9 +1319,10 @@ const App: React.FC = () => {
       try {
         const now = new Date();
         const day = now.getDay(); // 0=Sun, 1=Mon
-        const afterFive = now.getHours() >= 17;
-        if (!afterFive) return;
-        if (![1, 2, 3, 4].includes(day)) return; // Mon–Thu
+        if (day === 0) return; // Sunday off
+        const endMinutes = day === 6 ? 14 * 60 : 17 * 60; // Sat 14:00, weekdays 17:00
+        const minutes = now.getHours() * 60 + now.getMinutes();
+        if (minutes < endMinutes) return;
 
         const todayIso = now.toISOString().slice(0, 10);
         if (typeof window !== 'undefined') {
@@ -1106,18 +1362,50 @@ const App: React.FC = () => {
     };
 
     let { user: matched, matchType } = findMatch(userDirectory);
-    if (!matched && hasRemoteUserDirectory()) {
-      const remoteUsers = normalizeUsers(await fetchRemoteUsers());
-      if (remoteUsers.length > 0) {
-        const merged = mergeSeedUsers(seedUsers, filterDisabledSeedUsers(remoteUsers), { includeMissingSeeds: false });
-        userDirectory = merged;
-        setAllUsers(merged);
-        const res = findMatch(merged);
-        matched = res.user;
-        matchType = res.matchType;
+
+    // Offline-first: if the UI hasn't hydrated yet, load cached users from IndexedDB to allow login with no internet.
+    if (!matched) {
+      try {
+        const snapshot = await loadLocalSnapshot();
+        const cachedUsers = normalizeUsers(filterForbiddenUsers(snapshot?.users || []));
+        if (cachedUsers.length > 0) {
+          const merged = mergeSeedUsers(seedUsers, cachedUsers, { includeMissingSeeds: false });
+          userDirectory = merged;
+          setAllUsers(merged);
+          const res = findMatch(merged);
+          matched = res.user;
+          matchType = res.matchType;
+        }
+      } catch {
+        // ignore
       }
     }
-    if (!matched) return 'Account not found. Contact admin.';
+
+    // If online, fall back to fetching the latest directory from Supabase.
+    if (!matched && isOnline && hasRemoteUserDirectory()) {
+      try {
+        const remoteUsers = normalizeUsers(await fetchRemoteUsers());
+        if (remoteUsers.length > 0) {
+          const corrected = applyUserCorrections(filterForbiddenUsers(remoteUsers));
+          const merged = mergeSeedUsers(seedUsers, corrected.users, { includeMissingSeeds: false });
+          userDirectory = merged;
+          setAllUsers(merged);
+          if (corrected.changed.length) void syncRemoteUsers(corrected.changed).catch(() => {});
+          const res = findMatch(merged);
+          matched = res.user;
+          matchType = res.matchType;
+        }
+      } catch {
+        // ignore (offline / blocked network / RLS)
+      }
+    }
+
+    if (!matched) {
+      if (!isOnline) {
+        return 'Offline login not ready on this device. Connect to internet once on this machine to sync users.';
+      }
+      return 'Account not found. Contact admin.';
+    }
     if (matchType === 'name' && matched.role !== UserRole.USER) {
       return 'Admins must sign in with their enterprise email address.';
     }
@@ -1137,16 +1425,16 @@ const App: React.FC = () => {
     const shouldShowOrientation = !updatedUser.hasCompletedOrientation || !installSeenNow;
     setShowOrientation(shouldShowOrientation);
 
-    // Auto clock-in on sign-in (employees + super admin). Admins are exempt.
-    if (updatedUser.role !== UserRole.ADMIN) {
-      try {
+    // Auto clock-in on sign-in (all non-admin roles) to keep attendance consistent across devices.
+    try {
+      if (updatedUser.role !== UserRole.ADMIN) {
         const today = await fetchTodayAttendance(updatedUser);
         if (!today?.checkIn) {
           await clockIn(updatedUser);
         }
-      } catch (err) {
-        console.warn('Auto clock-in skipped:', err);
       }
+    } catch (err) {
+      console.warn('Auto clock-in skipped:', err);
     }
     // Login notification uses 'machines-login' origin → auto-dismissed in 3s
     pushNotification('Login Success', `${updatedUser.name} signed in from this machine.`, 'SUCCESS', 'machines-login');
@@ -1223,11 +1511,17 @@ const App: React.FC = () => {
   };
 
   const updateUsers = (updated: SystemUser[]) => {
+    const cleaned = filterForbiddenUsers(updated);
     const removedIds = allUsers
       .map((u) => u.id)
-      .filter((id) => !updated.some((next) => next.id === id));
-    const normalized = normalizeUsers(updated);
+      .filter((id) => !cleaned.some((next) => next.id === id));
+    const normalized = normalizeUsers(cleaned);
     setAllUsers(normalized);
+    void saveOfflineUsers(normalized).catch(() => {});
+    // Ensure offline admin edits are pushed when the machine comes back online.
+    if (!isOnline || !hasRemoteUserDirectory()) {
+      void queueOutbox('users', normalized).catch(() => {});
+    }
     const updatedMe = normalized.find(u => u.id === currentUser.id);
     if (updatedMe) setCurrentUser(updatedMe);
     if (removedIds.length > 0 && hasRemoteUserDirectory()) {
@@ -1372,34 +1666,42 @@ const App: React.FC = () => {
       return;
     }
     const confirmed = window.confirm(
-      'Purge demo data?\n\nThis will remove autogenerated demo candidates/bookings and disable future demo seeding on this workspace.'
+      'Purge all non-user data?\n\nThis will remove candidates, bookings, chat/messages, attendance, reports, notices, tasks, payroll, and sales data.\n\nUser accounts will be kept.\n\nIf online, it will also purge the same data from Supabase so all machines match.'
     );
     if (!confirmed) return;
 
     try {
       window.localStorage.setItem(DEMO_SEED_DISABLED_KEY, '1');
+      window.localStorage.removeItem('zaya_shared_state_v2');
     } catch {
       // ignore
     }
     setDemoSeedingEnabled(false);
 
-    setCandidates((prev) =>
-      prev.filter((c) => {
-        const id = String((c as any).id || '');
-        const notes = String((c as any).notes || '');
-        const isAuto = id.startsWith('ZGL-CN-2026-') || notes.toLowerCase().includes('autogenerated profile');
-        return !isAuto;
-      })
-    );
-    setBookings((prev) =>
-      prev.filter((b) => {
-        const id = String((b as any).id || '');
-        const remarks = String((b as any).remarks || '');
-        const isAuto = remarks.toLowerCase().includes('schedule sample') || /BK-\d{4}-0{3}/.test(id);
-        return !isAuto;
-      })
-    );
-    pushNotification('Demo Data Purged', 'Autogenerated demo records were removed and seeding was disabled.', 'SUCCESS', 'recovery');
+    setCandidates([]);
+    setBookings([]);
+    setNotifications([]);
+
+    purgeLocalEmployeeData();
+    purgeLocalSalesData();
+
+    void purgeOfflinePortalDataExceptUsers()
+      .then(() => saveLocalSnapshot({ bookings: [], candidates: [], systemConfig }))
+      .catch(() => {});
+
+    if (isOnline) {
+      pushNotification('Purge Running', 'Clearing Supabase tables (except users). Keep this page open for a few seconds.', 'INFO', 'recovery');
+      Promise.allSettled([purgeRemotePortalDataExceptUsers(), purgeRemoteEmployeeData()]).then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected').length;
+        if (failed) {
+          pushNotification('Purge Partial', 'Local data was cleared, but some cloud tables could not be purged. Refresh and try again.', 'WARNING', 'recovery');
+        } else {
+          pushNotification('Purge Complete', 'All non-user records were purged locally and in Supabase.', 'SUCCESS', 'recovery');
+        }
+      });
+    } else {
+      pushNotification('Purge Complete (Local)', 'All non-user records were purged on this device. Connect to internet to purge Supabase for all machines.', 'SUCCESS', 'recovery');
+    }
   };
 
   const renderModule = () => {
@@ -1538,39 +1840,58 @@ const App: React.FC = () => {
         return (
           <MachineAuth
             sessions={activeSessions}
+            users={allUsers}
             currentSessionId={sessionIdRef.current}
             onForceOut={async (sessionId) => {
-              const reason = `Force logged out by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
-              await updateSessionStatus(sessionId, 'FORCED_OUT', reason);
-              // Store force logout reason so tooltip bubble appears on MachineAuth
-              setActiveSessions((prev) =>
-                prev.map((s) =>
-                  s.id === sessionId
-                    ? ({ ...s, status: 'FORCED_OUT', forceLogoutReason: reason })
-                    : s
-                )
-              );
-              pushNotification('Machine Session Forced Out', `Session ${sessionId} was forced out.`, 'WARNING', 'machines');
-              const refreshed = await fetchActiveSessions();
-              // Re-apply reason to refreshed list since remote may not have the field yet
-              setActiveSessions(refreshed.map((s) =>
-                s.id === sessionId ? ({ ...s, forceLogoutReason: reason }) : s
-              ));
+              try {
+                const reason = `Force logged out by ${currentUser.name} on ${new Date().toLocaleString('en-GB')}.`;
+                await updateSessionStatus(sessionId, 'FORCED_OUT', reason);
+                setActiveSessions((prev) =>
+                  prev.map((s) =>
+                    s.id === sessionId
+                      ? ({ ...s, status: 'FORCED_OUT', forceLogoutReason: reason })
+                      : s
+                  )
+                );
+                pushNotification('Machine Session Forced Out', `Session ${sessionId} was forced out.`, 'WARNING', 'machines');
+                const refreshed = await fetchActiveSessions();
+                setActiveSessions(refreshed.map((s) =>
+                  s.id === sessionId ? ({ ...s, forceLogoutReason: reason }) : s
+                ));
+              } catch (err) {
+                console.warn('Force out failed:', err);
+                pushNotification('Machine Action Failed', 'Could not force out the session. Check Supabase permissions/network.', 'WARNING', 'machines');
+              }
             }}
             onRevoke={async (sessionId) => {
-              await updateSessionStatus(sessionId, 'REVOKED');
-              pushNotification('Machine Access Revoked', `Session ${sessionId} was revoked.`, 'WARNING', 'machines');
-              setActiveSessions(await fetchActiveSessions());
+              try {
+                await updateSessionStatus(sessionId, 'REVOKED');
+                pushNotification('Machine Access Revoked', `Session ${sessionId} was revoked.`, 'WARNING', 'machines');
+                setActiveSessions(await fetchActiveSessions());
+              } catch (err) {
+                console.warn('Revoke failed:', err);
+                pushNotification('Machine Action Failed', 'Could not revoke the session. Check Supabase permissions/network.', 'WARNING', 'machines');
+              }
             }}
             onBan={async (sessionId) => {
-              await updateSessionStatus(sessionId, 'REVOKED');
-              pushNotification('Machine Banned', `Machine session ${sessionId} was banned.`, 'WARNING', 'machines');
-              setActiveSessions(await fetchActiveSessions());
+              try {
+                await updateSessionStatus(sessionId, 'REVOKED');
+                pushNotification('Machine Banned', `Machine session ${sessionId} was banned.`, 'WARNING', 'machines');
+                setActiveSessions(await fetchActiveSessions());
+              } catch (err) {
+                console.warn('Ban failed:', err);
+                pushNotification('Machine Action Failed', 'Could not ban the session. Check Supabase permissions/network.', 'WARNING', 'machines');
+              }
             }}
             onDelete={async (sessionId) => {
-              await deleteSession(sessionId);
-              pushNotification('Machine Deleted', `Machine session ${sessionId} was deleted from auth records.`, 'INFO', 'machines');
-              setActiveSessions(await fetchActiveSessions());
+              try {
+                await deleteSession(sessionId);
+                pushNotification('Machine Deleted', `Machine session ${sessionId} was deleted from auth records.`, 'INFO', 'machines');
+                setActiveSessions(await fetchActiveSessions());
+              } catch (err) {
+                console.warn('Delete failed:', err);
+                pushNotification('Machine Action Failed', 'Could not delete the session. Check Supabase permissions/network.', 'WARNING', 'machines');
+              }
             }}
           />
         );

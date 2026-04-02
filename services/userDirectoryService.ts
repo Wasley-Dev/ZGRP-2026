@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import { SystemUser } from '../types';
 import { getSupabaseConfig } from './supabaseConfig';
 
@@ -17,6 +17,8 @@ type PortalUserRow = {
   avatar: string | null;
   last_login: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BANNED';
+  base_salary?: number | null;
+  performance_score?: number | null;
 };
 
 let supabase: SupabaseClient | null = null;
@@ -44,6 +46,8 @@ const toUser = (row: PortalUserRow): SystemUser => ({
   avatar: row.avatar || undefined,
   lastLogin: row.last_login,
   status: row.status,
+  baseSalary: typeof (row as any).base_salary === 'number' ? (row as any).base_salary : undefined,
+  performanceScore: typeof (row as any).performance_score === 'number' ? (row as any).performance_score : undefined,
 });
 
 const toRow = (user: SystemUser): PortalUserRow => ({
@@ -59,19 +63,26 @@ const toRow = (user: SystemUser): PortalUserRow => ({
   avatar: user.avatar || null,
   last_login: user.lastLogin,
   status: user.status,
+  base_salary: typeof user.baseSalary === 'number' ? user.baseSalary : null,
+  performance_score: typeof user.performanceScore === 'number' ? user.performanceScore : null,
 });
 
 export const hasRemoteUserDirectory = () => Boolean(getSupabase());
 
-export const fetchRemoteUsers = async (): Promise<SystemUser[]> => {
+export const fetchRemoteUsersWithStatus = async (): Promise<{ users: SystemUser[]; ok: boolean }> => {
   const client = getSupabase();
-  if (!client) return [];
+  if (!client) return { users: [], ok: false };
   const { data, error } = await client.from(TABLE_NAME).select('*').order('name');
   if (error || !data) {
     console.error('Remote user fetch error:', error);
-    return [];
+    return { users: [], ok: false };
   }
-  return (data as PortalUserRow[]).map(toUser);
+  return { users: (data as PortalUserRow[]).map(toUser), ok: true };
+};
+
+export const fetchRemoteUsers = async (): Promise<SystemUser[]> => {
+  const res = await fetchRemoteUsersWithStatus();
+  return res.users;
 };
 
 export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
@@ -82,13 +93,23 @@ export const syncRemoteUsers = async (users: SystemUser[]): Promise<void> => {
   const attempt = await client.from(TABLE_NAME).upsert(rows, { onConflict: 'id' });
   if (!attempt.error) return;
 
-  // Backward compatibility: if the remote table doesn't have `job_title` yet, retry without it.
+  // Backward compatibility: if the remote table doesn't have newer columns, retry without them.
   const message = String(attempt.error?.message || '');
-  if (!/job_title/i.test(message)) {
+  const missingJobTitle = /job_title/i.test(message);
+  const missingBaseSalary = /base_salary/i.test(message);
+  const missingPerformance = /performance_score/i.test(message);
+  if (!missingJobTitle && !missingBaseSalary && !missingPerformance) {
     console.error('Remote user upsert error:', attempt.error);
     throw attempt.error;
   }
-  const legacyRows = rows.map(({ job_title, ...rest }) => rest);
+
+  const legacyRows = rows.map((row: any) => {
+    const next = { ...row };
+    if (missingJobTitle) delete next.job_title;
+    if (missingBaseSalary) delete next.base_salary;
+    if (missingPerformance) delete next.performance_score;
+    return next;
+  });
   const retry = await client.from(TABLE_NAME).upsert(legacyRows as any, { onConflict: 'id' });
   if (retry.error) {
     console.error('Remote user upsert error (legacy retry):', retry.error);
@@ -103,5 +124,32 @@ export const removeRemoteUsers = async (ids: string[]): Promise<void> => {
   if (error) {
     console.error('Remote user explicit delete error:', error);
   }
+};
+
+export const subscribeRemoteUsers = (onChange: () => void): { unsubscribe: () => void } => {
+  const client = getSupabase();
+  if (!client) return { unsubscribe: () => {} };
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const schedule = () => {
+    if (timer) return;
+    timer = setTimeout(() => {
+      timer = null;
+      onChange();
+    }, 400);
+  };
+
+  const channel: RealtimeChannel = client
+    .channel(`${TABLE_NAME}-changes`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME }, schedule);
+
+  channel.subscribe();
+
+  return {
+    unsubscribe: () => {
+      if (timer) clearTimeout(timer);
+      client.removeChannel(channel);
+    },
+  };
 };
 

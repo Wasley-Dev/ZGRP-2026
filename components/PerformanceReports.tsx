@@ -24,9 +24,11 @@ const startOfPreviousWeekMonday = () => {
   return prev;
 };
 
-const isWeekday = (d: Date) => {
-  const day = d.getDay();
-  return day !== 0 && day !== 6;
+const expectedMinutesForDay = (d: Date): number => {
+  const day = d.getDay(); // 0=Sun
+  if (day === 0) return 0;
+  if (day === 6) return Math.round(5.5 * 60); // 08:30–14:00
+  return Math.round(8.5 * 60); // 08:30–17:00
 };
 
 const scoreBand = (percent: number) => {
@@ -113,18 +115,22 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
         const to = new Date(`${r.endDate}T00:00:00`);
         for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
           if (d.getTime() < period.start.getTime() || d.getTime() > period.end.getTime()) continue;
-          if (!isWeekday(d)) continue;
+          if (expectedMinutesForDay(d) <= 0) continue;
           set.add(toIsoDate(d));
         }
         leaveByUser.set(r.userId, set);
       });
 
-    const expectedWeekdays = (() => {
-      let c = 0;
+    const baseExpected = (() => {
+      let days = 0;
+      let minutes = 0;
       for (let d = new Date(period.start); d.getTime() <= period.end.getTime(); d.setDate(d.getDate() + 1)) {
-        if (isWeekday(d)) c += 1;
+        const m = expectedMinutesForDay(d);
+        if (m <= 0) continue;
+        days += 1;
+        minutes += m;
       }
-      return c;
+      return { days, minutes };
     })();
 
     const visibleUsers = isAdmin ? users : users.filter((u) => u.id === user.id);
@@ -133,22 +139,16 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((u) => {
-        if (u.role !== UserRole.USER) {
-          return {
-            userId: u.id,
-            name: u.name,
-            department: u.department || '—',
-            role: u.role,
-            expectedDays: 0,
-            attendancePercent: null as number | null,
-            kpiPercent: null as number | null,
-            manualScore: typeof u.performanceScore === 'number' ? Math.round(u.performanceScore) : null,
-          };
-        }
-
+        const exempt = u.role === UserRole.ADMIN;
         const leaveDays = leaveByUser.get(u.id) || new Set<string>();
-        const expectedDays = Math.max(0, expectedWeekdays - leaveDays.size);
-        const expectedMinutes = expectedDays * 8 * 60;
+        const expectedDays = exempt ? 0 : Math.max(0, baseExpected.days - leaveDays.size);
+        const leaveExpectedMinutes = exempt
+          ? 0
+          : Array.from(leaveDays).reduce((sum, iso) => {
+              const m = expectedMinutesForDay(new Date(`${iso}T12:00:00`));
+              return sum + Math.max(0, m);
+            }, 0);
+        const expectedMinutes = exempt ? 0 : Math.max(0, baseExpected.minutes - leaveExpectedMinutes);
 
         const workedMinutes = attendanceLogs
           .filter((l) => l.userId === u.id)
@@ -160,18 +160,18 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
             .filter((r) => r.userId === u.id)
             .map((r) => toIsoDate(new Date(r.createdAt)))
             .filter((iso) => iso >= period.startIso && iso <= period.endIso)
+            .filter((iso) => expectedMinutesForDay(new Date(`${iso}T12:00:00`)) > 0)
+            .filter((iso) => !leaveDays.has(iso))
         ).size;
 
-        const attendancePercent = expectedMinutes > 0 ? Math.max(0, Math.min(100, (workedMinutes / expectedMinutes) * 100)) : 100;
-        const kpiPercent = expectedDays > 0 ? Math.max(0, Math.min(100, (reportDays / expectedDays) * 100)) : 100;
+        const attendancePercent = exempt ? 100 : expectedMinutes > 0 ? Math.max(0, Math.min(100, (workedMinutes / expectedMinutes) * 100)) : 100;
+        const kpiPercent = exempt ? 100 : expectedDays > 0 ? Math.max(0, Math.min(100, (reportDays / expectedDays) * 100)) : 100;
         const manualScore = typeof u.performanceScore === 'number' ? Math.round(u.performanceScore) : null;
 
-        return { userId: u.id, name: u.name, department: u.department || '—', role: u.role, expectedDays, attendancePercent, kpiPercent, manualScore };
+        return { userId: u.id, name: u.name, department: u.department || '—', role: u.role, exempt, expectedDays, attendancePercent, kpiPercent, manualScore };
       });
 
-    const valid = rows.filter((r) => typeof r.attendancePercent === 'number' && typeof r.kpiPercent === 'number') as Array<
-      (typeof rows)[number] & { attendancePercent: number; kpiPercent: number }
-    >;
+    const valid = rows.filter((r) => !r.exempt);
 
     const org = {
       employeeCount: valid.length,
@@ -223,8 +223,8 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
           r.name,
           r.department,
           String(r.expectedDays),
-          typeof r.attendancePercent === 'number' ? `${Math.round(r.attendancePercent)}%` : 'EXEMPT',
-          typeof r.kpiPercent === 'number' ? `${Math.round(r.kpiPercent)}%` : 'EXEMPT',
+          r.exempt ? 'EXEMPT' : `${Math.round(r.attendancePercent)}%`,
+          r.exempt ? 'EXEMPT' : `${Math.round(r.kpiPercent)}%`,
           r.manualScore !== null ? `${r.manualScore}/100` : '-',
         ]),
         styles: { fontSize: 8 },
@@ -364,29 +364,33 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
               </thead>
               <tbody className="divide-y divide-slate-200/70 dark:divide-blue-400/10">
                 {stats.rows.map((r) => {
-                  const attendanceBand = typeof r.attendancePercent === 'number' ? scoreBand(r.attendancePercent) : null;
-                  const kpiBand = typeof r.kpiPercent === 'number' ? scoreBand(r.kpiPercent) : null;
+                  const attendanceBand = scoreBand(r.attendancePercent);
+                  const kpiBand = scoreBand(r.kpiPercent);
                   return (
                     <tr key={`wk-${r.userId}`}>
                       <td className="py-2 pr-3 font-bold text-slate-700 dark:text-white">{r.name}</td>
                       <td className="py-2 pr-3 text-slate-600 dark:text-blue-200">{r.department}</td>
                       <td className="py-2 pr-3 font-mono text-slate-700 dark:text-white">{r.expectedDays}</td>
                       <td className="py-2 pr-3">
-                        {typeof r.attendancePercent === 'number' ? (
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${attendanceBand?.pill || ''}`}>
-                            {Math.round(r.attendancePercent)}% {attendanceBand?.label}
+                        {r.exempt ? (
+                          <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-500/10 border border-slate-500/20 text-slate-700 dark:text-blue-200">
+                            EXEMPT
                           </span>
                         ) : (
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exempt</span>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${attendanceBand.pill}`}>
+                            {Math.round(r.attendancePercent)}% {attendanceBand.label}
+                          </span>
                         )}
                       </td>
                       <td className="py-2 pr-3">
-                        {typeof r.kpiPercent === 'number' ? (
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${kpiBand?.pill || ''}`}>
-                            {Math.round(r.kpiPercent)}% {kpiBand?.label}
+                        {r.exempt ? (
+                          <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-500/10 border border-slate-500/20 text-slate-700 dark:text-blue-200">
+                            EXEMPT
                           </span>
                         ) : (
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exempt</span>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${kpiBand.pill}`}>
+                            {Math.round(r.kpiPercent)}% {kpiBand.label}
+                          </span>
                         )}
                       </td>
                       <td className="py-2 pr-3 font-black text-slate-900 dark:text-white">
@@ -469,4 +473,3 @@ const PerformanceReports: React.FC<PerformanceReportsProps> = ({ user, users }) 
 };
 
 export default PerformanceReports;
-

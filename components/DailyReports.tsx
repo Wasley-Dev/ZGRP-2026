@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { UserRole, type DailyReport, type SystemUser } from '../types';
+import { type DailyReport, type SystemUser } from '../types';
 import { createDailyReport, fetchDailyReports, hasEmployeeSupabase, subscribeToTableChanges } from '../services/employeeSystemService';
 
 interface DailyReportsProps {
@@ -18,7 +18,7 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
 
-  const canSubmit = user.role !== UserRole.ADMIN;
+  const canSubmit = true;
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -96,8 +96,7 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
           <div className="text-[10px] font-black uppercase tracking-widest text-gold">Reports</div>
         </div>
 
-        {canSubmit ? (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300/70 mb-2">Title</label>
               <input
@@ -138,12 +137,6 @@ const DailyReports: React.FC<DailyReportsProps> = ({ user, isAdmin, users }) => 
               </button>
             </div>
           </div>
-        ) : (
-          <div className="mt-6 rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
-            <p className="text-sm font-semibold text-slate-600 dark:text-blue-200">Admins are exempt from daily report submission.</p>
-            <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Use the report list below to review employee KPIs and weekly performance.</p>
-          </div>
-        )}
       </div>
 
       <div className="liquid-panel p-6">

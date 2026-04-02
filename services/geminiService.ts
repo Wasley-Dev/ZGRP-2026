@@ -216,7 +216,7 @@ const localFallback = (query: string, user: SystemUser): string => {
   if (q.includes('admin')) return 'Admin Console handles user add/ban/delete/password reset and branding controls.';
   if (q.includes('recruit')) return 'Recruitment Hub gives hiring trends, source breakdowns, and funnel visibility.';
   if (q.includes('daily report') || q.includes('reporting')) return 'Daily Reports: submit a write-once report with title/description/date, then view it in your report list.';
-  if (q.includes('attendance') || q.includes('clock in') || q.includes('clock out')) return 'Attendance: clock in/out from the dashboard and review your attendance logs (admins are exempt from clocking).';
+  if (q.includes('attendance') || q.includes('clock in') || q.includes('clock out')) return 'Attendance: clock in/out from the dashboard and review your attendance logs.';
   if (q.includes('task')) return 'Tasks: admins assign tasks; you only see tasks assigned to you, and admins can mark them completed or due.';
   if (q.includes('notice')) return 'Notices: admins publish notices; all users can view published notices.';
   if (q.includes('chat')) return 'Team Chat: use Org chat for everyone and Department chat for your team; admins/super admins can view all departments.';

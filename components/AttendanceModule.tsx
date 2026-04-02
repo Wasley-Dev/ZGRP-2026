@@ -22,6 +22,8 @@ interface AttendanceModuleProps {
 
 const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, users, onNavigate }) => {
   const isExempt = user.role === UserRole.ADMIN;
+  const isSalesUser = /sales/i.test(`${user.department || ''} ${user.jobTitle || ''}`);
+  const salesSelfMiddayEnabled = user.role === UserRole.USER && isSalesUser && [1, 2, 3, 4].includes(new Date().getDay());
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [today, setToday] = useState<AttendanceLog | null>(null);
   const [checkoutReason, setCheckoutReason] = useState('');
@@ -80,7 +82,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
 
     const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
     const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-    const expectedDailyHours = 8;
+    const expectedHoursFor = (isoDate: string) => {
+      const d = new Date(`${isoDate}T12:00:00`);
+      const day = d.getDay(); // 0=Sun
+      if (day === 0) return 0;
+      if (day === 6) return 5.5; // 08:30–14:00
+      return 8.5; // 08:30–17:00
+    };
     const overtimeHours = logs
       .filter((l) => l.userId === user.id)
       .filter((l) => {
@@ -90,7 +98,7 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
       .reduce((acc, l) => {
         if (!l.checkIn || !l.checkOut) return acc;
         const workedHours = segmentsToWorkedMs(l) / (1000 * 60 * 60);
-        return acc + Math.max(0, workedHours - expectedDailyHours);
+        return acc + Math.max(0, workedHours - expectedHoursFor(l.date));
       }, 0);
 
     return { presentDays, leaveDays, sickDays, overtimeHours };
@@ -313,7 +321,9 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance</h2>
-            <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">Clock in once per day. Mid-day checkout requires GM approval. End-of-day clock out does not.</p>
+            <p className="text-xs text-slate-500 dark:text-blue-300/60 mt-1">
+              Working hours: Mon–Fri 08:30–17:00, Sat 08:30–14:00, Sun off. Sales can clock out/in twice per day on Mon–Thu.
+            </p>
           </div>
           <div className="flex gap-2">
             <button
@@ -346,7 +356,13 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
         </div>
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {!isExempt && (
+          {isExempt ? (
+            <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Attendance</h3>
+              <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-blue-200">Admins are exempt from attendance clock-in/out.</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60">Super admin and employees submit attendance normally.</p>
+            </div>
+          ) : (
             <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-5">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
               <div className="mt-4 space-y-3 text-sm">
@@ -390,19 +406,23 @@ const AttendanceModule: React.FC<AttendanceModuleProps> = ({ user, isAdmin, user
                     className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
                     placeholder="Emergency / errands / appointment"
                   />
-                  <button
-                    onClick={handleRequestCheckout}
-                    disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
-                    className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-                  >
-                    {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval (Email)'}
-                  </button>
+                  {!salesSelfMiddayEnabled && (
+                    <button
+                      onClick={handleRequestCheckout}
+                      disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
+                      className="w-full mt-3 py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                    >
+                      {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval (Email)'}
+                    </button>
+                  )}
                   <button
                     onClick={handleMidDayCheckout}
-                    disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
+                    disabled={!isCurrentlyCheckedIn || (!salesSelfMiddayEnabled && checkoutRequest?.status !== 'approved')}
                     className="w-full mt-3 py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
                   >
-                    Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
+                    {salesSelfMiddayEnabled
+                      ? 'Mid-day Checkout (Sales)'
+                      : `Mid-day Checkout ${checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}`}
                   </button>
                   <button
                     onClick={handleClockOut}

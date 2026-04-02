@@ -33,9 +33,11 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
   const todayIsoInEAT = getTodayIsoInEAT();
   const isAdminExempt = user.role === UserRole.ADMIN;
   const isEmployee = user.role === UserRole.USER;
+  const isSuperAdmin = user.role === UserRole.SUPER_ADMIN;
   const isAdminOrSuper = user.role !== UserRole.USER;
   const isSalesTeam = /sales/i.test(String(user.department || '')) || /sales/i.test(String(user.jobTitle || ''));
   const isSalesManager = isSalesTeam && /manager|head|lead/i.test(String(user.jobTitle || ''));
+  const salesSelfMiddayEnabled = user.role === UserRole.USER && isSalesTeam && [1, 2, 3, 4].includes(new Date().getDay());
   const canSeeSalesOverview = user.role !== UserRole.USER || isSalesManager;
   const [todayAttendance, setTodayAttendance] = React.useState<any>(null);
   const [myReportsCount, setMyReportsCount] = React.useState(0);
@@ -60,6 +62,28 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     if (todayAttendance?.checkOut) return 'Checked Out';
     return isCurrentlyCheckedIn ? 'Checked In' : 'Mid-day Checked Out';
   }, [todayAttendance, isCurrentlyCheckedIn]);
+
+  const lateStatus = React.useMemo(() => {
+    if (!todayAttendance?.checkIn) return null;
+    try {
+      const checkIn = new Date(String(todayAttendance.checkIn));
+      if (!Number.isFinite(checkIn.getTime())) return null;
+      const startMin = 8 * 60 + 30;
+      const minutes = checkIn.getHours() * 60 + checkIn.getMinutes();
+      const lateMinutes = minutes - startMin;
+      if (lateMinutes <= 0) return null;
+      const isRed = lateMinutes >= 30;
+      return {
+        lateMinutes,
+        label: `LATE +${lateMinutes}m`,
+        className: isRed
+          ? 'bg-red-500/15 border border-red-500/30 text-red-700 dark:text-red-300'
+          : 'bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300',
+      };
+    } catch {
+      return null;
+    }
+  }, [todayAttendance?.checkIn]);
   const panelClass =
     'rounded-3xl border border-slate-200/80 dark:border-blue-400/20 bg-white/90 dark:bg-[linear-gradient(180deg,#121c46_0%,#0b1431_100%)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur';
   const tileClass =
@@ -353,7 +377,7 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
     <div className={`${panelClass} p-8`}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Centre and Employee Reporting & Performance</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white">Admin Centre</h2>
           <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">
             Admins review employee reports, attendance, and weekly performance. Admin accounts do not submit daily reports or clock in/out.
           </p>
@@ -448,9 +472,17 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-slate-200 dark:border-blue-400/20 bg-white/60 dark:bg-slate-950/30 p-6">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Clock In / Clock Out</h3>
-          <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Mid-day checkout requires GM email approval. End-of-day clock out does not.</p>
+          <p className="mt-2 text-xs text-slate-500 dark:text-blue-300/60 font-semibold">Working hours: Mon–Fri 08:30–17:00, Sat 08:30–14:00, Sun off. Sales can clock out/in twice per day on Mon–Thu.</p>
           <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-blue-200">
             <p>Status: <span className="font-black text-slate-900 dark:text-white">{statusLabel}</span></p>
+            {lateStatus && (
+              <p>
+                <span className="text-slate-500 dark:text-blue-300/60 font-semibold">Late:</span>{' '}
+                <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${lateStatus.className}`}>
+                  {lateStatus.label}
+                </span>
+              </p>
+            )}
             {todayAttendance?.checkIn && <p>Check-in: <span className="font-mono">{new Date(todayAttendance.checkIn).toLocaleTimeString('en-GB')}</span></p>}
             {todayAttendance?.checkOut && <p>Check-out: <span className="font-mono">{new Date(todayAttendance.checkOut).toLocaleTimeString('en-GB')}</span></p>}
             {!todayAttendance?.checkOut && Array.isArray(todayAttendance?.segments) && todayAttendance.segments?.[todayAttendance.segments.length - 1]?.out && (
@@ -472,19 +504,21 @@ const DashboardOverview: React.FC<DashboardProps> = ({ onNavigate, candidatesCou
               className="w-full p-3 rounded-xl border border-slate-200 dark:border-blue-400/20 bg-white/70 dark:bg-slate-950/40 text-slate-900 dark:text-white font-semibold outline-none"
               placeholder="Checkout reason (optional)"
             />
-            <button
-              onClick={handleRequestCheckout}
-              disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
-              className="w-full py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
-            >
-              {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval'}
-            </button>
+            {!salesSelfMiddayEnabled && (
+              <button
+                onClick={handleRequestCheckout}
+                disabled={!isCurrentlyCheckedIn || checkoutRequest?.status === 'pending'}
+                className="w-full py-3 rounded-xl border border-gold/30 text-gold text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+              >
+                {checkoutRequest?.status === 'pending' ? 'Approval Pending' : 'Request Mid-day Approval'}
+              </button>
+            )}
             <button
               onClick={handleMidDayCheckout}
-              disabled={!isCurrentlyCheckedIn || checkoutRequest?.status !== 'approved'}
+              disabled={!isCurrentlyCheckedIn || (!salesSelfMiddayEnabled && checkoutRequest?.status !== 'approved')}
               className="w-full py-3 rounded-xl border border-red-300/40 text-red-600 dark:text-red-300 text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
             >
-              Mid-day Checkout {checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}
+              {salesSelfMiddayEnabled ? 'Mid-day Checkout (Sales)' : `Mid-day Checkout ${checkoutRequest?.status === 'approved' ? '' : '(Requires Approval)'}`}
             </button>
             <button
               onClick={handleClockOut}

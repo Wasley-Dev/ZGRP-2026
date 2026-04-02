@@ -18,6 +18,20 @@ export const hasSalesSupabase = () => Boolean(getSupabase());
 
 const nowIso = () => new Date().toISOString();
 
+const uuid = (): string => {
+  try {
+    const anyCrypto = globalThis.crypto as any;
+    if (anyCrypto?.randomUUID) return anyCrypto.randomUUID();
+  } catch {
+    // ignore
+  }
+  const s4 = () => Math.floor((1 + Math.random()) * 0x10000).toString(16).slice(1);
+  return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
+};
+
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+
 const SALES_LOCAL_PREFIX = 'zaya_local_sales_v1:';
 
 const readLocalArray = <T>(key: string, fallback: T[] = []): T[] => {
@@ -123,7 +137,7 @@ export const createLead = async (
   input: Omit<Lead, 'id' | 'userId' | 'createdAt' | 'createdByUserId' | 'createdByName'>
 ): Promise<Lead> => {
   const local: Lead = {
-    id: `local-${Date.now()}`,
+    id: uuid(),
     userId: targetUserId,
     createdByUserId: actor.id,
     createdByName: actor.name,
@@ -135,7 +149,8 @@ export const createLead = async (
   const client = getSupabase();
   if (!client) return local;
 
-  const payload = {
+  const payload: any = {
+    id: local.id,
     user_id: targetUserId,
     created_by_user_id: actor.id,
     created_by_name: actor.name,
@@ -151,7 +166,17 @@ export const createLead = async (
     reminder_sent_at: input.reminderSentAt || null,
     created_at: nowIso(),
   };
-  const { data, error } = await client.from('leads').insert(payload).select('*').single();
+  let { data, error } = await client.from('leads').insert(payload).select('*').single();
+  if ((error || !data) && isSchemaError(error)) {
+    // Backward compatibility: older schemas may lack follow-up and created-by columns.
+    const message = String((error as any)?.message || '');
+    const missingCreatedBy = /created_by_/i.test(message);
+    const missingFollowUp = /follow_up_/i.test(message) || /reminder_sent_at/i.test(message);
+    const retryPayload = { ...payload };
+    if (missingCreatedBy) { delete retryPayload.created_by_user_id; delete retryPayload.created_by_name; }
+    if (missingFollowUp) { delete retryPayload.follow_up_at; delete retryPayload.follow_up_notes; delete retryPayload.reminder_sent_at; }
+    ({ data, error } = await client.from('leads').insert(retryPayload).select('*').single());
+  }
   if (error || !data) {
     if (isSchemaError(error)) return local;
     throw new Error(msg(error) || 'Failed to create lead.');
@@ -217,13 +242,14 @@ export const createInvoice = async (
   targetUserId: string,
   input: Omit<Invoice, 'id' | 'userId' | 'createdAt'>
 ): Promise<Invoice> => {
-  const local: Invoice = { id: `local-${Date.now()}`, userId: targetUserId, createdAt: nowIso(), ...input };
+  const local: Invoice = { id: uuid(), userId: targetUserId, createdAt: nowIso(), ...input };
   const current = readLocalArray<Invoice>('invoices', []);
   writeLocalArray('invoices', [local, ...current].slice(0, 500));
   const client = getSupabase();
   if (!client) return local;
 
   const payload = {
+    id: local.id,
     user_id: targetUserId,
     invoice_no: input.invoiceNo,
     client: input.client,
@@ -325,4 +351,89 @@ export const upsertSalesTarget = async (
   const created = toTarget(attempt.data);
   writeLocalArray('targets', [created, ...next.filter((t) => t.id !== created.id)].slice(0, 500));
   return created;
+};
+
+export const syncLocalSalesData = async (): Promise<void> => {
+  const client = getSupabase();
+  if (!client) return;
+
+  const localLeads = readLocalArray<Lead>('leads', []);
+  const leadRows = localLeads
+    .filter((l) => isUuid(l.id) && l.userId && l.name)
+    .map((l) => ({
+      id: l.id,
+      user_id: l.userId,
+      created_by_user_id: l.createdByUserId || null,
+      created_by_name: l.createdByName || null,
+      name: l.name,
+      company: l.company || null,
+      phone: l.phone || null,
+      email: l.email || null,
+      status: l.status,
+      estimated_value: l.estimatedValue ?? null,
+      notes: l.notes || null,
+      follow_up_at: l.followUpAt || null,
+      follow_up_notes: l.followUpNotes || null,
+      reminder_sent_at: l.reminderSentAt || null,
+      created_at: l.createdAt || nowIso(),
+    }));
+  if (leadRows.length) {
+    const attempt = await client.from('leads').upsert(leadRows as any, { onConflict: 'id' });
+    if (attempt.error && isSchemaError(attempt.error)) {
+      const message = String((attempt.error as any)?.message || '');
+      const missingCreatedBy = /created_by_/i.test(message);
+      const missingFollowUp = /follow_up_/i.test(message) || /reminder_sent_at/i.test(message);
+      const legacy = leadRows.map((row: any) => {
+        const next = { ...row };
+        if (missingCreatedBy) { delete next.created_by_user_id; delete next.created_by_name; }
+        if (missingFollowUp) { delete next.follow_up_at; delete next.follow_up_notes; delete next.reminder_sent_at; }
+        return next;
+      });
+      await client.from('leads').upsert(legacy as any, { onConflict: 'id' });
+    }
+  }
+
+  const localInvoices = readLocalArray<Invoice>('invoices', []);
+  const invoiceRows = localInvoices
+    .filter((i) => isUuid(i.id) && i.userId && i.invoiceNo && i.client)
+    .map((i) => ({
+      id: i.id,
+      user_id: i.userId,
+      invoice_no: i.invoiceNo,
+      client: i.client,
+      amount: i.amount,
+      status: i.status,
+      due_date: i.dueDate || null,
+      created_at: i.createdAt || nowIso(),
+    }));
+  if (invoiceRows.length) {
+    await client.from('invoices').upsert(invoiceRows as any, { onConflict: 'id' });
+  }
+
+  const localTargets = readLocalArray<SalesTarget>('targets', []);
+  const targetRows = localTargets
+    .filter((t) => t.userId && typeof t.month === 'number' && typeof t.year === 'number')
+    .map((t) => ({
+      user_id: t.userId,
+      month: t.month,
+      year: t.year,
+      leads_target: t.leadsTarget,
+      revenue_target: t.revenueTarget,
+      created_at: t.createdAt || nowIso(),
+    }));
+  if (targetRows.length) {
+    await client.from('sales_targets').upsert(targetRows as any, { onConflict: 'user_id,month,year' });
+  }
+};
+
+export const purgeLocalSalesData = (): void => {
+  if (typeof window === 'undefined') return;
+  const keys = ['leads', 'invoices', 'targets'];
+  keys.forEach((k) => {
+    try {
+      window.localStorage.removeItem(`${SALES_LOCAL_PREFIX}${k}`);
+    } catch {
+      // ignore
+    }
+  });
 };

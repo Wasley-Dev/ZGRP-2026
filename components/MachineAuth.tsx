@@ -1,8 +1,9 @@
 import React from 'react';
-import { MachineSession } from '../types';
+import { MachineSession, SystemUser } from '../types';
 
 interface MachineAuthProps {
   sessions: MachineSession[];
+  users: SystemUser[];
   currentSessionId: string;
   onForceOut: (sessionId: string) => Promise<void>;
   onRevoke: (sessionId: string) => Promise<void>;
@@ -12,6 +13,7 @@ interface MachineAuthProps {
 
 const MachineAuth: React.FC<MachineAuthProps> = ({
   sessions,
+  users,
   currentSessionId,
   onForceOut,
   onRevoke,
@@ -37,6 +39,22 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
       ? `https://maps.google.com/?q=${machine.latitude},${machine.longitude}`
       : undefined;
 
+  const sessionByUserId = React.useMemo(() => {
+    const map = new Map<string, MachineSession>();
+    sessions.forEach((s) => {
+      const prev = map.get(s.userId);
+      if (!prev) { map.set(s.userId, s); return; }
+      if (String(s.lastSeenAt).localeCompare(String(prev.lastSeenAt)) > 0) map.set(s.userId, s);
+    });
+    return map;
+  }, [sessions]);
+
+  const directoryUsers = React.useMemo(() => {
+    return [...users]
+      .filter((u) => u.status !== 'BANNED')
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [users]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 w-full overflow-x-hidden">
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -56,6 +74,76 @@ const MachineAuth: React.FC<MachineAuthProps> = ({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className={`${cardClass} overflow-hidden`}>
+        <div className="p-6 border-b border-[#1e3a5f]">
+          <h3 className="font-black text-blue-400 uppercase tracking-tight">Employee Directory</h3>
+          <p className="text-xs text-blue-300/50 font-bold uppercase tracking-widest mt-1">
+            Live users across all devices (including Sales)
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-[#0a1628] text-[10px] uppercase font-black text-blue-300/60 tracking-widest">
+              <tr>
+                <th className="p-4">Name</th>
+                <th className="p-4">Email</th>
+                <th className="p-4">Department</th>
+                <th className="p-4">Role</th>
+                <th className="p-4">Status</th>
+                <th className="p-4">Presence</th>
+                <th className="p-4">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1e3a5f] text-blue-100/90">
+              {directoryUsers.map((u) => {
+                const s = sessionByUserId.get(u.id);
+                const presence = s ? (s.isOnline ? 'ONLINE' : 'OFFLINE') : 'NO SESSION';
+                const lastSeen = s?.lastSeenAt ? new Date(s.lastSeenAt).toLocaleString('en-GB') : '-';
+                return (
+                  <tr key={u.id} className="hover:bg-[#0a1628]/60 transition-colors">
+                    <td className="p-4">
+                      <p className="font-black text-white uppercase text-xs">{u.name}</p>
+                      {u.jobTitle && <p className="text-[10px] text-blue-300/50 font-bold uppercase">{u.jobTitle}</p>}
+                    </td>
+                    <td className="p-4 text-[10px] font-mono text-blue-200">{u.email}</td>
+                    <td className="p-4 text-blue-200 font-bold text-xs uppercase">{u.department}</td>
+                    <td className="p-4 text-blue-200 font-bold text-xs uppercase">{u.role}</td>
+                    <td className="p-4 text-xs">
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1 ${
+                        u.status === 'ACTIVE'
+                          ? 'bg-green-900/40 text-green-400 border border-green-500/30'
+                          : 'bg-amber-900/40 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        {u.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-xs">
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1 ${
+                        presence === 'ONLINE'
+                          ? 'bg-green-900/40 text-green-400 border border-green-500/30'
+                          : presence === 'OFFLINE'
+                          ? 'bg-amber-900/40 text-amber-400 border border-amber-500/30'
+                          : 'bg-[#0a1628] text-blue-300 border border-[#1e3a5f]'
+                      }`}>
+                        {presence}
+                      </span>
+                    </td>
+                    <td className="p-4 text-blue-300/60 text-xs">{lastSeen}</td>
+                  </tr>
+                );
+              })}
+              {directoryUsers.length === 0 && (
+                <tr>
+                  <td className="p-6 text-blue-300/40 text-sm" colSpan={7}>
+                    No users found. Configure Supabase so the desktop app mirrors the live portal.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className={`${cardClass} overflow-hidden`}>

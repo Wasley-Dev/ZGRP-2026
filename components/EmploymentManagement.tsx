@@ -110,9 +110,11 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
   const toIsoDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-  const isWeekday = (d: Date) => {
-    const day = d.getDay();
-    return day !== 0 && day !== 6;
+  const expectedMinutesForDay = (d: Date): number => {
+    const day = d.getDay(); // 0=Sun
+    if (day === 0) return 0;
+    if (day === 6) return Math.round(5.5 * 60); // 08:30–14:00
+    return Math.round(8.5 * 60); // 08:30–17:00
   };
 
   const computeWorkedMinutes = (log: AttendanceLog): number => {
@@ -168,7 +170,7 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
         const to = new Date(`${r.endDate}T00:00:00`);
         for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
           if (d.getTime() < start.getTime() || d.getTime() > progressEnd.getTime()) continue;
-          if (!isWeekday(d)) continue;
+          if (expectedMinutesForDay(d) <= 0) continue;
           set.add(toIsoDate(d));
         }
         leaveByUser.set(r.userId, set);
@@ -178,26 +180,19 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((u) => {
-        if (u.role !== UserRole.USER) {
-          return {
-            userId: u.id,
-            name: u.name,
-            role: u.role,
-            attendancePercent: null as number | null,
-            kpiPercent: null as number | null,
-            expectedDays: 0,
-            workedMinutes: 0,
-            reportDays: 0,
-          };
-        }
-
+        const exempt = u.role === UserRole.ADMIN;
         const leaveDays = leaveByUser.get(u.id) || new Set<string>();
         let expectedDays = 0;
-        for (let d = new Date(start); d.getTime() <= progressEnd.getTime(); d.setDate(d.getDate() + 1)) {
-          if (!isWeekday(d)) continue;
-          const iso = toIsoDate(d);
-          if (leaveDays.has(iso)) continue;
-          expectedDays += 1;
+        let expectedMinutes = 0;
+        if (!exempt) {
+          for (let d = new Date(start); d.getTime() <= progressEnd.getTime(); d.setDate(d.getDate() + 1)) {
+            const minutes = expectedMinutesForDay(d);
+            if (minutes <= 0) continue;
+            const iso = toIsoDate(d);
+            if (leaveDays.has(iso)) continue;
+            expectedDays += 1;
+            expectedMinutes += minutes;
+          }
         }
 
         const workedMinutes = attendanceLogs
@@ -210,16 +205,18 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
             .filter((r) => r.userId === u.id)
             .map((r) => toIsoDate(new Date(r.createdAt)))
             .filter((iso) => iso >= toIsoDate(start) && iso <= toIsoDate(progressEnd))
+            .filter((iso) => expectedMinutesForDay(new Date(`${iso}T12:00:00`)) > 0)
+            .filter((iso) => !leaveDays.has(iso))
         ).size;
 
-        const expectedMinutes = expectedDays * 8 * 60;
-        const attendancePercent = expectedMinutes > 0 ? Math.max(0, Math.min(100, (workedMinutes / expectedMinutes) * 100)) : 100;
-        const kpiPercent = expectedDays > 0 ? Math.max(0, Math.min(100, (reportDays / expectedDays) * 100)) : 100;
+        const attendancePercent = exempt ? 100 : expectedMinutes > 0 ? Math.max(0, Math.min(100, (workedMinutes / expectedMinutes) * 100)) : 100;
+        const kpiPercent = exempt ? 100 : expectedDays > 0 ? Math.max(0, Math.min(100, (reportDays / expectedDays) * 100)) : 100;
 
         return {
           userId: u.id,
           name: u.name,
           role: u.role,
+          exempt,
           attendancePercent,
           kpiPercent,
           expectedDays,
@@ -228,9 +225,7 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
         };
       });
 
-    const valid = rows.filter((r) => typeof r.attendancePercent === 'number' && typeof r.kpiPercent === 'number') as Array<
-      (typeof rows)[number] & { attendancePercent: number; kpiPercent: number }
-    >;
+    const valid = rows.filter((r) => !r.exempt);
 
     const teamAttendance = valid.length ? valid.reduce((sum, r) => sum + r.attendancePercent, 0) / valid.length : 100;
     const teamKpi = valid.length ? valid.reduce((sum, r) => sum + r.kpiPercent, 0) / valid.length : 100;
@@ -336,8 +331,8 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
                   const kpi = row.kpiPercent;
                   const user = users.find((u) => u.id === row.userId);
                   const performanceScore = typeof user?.performanceScore === 'number' ? Math.round(user.performanceScore) : null;
-                  const attendanceBand = typeof attendance === 'number' ? scoreBand(attendance) : null;
-                  const kpiBand = typeof kpi === 'number' ? scoreBand(kpi) : null;
+                  const attendanceBand = scoreBand(attendance);
+                  const kpiBand = scoreBand(kpi);
                   return (
                     <tr key={`att-${row.userId}`}>
                       <td className="py-3 px-4">
@@ -346,31 +341,35 @@ const EmploymentManagement: React.FC<EmploymentManagementProps> = ({ users, curr
                       </td>
                       <td className="py-3 px-4 font-bold text-slate-700 dark:text-blue-200">{row.expectedDays}</td>
                       <td className="py-3 px-4">
-                        {typeof attendance === 'number' ? (
+                        {row.exempt ? (
+                          <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-500/10 border border-slate-500/20 text-slate-700 dark:text-blue-200">
+                            EXEMPT
+                          </span>
+                        ) : (
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${attendanceBand?.pill || ''}`}>
-                              {Math.round(attendance)}% {attendanceBand?.label}
+                            <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${attendanceBand.pill}`}>
+                              {Math.round(attendance)}% {attendanceBand.label}
                             </span>
                             <span className="text-[10px] font-bold text-slate-500 dark:text-blue-300/60">
-                              {Math.round(row.workedMinutes / 60)}h / {row.expectedDays * 8}h
+                              {Math.round(row.workedMinutes / 60)}h
                             </span>
                           </div>
-                        ) : (
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exempt</span>
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        {typeof kpi === 'number' ? (
+                        {row.exempt ? (
+                          <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest bg-slate-500/10 border border-slate-500/20 text-slate-700 dark:text-blue-200">
+                            EXEMPT
+                          </span>
+                        ) : (
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${kpiBand?.pill || ''}`}>
-                              {Math.round(kpi)}% {kpiBand?.label}
+                            <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${kpiBand.pill}`}>
+                              {Math.round(kpi)}% {kpiBand.label}
                             </span>
                             <span className="text-[10px] font-bold text-slate-500 dark:text-blue-300/60">
                               {row.reportDays} / {row.expectedDays}
                             </span>
                           </div>
-                        ) : (
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exempt</span>
                         )}
                       </td>
                       <td className="py-3 px-4">

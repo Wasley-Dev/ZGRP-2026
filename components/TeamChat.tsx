@@ -38,8 +38,23 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
       const slug = dept.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'general';
       if (!slugs.has(slug)) slugs.set(slug, dept);
     });
-    return Array.from(slugs.entries()).map(([slug, label]) => ({ slug, label })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [users]);
+
+    // Remove accidental "departments" that were actually job titles.
+    const blocked = [/gate\s*keeper/i, /sales\s*executive/i];
+    const items = Array.from(slugs.entries())
+      .map(([slug, label]) => ({ slug, label }))
+      .filter((opt) => !blocked.some((re) => re.test(opt.label)));
+
+    // Add admin-only channels.
+    if (isAdmin) {
+      items.push({ slug: 'admins', label: 'Admins' });
+      items.push({ slug: 'board-members', label: 'Board Members' });
+    }
+
+    // Ensure uniqueness after merging.
+    const unique = new Map(items.map((i) => [i.slug, i]));
+    return Array.from(unique.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [users, isAdmin]);
   const getHandle = (u?: SystemUser): string => {
     const email = String(u?.email || '').trim().toLowerCase();
     if (email.includes('@')) return `@${email.split('@')[0]}`;
@@ -172,6 +187,11 @@ const TeamChat: React.FC<TeamChatProps> = ({ user, users }) => {
                           <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
                             {[senderHandle, senderTitle].filter(Boolean).join(' • ') || (isMine ? '' : 'Employee')}
                           </p>
+                          {isAdmin && String(sender?.department || '').trim() ? (
+                            <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${isMine ? 'text-white/60' : 'text-slate-400 dark:text-blue-300/40'}`}>
+                              {String(sender?.department || '').trim()}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <p className={`text-[10px] font-mono ${isMine ? 'text-white/70' : 'text-slate-400 dark:text-blue-300/50'}`}>
